@@ -1127,41 +1127,10 @@ class TrevoMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: AppColors.pink,
-        borderRadius: BorderRadius.circular(size * 0.32),
-      ),
-      child: CustomPaint(painter: FlowerPainter(color: AppColors.pink)),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: Image.asset('assets/img/app_icon.png', width: size, height: size),
     );
-  }
-}
-
-class FlowerPainter extends CustomPainter {
-  const FlowerPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = color;
-    final radius = size.width * 0.22;
-    final orbit = size.width * 0.18;
-    final center = Offset(size.width / 2, size.height / 2);
-
-    for (int i = 0; i < 8; i++) {
-      final angle = (math.pi * 2 / 8) * i;
-      final offset = Offset(math.cos(angle) * orbit, math.sin(angle) * orbit);
-      canvas.drawCircle(center + offset, radius, paint);
-    }
-    canvas.drawCircle(center, radius * 1.02, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant FlowerPainter oldDelegate) {
-    return oldDelegate.color != color;
   }
 }
 

@@ -65,7 +65,7 @@ class DashboardSidebar extends StatelessWidget {
                 if (!collapsed || isMobile) ...[
                   const SizedBox(width: 14),
                   const Text(
-                    'trevo',
+                    'Trevo',
                     style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,

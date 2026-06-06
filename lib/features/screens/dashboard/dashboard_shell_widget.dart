@@ -109,11 +109,12 @@ class DashboardShellState extends State<DashboardShell> {
                             title: currentPageMeta.title,
                             subtitle: currentPageMeta.subtitle,
                           ),
-                          DateToolbar(
-                            range: dashboard.range,
-                            isCompact: isCompact,
-                            onRangeChanged: dashboard.setRange,
-                          ),
+                          if (selectedPage != DashPage.notifications)
+                            DateToolbar(
+                              range: dashboard.range,
+                              isCompact: isCompact,
+                              onRangeChanged: dashboard.setRange,
+                            ),
                           Expanded(
                             child: SingleChildScrollView(
                               padding: EdgeInsets.fromLTRB(

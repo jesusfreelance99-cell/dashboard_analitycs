@@ -16,11 +16,10 @@ class TrevoLogo extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Pink blob shape
-        SizedBox(
+        Image.asset(
+          'assets/img/app_icon.png',
           width: 34,
           height: 34,
-          child: CustomPaint(painter: _BlobPainter()),
         ),
         const SizedBox(width: 10),
         Text(
@@ -34,34 +33,6 @@ class TrevoLogo extends StatelessWidget {
       ],
     );
   }
-}
-
-class _BlobPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = AppColors.pink;
-    final path = Path();
-    // Organic blob: circle with slight deformation
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = size.width / 2;
-    path.moveTo(cx, cy - r);
-    path.cubicTo(cx + r * 1.1, cy - r, cx + r * 1.1, cy + r * 0.6, cx, cy + r);
-    path.cubicTo(
-      cx - r * 0.8,
-      cy + r,
-      cx - r * 1.0,
-      cy + r * 0.2,
-      cx - r,
-      cy - r * 0.2,
-    );
-    path.cubicTo(cx - r, cy - r * 0.8, cx - r * 0.3, cy - r, cx, cy - r);
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─── Form Header ──────────────────────────────────────────────────────────────

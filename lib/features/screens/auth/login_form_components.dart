@@ -18,15 +18,13 @@ class TrevoLogo extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Pink blob shape
-        SizedBox(
-          width: 34,
-          height: 34,
-          child: CustomPaint(painter: _BlobPainter()),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.asset('assets/img/app_icon.png', width: 34, height: 34),
         ),
         const SizedBox(width: 10),
         Text(
-          'trevo',
+          'Trevo',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w500,
             letterSpacing: -0.3,
@@ -36,34 +34,6 @@ class TrevoLogo extends StatelessWidget {
       ],
     );
   }
-}
-
-class _BlobPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()..color = AppColors.pink;
-    final path = Path();
-    // Organic blob: circle with slight deformation
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-    final r = size.width / 2;
-    path.moveTo(cx, cy - r);
-    path.cubicTo(cx + r * 1.1, cy - r, cx + r * 1.1, cy + r * 0.6, cx, cy + r);
-    path.cubicTo(
-      cx - r * 0.8,
-      cy + r,
-      cx - r * 1.0,
-      cy + r * 0.2,
-      cx - r,
-      cy - r * 0.2,
-    );
-    path.cubicTo(cx - r, cy - r * 0.8, cx - r * 0.3, cy - r, cx, cy - r);
-    path.close();
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─── Form Header ──────────────────────────────────────────────────────────────
@@ -145,7 +115,8 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton>
       builder: (context, provider, _) {
         return AnimatedBuilder(
           animation: _scale,
-          builder: (_, child) => Transform.scale(scale: _scale.value, child: child),
+          builder: (_, child) =>
+              Transform.scale(scale: _scale.value, child: child),
           child: GestureDetector(
             onTapDown: (_) {
               if (!provider.isLoading) {
@@ -161,13 +132,15 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton>
               _ctrl.reverse();
               setState(() => _pressed = false);
             },
-            onTap: provider.isLoading ? null : () {
-              provider.signInWithGoogle().then((success) {
-                if (mounted && success) {
-                  context.go(AppRoutes.dashboard);
-                }
-              });
-            },
+            onTap: provider.isLoading
+                ? null
+                : () {
+                    provider.signInWithGoogle().then((success) {
+                      if (mounted && success) {
+                        context.go(AppRoutes.dashboard);
+                      }
+                    });
+                  },
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 100),
               width: double.infinity,
@@ -184,7 +157,9 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton>
                         height: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.pink),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            AppColors.pink,
+                          ),
                         ),
                       ),
                     )
@@ -195,10 +170,11 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton>
                         const SizedBox(width: 8),
                         Text(
                           'Continuar con Google',
-                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w500,
-                            color: AppColors.ink,
-                          ),
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.ink,
+                              ),
                         ),
                       ],
                     ),

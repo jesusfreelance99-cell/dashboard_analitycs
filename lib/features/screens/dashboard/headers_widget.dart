@@ -85,39 +85,40 @@ class DateToolbar extends StatelessWidget {
         isCompact ? 16 : 26,
         0,
       ),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        runSpacing: 14,
-        spacing: 16,
+      child: Row(
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                FluentIcons.calendar_ltr_20_regular,
-                size: 22,
-                color: AppColors.ink3,
-              ),
-              const SizedBox(width: 12),
-              const Text(
-                'Periodo: ',
-                style: TextStyle(fontSize: 16, color: AppColors.ink2),
-              ),
-              Text(
-                rangeInfo.label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.ink,
-                ),
-              ),
-              Text(
-                ' · ${rangeInfo.dates}',
-                style: const TextStyle(fontSize: 16, color: AppColors.ink3),
-              ),
-            ],
+          const Icon(
+            FluentIcons.calendar_ltr_20_regular,
+            size: 22,
+            color: AppColors.ink3,
           ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(
+                    text: 'Periodo: ',
+                    style: TextStyle(fontSize: 16, color: AppColors.ink2),
+                  ),
+                  TextSpan(
+                    text: rangeInfo.label,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.ink,
+                    ),
+                  ),
+                  TextSpan(
+                    text: ' · ${rangeInfo.dates}',
+                    style: const TextStyle(fontSize: 16, color: AppColors.ink3),
+                  ),
+                ],
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 16),
           RangeSegmentedControl(range: range, onChanged: onRangeChanged),
         ],
       ),
