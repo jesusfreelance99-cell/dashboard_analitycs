@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_colors.dart';
@@ -140,48 +141,71 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _scale,
-      builder: (_, child) => Transform.scale(scale: _scale.value, child: child),
-      child: GestureDetector(
-        onTapDown: (_) {
-          _ctrl.forward();
-          setState(() => _pressed = true);
-        },
-        onTapUp: (_) {
-          _ctrl.reverse();
-          setState(() => _pressed = false);
-        },
-        onTapCancel: () {
-          _ctrl.reverse();
-          setState(() => _pressed = false);
-        },
-        onTap: () {},
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          width: double.infinity,
-          height: 48,
-          decoration: BoxDecoration(
-            color: _pressed ? AppColors.fieldBg : AppColors.white,
-            borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-            border: Border.all(color: AppColors.line2, width: 1.5),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              FaIcon(FontAwesomeIcons.google),
-              const SizedBox(width: 8),
-              Text(
-                'Continuar con Google',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.ink,
-                ),
+    return Consumer<LoginScreenProvider>(
+      builder: (context, provider, _) {
+        return AnimatedBuilder(
+          animation: _scale,
+          builder: (_, child) => Transform.scale(scale: _scale.value, child: child),
+          child: GestureDetector(
+            onTapDown: (_) {
+              if (!provider.isLoading) {
+                _ctrl.forward();
+                setState(() => _pressed = true);
+              }
+            },
+            onTapUp: (_) {
+              _ctrl.reverse();
+              setState(() => _pressed = false);
+            },
+            onTapCancel: () {
+              _ctrl.reverse();
+              setState(() => _pressed = false);
+            },
+            onTap: provider.isLoading ? null : () {
+              provider.signInWithGoogle().then((success) {
+                if (mounted && success) {
+                  context.go(AppRoutes.dashboard);
+                }
+              });
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              width: double.infinity,
+              height: 48,
+              decoration: BoxDecoration(
+                color: _pressed ? AppColors.fieldBg : AppColors.white,
+                borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+                border: Border.all(color: AppColors.line2, width: 1.5),
               ),
-            ],
+              child: provider.isLoading
+                  ? const Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(AppColors.pink),
+                        ),
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        FaIcon(FontAwesomeIcons.google),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Continuar con Google',
+                          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.ink,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -391,11 +415,20 @@ class LoginButtonWidget extends StatelessWidget {
           onPressed: provider.isLoading
               ? () {}
               : () async {
-                  await provider.login();
+                  final success = await provider.login();
                   if (!context.mounted) return;
-                  Navigator.of(context).pushReplacementNamed(
-                    AppRoutes.dashboard,
-                  );
+                  if (success) {
+                    context.go(AppRoutes.dashboard);
+                  } else if (provider.errorMessage != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(provider.errorMessage!),
+                        backgroundColor: const Color(0xFFC0134F),
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 4),
+                      ),
+                    );
+                  }
                 },
           type: ButtonType.primary,
         );

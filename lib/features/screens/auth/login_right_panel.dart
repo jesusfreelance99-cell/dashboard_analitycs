@@ -160,7 +160,7 @@ class _LiveBadgeState extends State<LiveBadge>
         children: [
           AnimatedBuilder(
             animation: _pulse,
-            builder: (_, __) => Opacity(
+            builder: (_, _) => Opacity(
               opacity: _pulse.value,
               child: Container(
                 width: 7,
@@ -231,7 +231,7 @@ class _PanelCardsState extends State<PanelCards> with TickerProviderStateMixin {
   Widget _floatWrap(AnimationController ctrl, double dy, Widget child) {
     return AnimatedBuilder(
       animation: ctrl,
-      builder: (_, __) {
+      builder: (_, _) {
         final t = Curves.easeInOut.transform(ctrl.value);
         return Transform.translate(offset: Offset(0, -dy * t), child: child);
       },
@@ -301,10 +301,7 @@ class _PanelCardsState extends State<PanelCards> with TickerProviderStateMixin {
 BoxDecoration _cardDecoration() => BoxDecoration(
   color: Colors.white.withValues(alpha: 0.97),
   borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-  border: Border.all(
-    color: Colors.white.withValues(alpha: 0.55),
-    width: 1,
-  ),
+  border: Border.all(color: Colors.white.withValues(alpha: 0.55), width: 1),
 );
 
 // ─── MetricCard ───────────────────────────────────────────────────────────────
@@ -565,7 +562,7 @@ class _SubsCardState extends State<_SubsCard>
             right: 0,
             child: AnimatedBuilder(
               animation: _spin,
-              builder: (_, __) => Transform.rotate(
+              builder: (_, _) => Transform.rotate(
                 angle: _spin.value * 2 * math.pi,
                 child: SizedBox(
                   width: 26,

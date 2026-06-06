@@ -11,13 +11,12 @@ class TrevoAnalyticsApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, _) {
-        return MaterialApp(
-          title: 'Trevo Analytics',
+        return MaterialApp.router(
+          title: 'Trevo Dashboard',
           theme: AppTheme.lightTheme(),
           darkTheme: AppTheme.darkTheme(),
           themeMode: themeProvider.isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          onGenerateRoute: AppRoutes.generateRoute,
-          initialRoute: AppRoutes.login,
+          routerConfig: AppRoutes.router,
           debugShowCheckedModeBanner: false,
         );
       },

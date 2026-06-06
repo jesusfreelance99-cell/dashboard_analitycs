@@ -1,0 +1,13 @@
+{
+  "projects": {},
+  "targets": {
+    "trevo-ia": {
+      "hosting": {
+        "trevo-ia": [
+          "trevo-ia"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
