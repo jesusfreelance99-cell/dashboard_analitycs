@@ -1295,6 +1295,7 @@ class _NotificationsPage extends StatelessWidget {
             const SizedBox(height: 28),
             Flex(
               direction: stacked ? Axis.vertical : Axis.horizontal,
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(

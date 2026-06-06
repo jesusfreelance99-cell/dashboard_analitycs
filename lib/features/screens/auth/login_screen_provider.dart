@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../../core/services/google_auth_service.dart';
+import '../../../core/services/user_sync_service.dart';
 
 class LoginScreenProvider extends ChangeNotifier {
   // Controllers
@@ -73,6 +74,15 @@ class LoginScreenProvider extends ChangeNotifier {
         return false;
       }
 
+      // Sincronizar usuarios desde Firebase a SQLite
+      print('🔵 Sincronizando usuarios...');
+      try {
+        await UserSyncService().syncAllUsers();
+        print('✅ Usuarios sincronizados correctamente');
+      } catch (e) {
+        print('⚠️ Error sincronizando usuarios: $e');
+      }
+
       // All checks passed
       _isLoading = false;
       notifyListeners();
@@ -126,6 +136,16 @@ class LoginScreenProvider extends ChangeNotifier {
       }
 
       print('✅ Google Sign-In completado exitosamente');
+
+      // Sincronizar usuarios desde Firebase a SQLite
+      print('🔵 Sincronizando usuarios...');
+      try {
+        await UserSyncService().syncAllUsers();
+        print('✅ Usuarios sincronizados correctamente');
+      } catch (e) {
+        print('⚠️ Error sincronizando usuarios: $e');
+      }
+
       _isLoading = false;
       notifyListeners();
       return true;
