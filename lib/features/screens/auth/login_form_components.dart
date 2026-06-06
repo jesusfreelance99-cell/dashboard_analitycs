@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_colors.dart';
@@ -104,103 +105,84 @@ class LoginFormHeader extends StatelessWidget {
 
 // ─── Google Button ────────────────────────────────────────────────────────────
 
-class GoogleSignInButton extends StatelessWidget {
+class GoogleSignInButton extends StatefulWidget {
   const GoogleSignInButton({super.key});
 
   @override
+  State<GoogleSignInButton> createState() => _GoogleSignInButtonState();
+}
+
+class _GoogleSignInButtonState extends State<GoogleSignInButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 80),
+    );
+    _scale = Tween<double>(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: () {},
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.line2, width: 1.5),
-          shape: RoundedRectangleBorder(
+    return AnimatedBuilder(
+      animation: _scale,
+      builder: (_, child) => Transform.scale(scale: _scale.value, child: child),
+      child: GestureDetector(
+        onTapDown: (_) {
+          _ctrl.forward();
+          setState(() => _pressed = true);
+        },
+        onTapUp: (_) {
+          _ctrl.reverse();
+          setState(() => _pressed = false);
+        },
+        onTapCancel: () {
+          _ctrl.reverse();
+          setState(() => _pressed = false);
+        },
+        onTap: () {},
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 100),
+          width: double.infinity,
+          height: 48,
+          decoration: BoxDecoration(
+            color: _pressed ? AppColors.fieldBg : AppColors.white,
             borderRadius: BorderRadius.circular(AppConstants.radiusLg),
+            border: Border.all(color: AppColors.line2, width: 1.5),
           ),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          foregroundColor: AppColors.ink,
-          backgroundColor: Colors.transparent,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _GoogleIcon(),
-            const SizedBox(width: 10),
-            Text(
-              'Continuar con Google',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w500,
-                color: AppColors.ink,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FaIcon(FontAwesomeIcons.google),
+              const SizedBox(width: 8),
+              Text(
+                'Continuar con Google',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w500,
+                  color: AppColors.ink,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
-}
-
-class _GoogleIcon extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 20,
-      height: 20,
-      child: CustomPaint(painter: _GoogleLogoPainter()),
-    );
-  }
-}
-
-class _GoogleLogoPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final s = size.width;
-    void drawArc(Color c, double start, double sweep, double r, Offset center) {
-      canvas.drawArc(
-        Rect.fromCircle(center: center, radius: r),
-        start,
-        sweep,
-        false,
-        Paint()
-          ..color = c
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = s * 0.18,
-      );
-    }
-
-    // Simplified G in 4 colors
-    final cx = s / 2;
-    final cy = s / 2;
-    final r = s * 0.42;
-
-    const pi = 3.14159265358979;
-
-    // Blue (top → right)
-    drawArc(const Color(0xFF4285F4), -pi / 2, pi / 2 + 0.15, r, Offset(cx, cy));
-    // Green (right → bottom)
-    drawArc(const Color(0xFF34A853), 0.15, pi / 2, r, Offset(cx, cy));
-    // Yellow (bottom → left)
-    drawArc(const Color(0xFFFBBC05), pi / 2 + 0.15, pi / 2, r, Offset(cx, cy));
-    // Red (left → top)
-    drawArc(const Color(0xFFEA4335), pi + 0.15, pi / 2, r, Offset(cx, cy));
-
-    // White fill for inner circle
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r - s * 0.18,
-      Paint()..color = Colors.white,
-    );
-
-    // Horizontal bar of G
-    canvas.drawRect(
-      Rect.fromLTWH(cx, cy - s * 0.09, r + s * 0.04, s * 0.18),
-      Paint()..color = const Color(0xFF4285F4),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─── Divider ──────────────────────────────────────────────────────────────────
@@ -265,11 +247,11 @@ class EmailInputField extends StatelessWidget {
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              borderSide: const BorderSide(color: AppColors.line2),
+              borderSide: const BorderSide(color: AppColors.line2, width: 1.8),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-              borderSide: const BorderSide(color: AppColors.line2),
+              borderSide: const BorderSide(color: AppColors.line2, width: 1.8),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -328,11 +310,17 @@ class PasswordInputField extends StatelessWidget {
                 ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  borderSide: const BorderSide(color: AppColors.line2),
+                  borderSide: const BorderSide(
+                    color: AppColors.line2,
+                    width: 1.8,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-                  borderSide: const BorderSide(color: AppColors.line2),
+                  borderSide: const BorderSide(
+                    color: AppColors.line2,
+                    width: 1.8,
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -380,17 +368,6 @@ class RememberMeCheckbox extends StatelessWidget {
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: AppColors.ink2),
-            ),
-            const Spacer(),
-            GestureDetector(
-              onTap: () {},
-              child: Text(
-                '¿Olvidaste tu contraseña?',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.pink,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ),
           ],
         );

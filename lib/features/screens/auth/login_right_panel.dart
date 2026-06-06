@@ -301,18 +301,10 @@ class _PanelCardsState extends State<PanelCards> with TickerProviderStateMixin {
 BoxDecoration _cardDecoration() => BoxDecoration(
   color: Colors.white.withValues(alpha: 0.97),
   borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-  boxShadow: [
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.22),
-      blurRadius: 24,
-      offset: const Offset(0, 8),
-    ),
-    BoxShadow(
-      color: Colors.black.withValues(alpha: 0.10),
-      blurRadius: 6,
-      offset: const Offset(0, 2),
-    ),
-  ],
+  border: Border.all(
+    color: Colors.white.withValues(alpha: 0.55),
+    width: 1,
+  ),
 );
 
 // ─── MetricCard ───────────────────────────────────────────────────────────────

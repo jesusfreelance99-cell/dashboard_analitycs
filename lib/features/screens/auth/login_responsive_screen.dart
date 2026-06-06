@@ -124,8 +124,6 @@ class _LoginFormColumn extends StatelessWidget {
                 LoginButtonWidget(),
                 SizedBox(height: 20),
 
-                // Sign up
-                SignUpPrompt(),
                 SizedBox(height: 48),
 
                 // Footer
