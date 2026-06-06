@@ -1,0 +1,18 @@
+{
+  "app_title": "Trevo Analytics",
+  "welcome": "Welcome",
+  "welcome_subtitle": "Your analytics dashboard is ready",
+  "total_users": "Total Users",
+  "revenue": "Revenue",
+  "conversions": "Conversions",
+  "traffic": "Traffic",
+  "quick_actions": "Quick Actions",
+  "view_reports": "View Complete Reports",
+  "export_data": "Export Data",
+  "opening_reports": "Opening reports...",
+  "exporting_data": "Exporting data...",
+  "loading": "Loading...",
+  "error": "Error",
+  "retry": "Retry",
+  "no_data": "No data available"
+}

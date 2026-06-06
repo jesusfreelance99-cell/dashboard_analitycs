@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trevo · Panel de Crecimiento</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --pink: #F01E6F;
+      --pink-light: #FF5A9D;
+      --pink-dark: #C0134F;
+      --crimson: #8B0038;
+      --white: #FFFFFF;
+      --gray-50: #FAFAFA;
+      --gray-100: #F4F4F5;
+      --gray-200: #E4E4E7;
+      --gray-400: #A1A1AA;
+      --gray-500: #71717A;
+      --gray-700: #3F3F46;
+      --gray-900: #18181B;
+      --radius: 12px;
+      --radius-lg: 16px;
+    }
+
+    html, body {
+      height: 100%;
+      font-family: 'DM Sans', sans-serif;
+      background: var(--white);
+      color: var(--gray-900);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 100vh;
+    }
+
+    /* ─── LEFT PANEL ─────────────────────────────── */
+    .left {
+      display: flex;
+      flex-direction: column;
+      padding: 40px 56px;
+      background: var(--white);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 52px;
+    }
+
+    .logo-blob {
+      width: 36px;
+      height: 36px;
+      background: var(--pink);
+      border-radius: 50% 50% 50% 30% / 50% 50% 30% 50%;
+      flex-shrink: 0;
+    }
+
+    .logo-name {
+      font-size: 18px;
+      font-weight: 500;
+      letter-spacing: -0.3px;
+      color: var(--gray-900);
+    }
+
+    .form-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      max-width: 400px;
+      width: 100%;
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--pink);
+      margin-bottom: 12px;
+    }
+
+    .heading {
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+      line-height: 1.2;
+    }
+
+    .subheading {
+      font-size: 14px;
+      color: var(--gray-500);
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    /* Google button */
+    .btn-google {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 13px 20px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius);
+      background: var(--white);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--gray-900);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+      text-decoration: none;
+    }
+
+    .btn-google:hover {
+      border-color: var(--gray-400);
+      background: var(--gray-50);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    }
+
+    .google-icon {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+    }
+
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--gray-200);
+    }
+
+    .divider span {
+      font-size: 13px;
+      color: var(--gray-400);
+      white-space: nowrap;
+    }
+
+    /* Fields */
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--gray-700);
+      margin-bottom: 6px;
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: var(--gray-900);
+      background: var(--white);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .field input::placeholder {
+      color: var(--gray-400);
+    }
+
+    .field input:focus {
+      border-color: var(--pink);
+      box-shadow: 0 0 0 3px rgba(240, 30, 111, 0.1);
+    }
+
+    .field input[type="password"] {
+      padding-right: 48px;
+    }
+
+    .eye-btn {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--gray-400);
+      display: flex;
+      align-items: center;
+      padding: 4px;
+      transition: color 0.15s;
+    }
+
+    .eye-btn:hover { color: var(--gray-700); }
+
+    /* Row: remember + forgot */
+    .form-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      color: var(--gray-500);
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--pink);
+      cursor: pointer;
+    }
+
+    .forgot-link {
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--pink);
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    .forgot-link:hover { opacity: 0.75; }
+
+    /* Primary CTA */
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: var(--pink);
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.1px;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      box-shadow: 0 4px 16px rgba(240, 30, 111, 0.3);
+    }
+
+    .btn-primary:hover {
+      background: var(--pink-dark);
+      box-shadow: 0 6px 20px rgba(240, 30, 111, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:active { transform: translateY(0); }
+
+    .invite-text {
+      text-align: center;
+      font-size: 13.5px;
+      color: var(--gray-500);
+      margin-top: 20px;
+    }
+
+    .invite-link {
+      color: var(--pink);
+      font-weight: 500;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    .invite-link:hover { opacity: 0.75; }
+
+    .left-footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--gray-400);
+      margin-top: 40px;
+    }
+
+    .left-footer a {
+      color: var(--gray-400);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .left-footer a:hover { color: var(--gray-700); }
+
+    .left-footer span { margin: 0 6px; }
+
+    /* ─── RIGHT PANEL ────────────────────────────── */
+    .right {
+      position: relative;
+      background: linear-gradient(145deg, #E91E73 0%, #C2185B 30%, #880E4F 65%, #4A0020 100%);
+      display: flex;
+      flex-direction: column;
+      padding: 48px 52px;
+      overflow: hidden;
+    }
+
+    /* Decorative blobs */
+    .right::before {
+      content: '';
+      position: absolute;
+      top: -80px;
+      right: -80px;
+      width: 320px;
+      height: 320px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .right::after {
+      content: '';
+      position: absolute;
+      bottom: -120px;
+      left: -60px;
+      width: 400px;
+      height: 400px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .live-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 100px;
+      padding: 6px 14px;
+      width: fit-content;
+      margin-bottom: 28px;
+    }
+
+    .live-dot {
+      width: 7px;
+      height: 7px;
+      background: #4ADE80;
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.85); }
+    }
+
+    .live-badge span {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.9);
+    }
+
+    .right-heading {
+      font-size: clamp(28px, 3vw, 40px);
+      font-weight: 800;
+      color: var(--white);
+      line-height: 1.18;
+      letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    .right-heading em {
+      font-style: italic;
+      font-weight: 800;
+    }
+
+    .right-subtext {
+      font-size: 15px;
+      color: rgba(255,255,255,0.65);
+      line-height: 1.6;
+      max-width: 340px;
+      margin-bottom: 40px;
+    }
+
+    /* Cards area */
+    .cards-area {
+      flex: 1;
+      position: relative;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.96);
+      border-radius: var(--radius-lg);
+      padding: 18px 20px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.15);
+      position: absolute;
+    }
+
+    /* Main card */
+    .card-main {
+      width: 240px;
+      top: 0;
+      left: 0;
+      animation: floatMain 4s ease-in-out infinite;
+    }
+
+    @keyframes floatMain {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-6px); }
+    }
+
+    .card-main-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .card-dot {
+      width: 10px;
+      height: 10px;
+      background: var(--pink);
+      border-radius: 50%;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-700);
+    }
+
+    .card-period {
+      font-size: 11px;
+      color: var(--gray-400);
+      margin-left: auto;
+    }
+
+    .card-label {
+      font-size: 11px;
+      color: var(--gray-500);
+      margin-bottom: 2px;
+    }
+
+    .card-value {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--gray-900);
+      letter-spacing: -1px;
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .card-delta {
+      font-size: 12px;
+      font-weight: 600;
+      color: #16A34A;
+    }
+
+    /* Mini chart */
+    .mini-chart {
+      margin-top: 14px;
+      height: 44px;
+      overflow: hidden;
+    }
+
+    .mini-chart svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Subscribers card */
+    .card-subs {
+      width: 150px;
+      top: 10px;
+      right: 0;
+      padding: 16px 18px;
+      animation: floatSubs 4s ease-in-out infinite 1s;
+    }
+
+    @keyframes floatSubs {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-5px); }
+    }
+
+    .card-subs .card-label { font-size: 12px; margin-bottom: 4px; }
+    .card-subs .card-value { font-size: 36px; margin-bottom: 2px; }
+
+    .subs-loader {
+      width: 28px;
+      height: 28px;
+      position: absolute;
+      top: 16px;
+      right: 16px;
+    }
+
+    .subs-loader svg {
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Notification card */
+    .card-notif {
+      width: 220px;
+      bottom: 60px;
+      left: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      animation: floatNotif 4s ease-in-out infinite 2s;
+    }
+
+    @keyframes floatNotif {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-4px); }
+    }
+
+    .notif-avatar {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      background: var(--pink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--white);
+      flex-shrink: 0;
+    }
+
+    .notif-body { flex: 1; min-width: 0; }
+    .notif-name { font-size: 12.5px; font-weight: 600; color: var(--gray-900); margin-bottom: 2px; }
+    .notif-meta { font-size: 11px; color: var(--gray-400); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Funnel card */
+    .card-funnel {
+      width: 180px;
+      bottom: 60px;
+      right: 10px;
+      animation: floatFunnel 4s ease-in-out infinite 0.5s;
+    }
+
+    @keyframes floatFunnel {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-7px); }
+    }
+
+    .funnel-title { font-size: 12.5px; font-weight: 600; color: var(--gray-900); margin-bottom: 2px; }
+    .funnel-sub { font-size: 11px; color: var(--gray-400); margin-bottom: 10px; }
+
+    .funnel-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 36px;
+    }
+
+    .bar {
+      flex: 1;
+      border-radius: 4px 4px 0 0;
+    }
+
+    .right-footer {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+
+    .right-footer-label {
+      font-size: 13px;
+      color: rgba(255,255,255,0.45);
+    }
+
+    .right-footer-brand {
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.75);
+    }
+
+    .right-footer-sep {
+      font-size: 13px;
+      color: rgba(255,255,255,0.3);
+    }
+
+    /* ─── RESPONSIVE ─────────────────────────────── */
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      .right { display: none; }
+      .left { padding: 40px 32px; align-items: center; }
+      .form-container { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+
+    <!-- LEFT: Login Form -->
+    <div class="left">
+      <div class="logo">
+        <div class="logo-blob"></div>
+        <span class="logo-name">trevo</span>
+      </div>
+
+      <div class="form-container">
+        <p class="eyebrow">Panel de Crecimiento</p>
+        <h1 class="heading">Bienvenido de nuevo</h1>
+        <p class="subheading">Inicia sesión para ver cómo crece Trevo en tiempo real.</p>
+
+        <a href="#" class="btn-google">
+          <!-- Google G icon -->
+          <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          Continuar con Google
+        </a>
+
+        <div class="divider"><span>o con tu correo</span></div>
+
+        <form>
+          <div class="field">
+            <label for="email">Correo electrónico</label>
+            <input type="email" id="email" placeholder="tu@correo.com" autocomplete="email" />
+          </div>
+
+          <div class="field">
+            <label for="password">Contraseña</label>
+            <div class="input-wrap">
+              <input type="password" id="password" placeholder="••••••••" autocomplete="current-password" />
+              <button type="button" class="eye-btn" onclick="togglePassword()" aria-label="Mostrar contraseña">
+                <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label class="checkbox-label">
+              <input type="checkbox" />
+              Recordarme
+            </label>
+            <a href="#" class="forgot-link">¿Olvidaste tu contraseña?</a>
+          </div>
+
+          <button type="submit" class="btn-primary">Iniciar sesión</button>
+        </form>
+
+        <p class="invite-text">
+          ¿No tienes acceso aún? <a href="#" class="invite-link">Solicita una invitación</a>
+        </p>
+      </div>
+
+      <footer class="left-footer">
+        © 2026 Trevo &nbsp;<span>·</span>&nbsp;
+        <a href="#">Términos</a>&nbsp;<span>·</span>&nbsp;
+        <a href="#">Privacidad</a>
+      </footer>
+    </div>
+
+    <!-- RIGHT: Hero Panel -->
+    <div class="right">
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        <span>En vivo</span>
+      </div>
+
+      <h2 class="right-heading">
+        Cada peso y cada<br/>
+        usuario, <em>en tiempo real.</em>
+      </h2>
+
+      <p class="right-subtext">
+        Embudo, retención, CAC y revenue de tu app en un solo panel.
+        Toma decisiones con datos, no con corazonadas.
+      </p>
+
+      <div class="cards-area">
+        <!-- Main overview card -->
+        <div class="card card-main">
+          <div class="card-main-header">
+            <div class="card-dot"></div>
+            <span class="card-title">Vista general</span>
+            <span class="card-period">Últimos 30d</span>
+          </div>
+          <p class="card-label">MRR · ingresos recurrentes</p>
+          <p class="card-value">$142</p>
+          <p class="card-delta">↑ $31 esta semana</p>
+          <div class="mini-chart">
+            <svg viewBox="0 0 200 44" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#F01E6F" stop-opacity="0.2"/>
+                  <stop offset="100%" stop-color="#F01E6F" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,38 C20,36 30,34 50,30 C70,26 80,28 100,22 C120,16 130,20 150,12 C170,4 185,6 200,2 L200,44 L0,44 Z" fill="url(#chartGrad)"/>
+              <path d="M0,38 C20,36 30,34 50,30 C70,26 80,28 100,22 C120,16 130,20 150,12 C170,4 185,6 200,2" fill="none" stroke="#F01E6F" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Subscribers card -->
+        <div class="card card-subs">
+          <div class="subs-loader">
+            <svg viewBox="0 0 28 28" width="28" height="28">
+              <circle cx="14" cy="14" r="10" fill="none" stroke="#F4F4F5" stroke-width="3"/>
+              <path d="M14,4 A10,10 0 0,1 24,14" fill="none" stroke="#F01E6F" stroke-width="3" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <p class="card-label">Suscriptores</p>
+          <p class="card-value">11</p>
+          <p class="card-delta" style="font-size:11px;">↑ 3 nuevos</p>
+        </div>
+
+        <!-- New subscriber notification -->
+        <div class="card card-notif">
+          <div class="notif-avatar">S</div>
+          <div class="notif-body">
+            <p class="notif-name">Nueva suscripción Pro</p>
+            <p class="notif-meta">Sofía · Medellín · hace 2 min</p>
+          </div>
+        </div>
+
+        <!-- Funnel card -->
+        <div class="card card-funnel">
+          <p class="funnel-title">Embudo de conversión</p>
+          <p class="funnel-sub">Descarga → suscripción · 7.2%</p>
+          <div class="funnel-bars">
+            <div class="bar" style="height:100%; background:#22C55E;"></div>
+            <div class="bar" style="height:85%; background:#4ADE80;"></div>
+            <div class="bar" style="height:70%; background:#A855F7;"></div>
+            <div class="bar" style="height:90%; background:#C084FC;"></div>
+            <div class="bar" style="height:55%; background:#F01E6F;"></div>
+            <div class="bar" style="height:40%; background:#FB923C;"></div>
+            <div class="bar" style="height:30%; background:#EF4444;"></div>
+            <div class="bar" style="height:45%; background:#22C55E;"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="right-footer">
+        <span class="right-footer-label">Conectado con</span>
+        <span class="right-footer-brand">RevenueCat</span>
+        <span class="right-footer-sep">·</span>
+        <span class="right-footer-brand">Mixpanel</span>
+        <span class="right-footer-sep">·</span>
+        <span class="right-footer-brand">Firebase</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    function togglePassword() {
+      const input = document.getElementById('password');
+      const icon = document.getElementById('eye-icon');
+      if (input.type === 'password') {
+        input.type = 'text';
+        icon.innerHTML = `
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        `;
+      } else {
+        input.type = 'password';
+        icon.innerHTML = `
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>
