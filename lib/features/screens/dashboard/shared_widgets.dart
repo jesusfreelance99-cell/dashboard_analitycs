@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 
 import 'models.dart';
 
-class SidebarItem extends StatelessWidget {
+class SidebarItem extends StatefulWidget {
   const SidebarItem({
     super.key,
     required this.meta,
@@ -24,40 +24,106 @@ class SidebarItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<SidebarItem> createState() => _SidebarItemState();
+}
+
+class _SidebarItemState extends State<SidebarItem>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _scale;
+  late final Animation<double> _iconScale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
+    _scale = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
+    _iconScale = Tween<double>(begin: 1.0, end: 1.18).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
+    );
+    if (widget.selected) _ctrl.value = 1.0;
+  }
+
+  @override
+  void didUpdateWidget(SidebarItem old) {
+    super.didUpdateWidget(old);
+    if (widget.selected && !old.selected) {
+      _ctrl.forward(from: 0.0);
+    } else if (!widget.selected && old.selected) {
+      _ctrl.reverse();
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? const Color(0x0F140C10) : Colors.transparent,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         borderRadius: BorderRadius.circular(18),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
           padding: EdgeInsets.symmetric(
-            horizontal: collapsed ? 14 : 18,
+            horizontal: widget.collapsed ? 14 : 18,
             vertical: 16,
           ),
+          decoration: BoxDecoration(
+            color: widget.selected
+                ? const Color(0x0F140C10)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(18),
+          ),
           child: Row(
-            mainAxisAlignment: collapsed
+            mainAxisAlignment: widget.collapsed
                 ? MainAxisAlignment.center
                 : MainAxisAlignment.start,
             children: [
-              Icon(
-                meta.icon,
-                size: 30,
-                color: selected ? AppColors.pink : AppColors.ink3,
+              ScaleTransition(
+                scale: _iconScale,
+                child: Icon(
+                  widget.selected ? widget.meta.iconSelected : widget.meta.icon,
+                  size: 30,
+                  color: widget.selected ? AppColors.pink : AppColors.ink3,
+                ),
               ),
-              if (!collapsed) ...[
+              if (!widget.collapsed) ...[
                 const SizedBox(width: 16),
                 Expanded(
-                  child: Text(
-                    meta.navLabel,
+                  child: AnimatedDefaultTextStyle(
+                    duration: const Duration(milliseconds: 200),
                     style: TextStyle(
                       fontSize: 18,
-                      fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: widget.selected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       color: AppColors.ink2,
                     ),
+                    child: Text(widget.meta.navLabel),
                   ),
                 ),
+                if (widget.selected)
+                  ScaleTransition(
+                    scale: _scale,
+                    child: Container(
+                      width: 6,
+                      height: 6,
+                      decoration: const BoxDecoration(
+                        color: AppColors.pink,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
               ],
             ],
           ),
@@ -128,7 +194,7 @@ class RangeSegmentedControl extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
@@ -244,7 +310,7 @@ class MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
       decoration: BoxDecoration(
-        color: accent ? const Color(0xFFFBEEF2) : Colors.white,
+        color: accent ? const Color(0xFFFBEEF2) : AppColors.white,
         borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
@@ -404,7 +470,7 @@ class Panel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(32),
       ),
       child: child,
@@ -465,7 +531,7 @@ class MapPlaceholder extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: AppColors.white,
                 borderRadius: BorderRadius.circular(22),
               ),
               child: const Column(
@@ -595,7 +661,7 @@ class SearchField extends StatelessWidget {
     return Container(
       height: 78,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
@@ -636,7 +702,7 @@ class FilterSegment extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
@@ -680,7 +746,7 @@ class UsersTablePlaceholder extends StatelessWidget {
     return Container(
       height: 72,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.white,
         borderRadius: BorderRadius.circular(28),
       ),
     );
@@ -874,15 +940,17 @@ class TextInput extends StatelessWidget {
 
 class TextAreaInput extends StatelessWidget {
   const TextAreaInput({
+    super.key,
     required this.controller,
     required this.hintText,
     required this.maxLengthLabel,
+    this.maxLines = 4,
   });
 
   final TextEditingController controller;
   final String hintText;
   final String maxLengthLabel;
-
+  final int maxLines;
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -890,7 +958,7 @@ class TextAreaInput extends StatelessWidget {
       children: [
         TextField(
           controller: controller,
-          maxLines: 4,
+          maxLines: maxLines,
           decoration: InputDecoration(
             hintText: hintText,
             hintStyle: const TextStyle(fontSize: 18, color: AppColors.ink3),
@@ -973,7 +1041,7 @@ class MiniSegment extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 15),
         decoration: BoxDecoration(
-          color: selected ? Colors.white : Colors.transparent,
+          color: selected ? AppColors.white : Colors.transparent,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Text(
@@ -1026,7 +1094,7 @@ class PhonePreview extends StatelessWidget {
                   width: 154,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: Colors.black,
+                    color: AppColors.black,
                     borderRadius: BorderRadius.circular(24),
                   ),
                 ),
@@ -1043,13 +1111,13 @@ class PhonePreview extends StatelessWidget {
                         fontSize: 84,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -3,
-                        color: Colors.white,
+                        color: AppColors.white,
                       ),
                     ),
                     const SizedBox(height: 6),
                     const Text(
                       'jueves, 5 de junio',
-                      style: TextStyle(fontSize: 24, color: Colors.white),
+                      style: TextStyle(fontSize: 24, color: AppColors.white),
                     ),
                     const SizedBox(height: 52),
                     Container(

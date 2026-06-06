@@ -25,6 +25,12 @@ class AppColors {
   static const Color fieldBg = Color(0xFFfaf9f8); // fondo input reposo
   static const Color fieldFocus = Color(0xFFffffff); // fondo input focus
   static const Color white = Color(0xFFffffff);
+  static const Color black = Color(0xFF000000);
+
+  // ── Superficies modo oscuro ──────────────────────────────────────
+  static const Color surfaceDark = Color(0xFF1A1A1A); // sidebar dark
+  static const Color bgDark = Color(0xFF111111); // scaffold dark
+  static const Color cardDark = Color(0xFF222222); // tarjetas dark
 
   // ── Líneas / bordes ─────────────────────────────────────────────
   static const Color line = Color(0x1A000000); // rgba(0,0,0,0.10)

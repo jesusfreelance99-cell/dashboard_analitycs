@@ -1,10 +1,13 @@
 import 'dart:math' as math;
 
+import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/app_constants.dart';
 import 'package:dashboard_analitycs/core/providers/theme_provider.dart';
 import 'package:dashboard_analitycs/core/routes/app_routes.dart';
+import 'package:dashboard_analitycs/core/services/google_auth_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import 'headers_widget.dart';
@@ -48,8 +51,9 @@ class DashboardShellState extends State<DashboardShell> {
             final selectedPage = dashboard.page;
             final currentPageMeta = pageMeta(selectedPage);
 
+            final isDark = themeProvider.isDarkMode;
             return Scaffold(
-              backgroundColor: const Color(0xFFF5F5F4),
+              backgroundColor: isDark ? AppColors.bgDark : const Color(0xFFF5F5F4),
               drawer: isMobile
                   ? Drawer(
                       elevation: 0,
@@ -68,11 +72,10 @@ class DashboardShellState extends State<DashboardShell> {
                         collapsed: false,
                         isDarkMode: themeProvider.isDarkMode,
                         onToggleTheme: themeProvider.toggleTheme,
-                        onLogout: () {
-                          Navigator.of(context).pushNamedAndRemoveUntil(
-                            AppRoutes.login,
-                            (route) => false,
-                          );
+                        onLogout: () async {
+                          await GoogleAuthService.signOut();
+                          if (!context.mounted) return;
+                          context.go(AppRoutes.login);
                         },
                       ),
                     )
@@ -93,11 +96,10 @@ class DashboardShellState extends State<DashboardShell> {
                           collapsed: dashboard.collapsed,
                           isDarkMode: themeProvider.isDarkMode,
                           onToggleTheme: themeProvider.toggleTheme,
-                          onLogout: () {
-                            Navigator.of(context).pushNamedAndRemoveUntil(
-                              AppRoutes.login,
-                              (route) => false,
-                            );
+                          onLogout: () async {
+                            await GoogleAuthService.signOut();
+                            if (!context.mounted) return;
+                            context.go(AppRoutes.login);
                           },
                         ),
                       ),

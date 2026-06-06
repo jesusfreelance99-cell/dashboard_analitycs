@@ -41,44 +41,68 @@ class _NotificationsPageState extends State<NotificationsPage> {
   _SendState _sendState = _SendState.idle;
 
   final _searchController = TextEditingController();
+
+  // cache en-memoria: se carga una vez al iniciar
+  List<UserModel> _allUsers = [];
   List<UserModel> _searchResults = [];
   final Set<String> _selectedIds = {};
-  bool _searching = false;
+  bool _loadingUsers = true;
 
   int _sentCount = 0;
   int _totalCount = 0;
   String? _errorMessage;
 
-  Timer? _searchDebounce;
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
-    _searchDebounce?.cancel();
     super.dispose();
   }
 
-  // ── búsqueda ──────────────────────────────────────────────────────────────
+  // carga todos los usuarios una sola vez (SQLite → Firestore como fallback)
+  Future<void> _loadUsers() async {
+    try {
+      var users = await UserSyncService().getAllUsersLocal();
+      if (users.isEmpty) {
+        // fallback: Firestore directo (funciona en web)
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .limit(5000)
+            .get();
+        users = snap.docs
+            .map((d) => UserModel.fromFirestore(d.id, d.data()))
+            .toList();
+      }
+      if (mounted) setState(() => _allUsers = users);
+    } catch (_) {
+      // sin usuarios disponibles — la búsqueda quedará vacía
+    } finally {
+      if (mounted) setState(() => _loadingUsers = false);
+    }
+  }
+
+  // ── búsqueda en-memoria (sin async, instantánea) ──────────────────────────
 
   void _onSearchChanged(String query) {
-    _searchDebounce?.cancel();
-    if (query.trim().isEmpty) {
+    final q = query.trim().toLowerCase();
+    if (q.isEmpty) {
       setState(() => _searchResults = []);
       return;
     }
-    _searchDebounce = Timer(const Duration(milliseconds: 350), () async {
-      if (!mounted) return;
-      setState(() => _searching = true);
-      try {
-        final results =
-            await UserSyncService().searchUsersLocal(query.trim());
-        if (mounted) setState(() => _searchResults = results);
-      } catch (_) {
-        if (mounted) setState(() => _searchResults = []);
-      } finally {
-        if (mounted) setState(() => _searching = false);
-      }
-    });
+    final results = _allUsers
+        .where(
+          (u) =>
+              u.fullName.toLowerCase().contains(q) ||
+              u.email.toLowerCase().contains(q),
+        )
+        .take(50)
+        .toList();
+    setState(() => _searchResults = results);
   }
 
   void _toggleUser(UserModel user) {
@@ -175,9 +199,9 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   void _resetSendState() => setState(() {
-        _sendState = _SendState.idle;
-        _errorMessage = null;
-      });
+    _sendState = _SendState.idle;
+    _errorMessage = null;
+  });
 
   void _showSnack(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -194,8 +218,10 @@ class _NotificationsPageState extends State<NotificationsPage> {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable:
-          Listenable.merge([widget.titleController, widget.messageController]),
+      listenable: Listenable.merge([
+        widget.titleController,
+        widget.messageController,
+      ]),
       builder: (context, _) {
         final previewTitle = widget.titleController.text.isEmpty
             ? 'Título de la notificación'
@@ -247,7 +273,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               searchController: _searchController,
                               onSearchChanged: _onSearchChanged,
                               searchResults: _searchResults,
-                              searching: _searching,
+                              searching: _loadingUsers,
                               selectedIds: _selectedIds,
                               onToggleUser: _toggleUser,
                             ),
@@ -265,6 +291,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                               hintText:
                                   'Escribe el mensaje que verán tus usuarios...',
                               maxLengthLabel: '0/160',
+                              maxLines: 6,
                             ),
                             const SizedBox(height: 24),
                             _SendSection(
@@ -279,10 +306,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
                         ),
                       ),
                     ),
-                    SizedBox(
-                      width: stacked ? 0 : 34,
-                      height: stacked ? 28 : 0,
-                    ),
+                    SizedBox(width: stacked ? 0 : 34, height: stacked ? 28 : 0),
                     Expanded(
                       flex: 5,
                       child: Column(
@@ -404,8 +428,6 @@ class _RecipientsSection extends StatelessWidget {
             ),
           ],
         ],
-        const SizedBox(height: 18),
-        _RecipientCountBanner(tab: tab, selectedCount: selectedIds.length),
       ],
     );
   }
@@ -476,7 +498,7 @@ class _UserSearchField extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RESULTADOS
+// RESULTADOS — grid de chips 4 columnas
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _SearchResultsList extends StatelessWidget {
@@ -492,108 +514,69 @@ class _SearchResultsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 220),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE8E8E4)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 2.8,
       ),
-      child: ListView.separated(
-        shrinkWrap: true,
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        itemCount: results.length,
-        separatorBuilder: (_, _) => const Divider(
-          height: 1,
-          color: Color(0xFFF1F1EF),
-          indent: 16,
-          endIndent: 16,
-        ),
-        itemBuilder: (_, i) {
-          final user = results[i];
-          final selected = selectedIds.contains(user.id);
-          return InkWell(
-            onTap: () => onToggle(user),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 10,
-              ),
-              child: Row(
-                children: [
-                  _UserAvatar(name: user.fullName, selected: selected),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          user.fullName.isNotEmpty
-                              ? user.fullName
-                              : 'Sin nombre',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.ink,
-                          ),
-                        ),
-                        Text(
-                          user.email,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.ink3,
-                          ),
-                        ),
-                      ],
+      itemCount: results.length,
+      itemBuilder: (_, i) {
+        final user = results[i];
+        final selected = selectedIds.contains(user.id);
+        final label = user.fullName.isNotEmpty ? user.fullName : user.email;
+        return GestureDetector(
+          onTap: () => onToggle(user),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.pink : const Color(0xFFF1F1EF),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 12,
+                  backgroundColor: selected
+                      ? AppColors.white.withValues(alpha: 0.25)
+                      : AppColors.ink3.withValues(alpha: 0.15),
+                  child: Text(
+                    label.isNotEmpty ? label[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: selected ? AppColors.white : AppColors.ink2,
                     ),
                   ),
-                  if (selected)
-                    const Icon(
-                      FluentIcons.checkmark_circle_20_filled,
-                      color: AppColors.pink,
-                      size: 20,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: selected ? AppColors.white : AppColors.ink,
                     ),
-                ],
-              ),
+                  ),
+                ),
+                if (selected)
+                  const Icon(
+                    FluentIcons.checkmark_circle_20_filled,
+                    size: 14,
+                    color: AppColors.white,
+                  ),
+              ],
             ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _UserAvatar extends StatelessWidget {
-  const _UserAvatar({required this.name, required this.selected});
-  final String name;
-  final bool selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: selected ? AppColors.pink : const Color(0xFFF1F1EF),
-        shape: BoxShape.circle,
-      ),
-      child: Center(
-        child: Text(
-          name.isNotEmpty ? name[0].toUpperCase() : '?',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: selected ? Colors.white : AppColors.ink2,
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -615,7 +598,9 @@ class _SelectedChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selected = allResults.where((u) => selectedIds.contains(u.id)).toList();
+    final selected = allResults
+        .where((u) => selectedIds.contains(u.id))
+        .toList();
     if (selected.isEmpty) return const SizedBox.shrink();
 
     return Wrap(
@@ -658,53 +643,6 @@ class _SelectedChips extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BANNER DE CONTEO
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _RecipientCountBanner extends StatelessWidget {
-  const _RecipientCountBanner({
-    required this.tab,
-    required this.selectedCount,
-  });
-
-  final _RecipientTab tab;
-  final int selectedCount;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = tab == _RecipientTab.all
-        ? 'Se enviará a todos los usuarios activos'
-        : selectedCount == 0
-            ? 'Busca y selecciona los usuarios'
-            : 'Se enviará a $selectedCount usuario${selectedCount != 1 ? 's' : ''}';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F1EF),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            FluentIcons.send_20_regular,
-            size: 28,
-            color: AppColors.pink,
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(fontSize: 16, color: AppColors.ink2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // SECCIÓN DE ENVÍO
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -728,9 +666,15 @@ class _SendSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (sendState) {
-      _SendState.sending => _SendingBar(sentCount: sentCount, totalCount: totalCount),
+      _SendState.sending => _SendingBar(
+        sentCount: sentCount,
+        totalCount: totalCount,
+      ),
       _SendState.done => _DoneMessage(onReset: onReset),
-      _SendState.error => _ErrorMessage(message: errorMessage ?? 'Error desconocido', onReset: onReset),
+      _SendState.error => _ErrorMessage(
+        message: errorMessage ?? 'Error desconocido',
+        onReset: onReset,
+      ),
       _SendState.idle => _SendButton(onSend: onSend),
     };
   }
@@ -748,15 +692,12 @@ class _SendButton extends StatelessWidget {
         onPressed: onSend,
         style: FilledButton.styleFrom(
           backgroundColor: AppColors.pink,
-          foregroundColor: Colors.white,
+          foregroundColor: AppColors.white,
           minimumSize: const Size.fromHeight(82),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          textStyle: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-          ),
+          textStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
         ),
         icon: const Icon(FluentIcons.send_20_regular, size: 28),
         label: const Text('Enviar notificación'),
@@ -861,10 +802,7 @@ class _DoneMessage extends StatelessWidget {
               ),
             ),
           ),
-          TextButton(
-            onPressed: onReset,
-            child: const Text('Nueva'),
-          ),
+          TextButton(onPressed: onReset, child: const Text('Nueva')),
         ],
       ),
     );
@@ -899,10 +837,7 @@ class _ErrorMessage extends StatelessWidget {
               style: const TextStyle(fontSize: 16, color: AppColors.danger),
             ),
           ),
-          TextButton(
-            onPressed: onReset,
-            child: const Text('Reintentar'),
-          ),
+          TextButton(onPressed: onReset, child: const Text('Reintentar')),
         ],
       ),
     );

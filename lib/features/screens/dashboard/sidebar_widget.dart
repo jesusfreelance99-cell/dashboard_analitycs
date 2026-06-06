@@ -48,8 +48,9 @@ class DashboardSidebar extends StatelessWidget {
       ),
     ];
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      color: Colors.white,
+      color: isDark ? AppColors.surfaceDark : AppColors.white,
       child: Column(
         children: [
           Padding(
@@ -128,7 +129,7 @@ class DashboardSidebar extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 UtilityItem(
-                  icon: FluentIcons.color_20_regular,
+                  icon: FluentIcons.sign_out_20_regular,
                   label: 'Cerrar sesión',
                   collapsed: collapsed && !isMobile,
                   onTap: onLogout,
@@ -155,7 +156,7 @@ class DashboardSidebar extends StatelessWidget {
                   child: const Text(
                     'JD',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: AppColors.white,
                       fontWeight: FontWeight.w700,
                       fontSize: 18,
                     ),

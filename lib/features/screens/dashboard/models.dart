@@ -158,12 +158,14 @@ class PageMeta {
     required this.subtitle,
     required this.navLabel,
     required this.icon,
+    required this.iconSelected,
   });
 
   final String title;
   final String subtitle;
   final String navLabel;
   final IconData icon;
+  final IconData iconSelected;
 }
 
 PageMeta pageMeta(DashPage page) {
@@ -174,6 +176,7 @@ PageMeta pageMeta(DashPage page) {
         subtitle: 'Resumen ejecutivo del crecimiento de Trevo',
         navLabel: 'Vista general',
         icon: FluentIcons.grid_20_regular,
+        iconSelected: FluentIcons.grid_20_filled,
       );
     case DashPage.funnel:
       return const PageMeta(
@@ -181,6 +184,7 @@ PageMeta pageMeta(DashPage page) {
         subtitle: 'Del primer open hasta la suscripción',
         navLabel: 'Embudo',
         icon: FluentIcons.filter_20_regular,
+        iconSelected: FluentIcons.filter_20_filled,
       );
     case DashPage.cac:
       return const PageMeta(
@@ -188,6 +192,7 @@ PageMeta pageMeta(DashPage page) {
         subtitle: 'Costo de adquisición y valor por cliente',
         navLabel: 'CAC / LTV',
         icon: FluentIcons.money_20_regular,
+        iconSelected: FluentIcons.money_20_filled,
       );
     case DashPage.features:
       return const PageMeta(
@@ -195,6 +200,7 @@ PageMeta pageMeta(DashPage page) {
         subtitle: 'Qué funciones usan tus usuarios',
         navLabel: 'Features',
         icon: FluentIcons.flash_20_regular,
+        iconSelected: FluentIcons.flash_20_filled,
       );
     case DashPage.retention:
       return const PageMeta(
@@ -202,6 +208,7 @@ PageMeta pageMeta(DashPage page) {
         subtitle: 'Cuántos usuarios vuelven a abrir la app',
         navLabel: 'Retención',
         icon: FluentIcons.arrow_trending_lines_20_regular,
+        iconSelected: FluentIcons.arrow_trending_lines_20_filled,
       );
     case DashPage.users:
       return const PageMeta(
@@ -209,6 +216,7 @@ PageMeta pageMeta(DashPage page) {
         subtitle: 'Tabla completa de usuarios registrados',
         navLabel: 'Usuarios',
         icon: FluentIcons.people_20_regular,
+        iconSelected: FluentIcons.people_20_filled,
       );
     case DashPage.notifications:
       return const PageMeta(
@@ -216,6 +224,7 @@ PageMeta pageMeta(DashPage page) {
         subtitle: 'Envía mensajes push a tus usuarios',
         navLabel: 'Notificaciones',
         icon: FluentIcons.alert_20_regular,
+        iconSelected: FluentIcons.alert_20_filled,
       );
   }
 }

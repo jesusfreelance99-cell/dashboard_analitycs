@@ -70,7 +70,7 @@ class _DecorBlob extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.white.withValues(alpha: opacity),
+        color: AppColors.white.withValues(alpha: opacity),
       ),
     );
   }
@@ -151,8 +151,8 @@ class _LiveBadgeState extends State<LiveBadge>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.15),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
+        color: AppColors.white.withValues(alpha: 0.15),
+        border: Border.all(color: AppColors.white.withValues(alpha: 0.25)),
         borderRadius: BorderRadius.circular(AppConstants.radiusPill),
       ),
       child: Row(
@@ -176,7 +176,7 @@ class _LiveBadgeState extends State<LiveBadge>
           Text(
             'EN VIVO',
             style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: Colors.white.withValues(alpha: 0.9),
+              color: AppColors.white.withValues(alpha: 0.9),
               fontWeight: FontWeight.w700,
               letterSpacing: 1.2,
             ),
@@ -299,9 +299,9 @@ class _PanelCardsState extends State<PanelCards> with TickerProviderStateMixin {
 // ─── Card base ────────────────────────────────────────────────────────────────
 
 BoxDecoration _cardDecoration() => BoxDecoration(
-  color: Colors.white.withValues(alpha: 0.97),
+  color: AppColors.white.withValues(alpha: 0.97),
   borderRadius: BorderRadius.circular(AppConstants.radiusXl),
-  border: Border.all(color: Colors.white.withValues(alpha: 0.55), width: 1),
+  border: Border.all(color: AppColors.white.withValues(alpha: 0.55), width: 1),
 );
 
 // ─── MetricCard ───────────────────────────────────────────────────────────────
@@ -637,7 +637,7 @@ class _NotifCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: Colors.white,
+                  color: AppColors.white,
                 ),
               ),
             ),
@@ -773,34 +773,34 @@ class PanelFooter extends StatelessWidget {
       children: [
         Text(
           'Conectado con',
-          style: style?.copyWith(color: Colors.white.withValues(alpha: 0.45)),
+          style: style?.copyWith(color: AppColors.white.withValues(alpha: 0.45)),
         ),
         Text(
           'RevenueCat',
           style: style?.copyWith(
-            color: Colors.white.withValues(alpha: 0.75),
+            color: AppColors.white.withValues(alpha: 0.75),
             fontWeight: FontWeight.w600,
           ),
         ),
         Text(
           '·',
-          style: style?.copyWith(color: Colors.white.withValues(alpha: 0.3)),
+          style: style?.copyWith(color: AppColors.white.withValues(alpha: 0.3)),
         ),
         Text(
           'Mixpanel',
           style: style?.copyWith(
-            color: Colors.white.withValues(alpha: 0.75),
+            color: AppColors.white.withValues(alpha: 0.75),
             fontWeight: FontWeight.w600,
           ),
         ),
         Text(
           '·',
-          style: style?.copyWith(color: Colors.white.withValues(alpha: 0.3)),
+          style: style?.copyWith(color: AppColors.white.withValues(alpha: 0.3)),
         ),
         Text(
           'Firebase',
           style: style?.copyWith(
-            color: Colors.white.withValues(alpha: 0.75),
+            color: AppColors.white.withValues(alpha: 0.75),
             fontWeight: FontWeight.w600,
           ),
         ),

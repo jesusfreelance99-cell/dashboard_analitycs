@@ -16,14 +16,10 @@ class TrevoLogo extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Image.asset(
-          'assets/img/app_icon.png',
-          width: 34,
-          height: 34,
-        ),
+        Image.asset('assets/img/app_icon.png', width: 34, height: 34),
         const SizedBox(width: 10),
         Text(
-          'trevo',
+          'Trevo',
           style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w500,
             letterSpacing: -0.3,
@@ -161,7 +157,7 @@ class _GoogleLogoPainter extends CustomPainter {
     canvas.drawCircle(
       Offset(cx, cy),
       r - s * 0.18,
-      Paint()..color = Colors.white,
+      Paint()..color = AppColors.white,
     );
 
     // Horizontal bar of G
@@ -387,9 +383,9 @@ class LoginButtonWidget extends StatelessWidget {
               : () async {
                   await provider.login();
                   if (!context.mounted) return;
-                  Navigator.of(context).pushReplacementNamed(
-                    AppRoutes.dashboard,
-                  );
+                  Navigator.of(
+                    context,
+                  ).pushReplacementNamed(AppRoutes.dashboard);
                 },
           type: ButtonType.primary,
         );

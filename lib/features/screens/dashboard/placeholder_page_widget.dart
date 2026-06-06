@@ -47,7 +47,7 @@ class PlaceholderPage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.72),
+                color: AppColors.white.withValues(alpha: 0.72),
                 borderRadius: BorderRadius.circular(999),
               ),
               child: const Text(

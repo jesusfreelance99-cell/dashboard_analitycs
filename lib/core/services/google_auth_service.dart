@@ -88,13 +88,13 @@ class GoogleAuthService {
     }
   }
 
-  /// Cierra sesión
+  /// Cierra sesión — siempre completa aunque Google SignIn falle en web
   static Future<void> signOut() async {
+    await _firebaseAuth.signOut();
     try {
-      await _firebaseAuth.signOut();
       await _googleSignIn.signOut();
-    } catch (e) {
-      rethrow;
+    } catch (_) {
+      // Google Sign-In puede fallar en web sin sesión activa — ignoramos
     }
   }
 
