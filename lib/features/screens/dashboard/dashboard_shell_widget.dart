@@ -1,13 +1,10 @@
 import 'dart:math' as math;
 
-import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/app_constants.dart';
 import 'package:dashboard_analitycs/core/providers/theme_provider.dart';
 import 'package:dashboard_analitycs/core/routes/app_routes.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
-import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 
 import 'headers_widget.dart';
@@ -29,8 +26,6 @@ class DashboardShellState extends State<DashboardShell> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _messageController = TextEditingController();
   final TextEditingController _searchController = TextEditingController();
-  RecipientMode _recipientMode = RecipientMode.all;
-  PreviewSendMode _previewSendMode = PreviewSendMode.now;
 
   @override
   void dispose() {
@@ -169,14 +164,6 @@ class DashboardShellState extends State<DashboardShell> {
         return NotificationsPage(
           titleController: _titleController,
           messageController: _messageController,
-          recipientMode: _recipientMode,
-          previewSendMode: _previewSendMode,
-          onRecipientModeChanged: (mode) {
-            setState(() => _recipientMode = mode);
-          },
-          onPreviewSendModeChanged: (mode) {
-            setState(() => _previewSendMode = mode);
-          },
         );
       case DashPage.users:
         return UsersPage(searchController: _searchController);

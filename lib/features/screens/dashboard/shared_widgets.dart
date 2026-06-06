@@ -2,18 +2,16 @@ import 'dart:math' as math;
 
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/app_constants.dart';
-import 'package:dashboard_analitycs/core/providers/theme_provider.dart';
-import 'package:dashboard_analitycs/core/routes/app_routes.dart';
+
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
 
 import 'models.dart';
 
 class SidebarItem extends StatelessWidget {
   const SidebarItem({
+    super.key,
     required this.meta,
     required this.selected,
     required this.collapsed,
@@ -69,7 +67,6 @@ class SidebarItem extends StatelessWidget {
   }
 }
 
-
 class UtilityItem extends StatelessWidget {
   const UtilityItem({
     required this.icon,
@@ -113,7 +110,6 @@ class UtilityItem extends StatelessWidget {
   }
 }
 
-
 class RangeSegmentedControl extends StatelessWidget {
   const RangeSegmentedControl({required this.range, required this.onChanged});
 
@@ -152,7 +148,6 @@ class RangeSegmentedControl extends StatelessWidget {
   }
 }
 
-
 class SegmentButton extends StatelessWidget {
   const SegmentButton({
     required this.label,
@@ -190,7 +185,6 @@ class SegmentButton extends StatelessWidget {
   }
 }
 
-
 class SectionHeader extends StatelessWidget {
   const SectionHeader({required this.label, required this.source});
 
@@ -225,7 +219,6 @@ class SectionHeader extends StatelessWidget {
     );
   }
 }
-
 
 class MetricCard extends StatelessWidget {
   const MetricCard({
@@ -287,7 +280,8 @@ class MetricCard extends StatelessWidget {
             spacing: 12,
             runSpacing: 8,
             children: [
-              if (badgeText != null) DashBadge(text: badgeText!, type: badgeType),
+              if (badgeText != null)
+                DashBadge(text: badgeText!, type: badgeType),
               if (helperText != null)
                 Text(
                   helperText!,
@@ -300,7 +294,6 @@ class MetricCard extends StatelessWidget {
     );
   }
 }
-
 
 class DashBadge extends StatelessWidget {
   const DashBadge({super.key, required this.text, required this.type});
@@ -345,7 +338,6 @@ class DashBadge extends StatelessWidget {
   }
 }
 
-
 class ResponsiveGrid extends StatelessWidget {
   const ResponsiveGrid({required this.minTileWidth, required this.children});
 
@@ -377,7 +369,6 @@ class ResponsiveGrid extends StatelessWidget {
   }
 }
 
-
 class ResponsiveSplit extends StatelessWidget {
   const ResponsiveSplit({required this.left, required this.right});
 
@@ -403,7 +394,6 @@ class ResponsiveSplit extends StatelessWidget {
   }
 }
 
-
 class Panel extends StatelessWidget {
   const Panel({required this.child});
 
@@ -421,7 +411,6 @@ class Panel extends StatelessWidget {
     );
   }
 }
-
 
 class PanelHeader extends StatelessWidget {
   const PanelHeader({required this.title, required this.trailing});
@@ -450,7 +439,6 @@ class PanelHeader extends StatelessWidget {
     );
   }
 }
-
 
 class MapPlaceholder extends StatelessWidget {
   const MapPlaceholder();
@@ -498,7 +486,6 @@ class MapPlaceholder extends StatelessWidget {
   }
 }
 
-
 class LegendLine extends StatelessWidget {
   const LegendLine({
     required this.flag,
@@ -533,7 +520,6 @@ class LegendLine extends StatelessWidget {
     );
   }
 }
-
 
 class CountryRow extends StatelessWidget {
   const CountryRow({required this.data});
@@ -599,7 +585,6 @@ class CountryRow extends StatelessWidget {
   }
 }
 
-
 class SearchField extends StatelessWidget {
   const SearchField({required this.controller});
 
@@ -639,7 +624,6 @@ class SearchField extends StatelessWidget {
     );
   }
 }
-
 
 class FilterSegment extends StatelessWidget {
   const FilterSegment({required this.items, required this.selectedIndex});
@@ -688,7 +672,6 @@ class FilterSegment extends StatelessWidget {
   }
 }
 
-
 class UsersTablePlaceholder extends StatelessWidget {
   const UsersTablePlaceholder();
 
@@ -703,7 +686,6 @@ class UsersTablePlaceholder extends StatelessWidget {
     );
   }
 }
-
 
 class ChoiceTile extends StatelessWidget {
   const ChoiceTile({
@@ -752,7 +734,6 @@ class ChoiceTile extends StatelessWidget {
   }
 }
 
-
 class DisabledSearchTile extends StatelessWidget {
   const DisabledSearchTile({required this.label});
 
@@ -787,7 +768,6 @@ class DisabledSearchTile extends StatelessWidget {
     );
   }
 }
-
 
 class RecipientCount extends StatelessWidget {
   const RecipientCount();
@@ -827,7 +807,6 @@ class RecipientCount extends StatelessWidget {
   }
 }
 
-
 class FormLabel extends StatelessWidget {
   const FormLabel(this.text);
 
@@ -848,7 +827,6 @@ class FormLabel extends StatelessWidget {
     );
   }
 }
-
 
 class TextInput extends StatelessWidget {
   const TextInput({
@@ -893,7 +871,6 @@ class TextInput extends StatelessWidget {
     );
   }
 }
-
 
 class TextAreaInput extends StatelessWidget {
   const TextAreaInput({
@@ -940,7 +917,6 @@ class TextAreaInput extends StatelessWidget {
   }
 }
 
-
 class SendModeControl extends StatelessWidget {
   const SendModeControl({required this.mode, required this.onChanged});
 
@@ -978,7 +954,6 @@ class SendModeControl extends StatelessWidget {
   }
 }
 
-
 class MiniSegment extends StatelessWidget {
   const MiniSegment({
     required this.label,
@@ -1014,7 +989,6 @@ class MiniSegment extends StatelessWidget {
     );
   }
 }
-
 
 class PhonePreview extends StatelessWidget {
   const PhonePreview({
@@ -1146,7 +1120,6 @@ class PhonePreview extends StatelessWidget {
   }
 }
 
-
 class TrevoMark extends StatelessWidget {
   const TrevoMark({required this.size});
 
@@ -1165,7 +1138,6 @@ class TrevoMark extends StatelessWidget {
     );
   }
 }
-
 
 class FlowerPainter extends CustomPainter {
   const FlowerPainter({required this.color});
@@ -1193,7 +1165,6 @@ class FlowerPainter extends CustomPainter {
   }
 }
 
-
 class DotGridPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -1218,4 +1189,3 @@ class DotGridPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

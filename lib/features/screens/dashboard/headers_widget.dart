@@ -1,20 +1,15 @@
-import 'dart:math' as math;
-
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
-import 'package:dashboard_analitycs/core/constants/app_constants.dart';
-import 'package:dashboard_analitycs/core/providers/theme_provider.dart';
-import 'package:dashboard_analitycs/core/routes/app_routes.dart';
+
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
 
 import 'models.dart';
 import 'shared_widgets.dart';
 
 class TopHeader extends StatelessWidget {
   const TopHeader({
+    super.key,
     required this.isMobile,
     required this.title,
     required this.subtitle,
@@ -68,7 +63,6 @@ class TopHeader extends StatelessWidget {
     );
   }
 }
-
 
 class DateToolbar extends StatelessWidget {
   const DateToolbar({
@@ -130,4 +124,3 @@ class DateToolbar extends StatelessWidget {
     );
   }
 }
-

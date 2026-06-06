@@ -1,16 +1,6 @@
-import 'dart:math' as math;
-
-import 'package:dashboard_analitycs/core/constants/app_colors.dart';
-import 'package:dashboard_analitycs/core/constants/app_constants.dart';
-import 'package:dashboard_analitycs/core/providers/theme_provider.dart';
-import 'package:dashboard_analitycs/core/routes/app_routes.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
-
-import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 
 RangePresentation rangePresentation(DateRange range) {
   switch (range) {
@@ -33,7 +23,6 @@ RangePresentation rangePresentation(DateRange range) {
       return const RangePresentation('todo', '1 ene 2026 – 5 jun 2026');
   }
 }
-
 
 OverviewRangeData overviewRangeData(DateRange range) {
   switch (range) {
@@ -124,14 +113,12 @@ OverviewRangeData overviewRangeData(DateRange range) {
   }
 }
 
-
 class RangePresentation {
   const RangePresentation(this.label, this.dates);
 
   final String label;
   final String dates;
 }
-
 
 class OverviewRangeData {
   const OverviewRangeData({
@@ -165,7 +152,6 @@ class OverviewRangeData {
   final List<CountryData> downloadCountries;
 }
 
-
 class PageMeta {
   const PageMeta({
     required this.title,
@@ -179,7 +165,6 @@ class PageMeta {
   final String navLabel;
   final IconData icon;
 }
-
 
 PageMeta pageMeta(DashPage page) {
   switch (page) {
@@ -235,13 +220,11 @@ PageMeta pageMeta(DashPage page) {
   }
 }
 
-
 enum BadgeType { positive, negative, neutral }
 
 enum RecipientMode { all, segment }
 
 enum PreviewSendMode { now, scheduled }
-
 
 class CountryData {
   const CountryData(
@@ -258,7 +241,6 @@ class CountryData {
   final String percent;
   final double progress;
 }
-
 
 class SidebarSectionData {
   const SidebarSectionData({required this.title, required this.items});
