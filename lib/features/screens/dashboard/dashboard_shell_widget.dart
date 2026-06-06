@@ -73,9 +73,11 @@ class DashboardShellState extends State<DashboardShell> {
                         isDarkMode: themeProvider.isDarkMode,
                         onToggleTheme: themeProvider.toggleTheme,
                         onLogout: () async {
-                          await GoogleAuthService.signOut();
-                          if (!context.mounted) return;
-                          context.go(AppRoutes.login);
+                          final router = GoRouter.of(context);
+                          try {
+                            await GoogleAuthService.signOut();
+                          } catch (_) {}
+                          router.go(AppRoutes.login);
                         },
                       ),
                     )
@@ -97,9 +99,11 @@ class DashboardShellState extends State<DashboardShell> {
                           isDarkMode: themeProvider.isDarkMode,
                           onToggleTheme: themeProvider.toggleTheme,
                           onLogout: () async {
-                            await GoogleAuthService.signOut();
-                            if (!context.mounted) return;
-                            context.go(AppRoutes.login);
+                            final router = GoRouter.of(context);
+                            try {
+                              await GoogleAuthService.signOut();
+                            } catch (_) {}
+                            router.go(AppRoutes.login);
                           },
                         ),
                       ),

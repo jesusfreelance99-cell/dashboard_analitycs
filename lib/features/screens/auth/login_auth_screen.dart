@@ -221,7 +221,7 @@ class EmailInputField extends StatelessWidget {
         TextField(
           controller: provider.emailController,
           keyboardType: TextInputType.emailAddress,
-          style: Theme.of(context).textTheme.bodyMedium,
+          style: const TextStyle(color: AppColors.ink, fontSize: 15),
           decoration: InputDecoration(
             hintText: 'tu@correo.com',
             hintStyle: TextStyle(color: AppColors.ink3),
@@ -257,6 +257,7 @@ class PasswordInputField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textStyle = Theme.of(context).textTheme;
     return Consumer<LoginScreenProvider>(
       builder: (context, provider, _) {
         return Column(
@@ -270,10 +271,10 @@ class PasswordInputField extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 6),
-            TextField(
+            TextFormField(
               controller: provider.passwordController,
               obscureText: provider.obscurePassword,
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: textStyle.headlineLarge,
               decoration: InputDecoration(
                 hintText: '••••••••',
                 hintStyle: TextStyle(color: AppColors.ink3),

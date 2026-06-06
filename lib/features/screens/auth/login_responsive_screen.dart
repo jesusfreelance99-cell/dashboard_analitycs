@@ -33,8 +33,8 @@ class _DesktopLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: const [
-        Expanded(flex: 1, child: _LoginFormColumn()),
-        Expanded(flex: 1, child: LoginRightPanel()),
+        Expanded(flex: 5, child: _LoginFormColumn()),
+        Expanded(flex: 6, child: LoginRightPanel()),
       ],
     );
   }
@@ -87,14 +87,12 @@ class _LoginFormColumn extends StatelessWidget {
       height: MediaQuery.of(context).size.height,
       child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(
-          horizontal: AppConstants.loginFormPaddingH,
+          horizontal: 36,
           vertical: AppConstants.loginFormPaddingV,
         ),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: AppConstants.loginFormMaxWidth + 40,
-            ),
+            constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: const [

@@ -137,10 +137,7 @@ class AppTheme {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(
-            color: AppColors.error,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
         hintStyle: TextStyle(color: AppColors.grisMedio),
         labelStyle: const TextStyle(color: AppColors.negro),
@@ -297,10 +294,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(
-            color: AppColors.rosaClaro,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: AppColors.rosaClaro, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
@@ -308,10 +302,7 @@ class AppTheme {
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppConstants.radiusLg),
-          borderSide: const BorderSide(
-            color: AppColors.error,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
         hintStyle: const TextStyle(color: AppColors.grisMedio),
         labelStyle: const TextStyle(color: AppColors.blanco),

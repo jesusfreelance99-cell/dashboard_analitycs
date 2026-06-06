@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
@@ -166,7 +165,11 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton>
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        FaIcon(FontAwesomeIcons.google),
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CustomPaint(painter: _GoogleLogoPainter()),
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Continuar con Google',
@@ -184,6 +187,45 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton>
       },
     );
   }
+}
+
+// ─── Google Logo Painter ──────────────────────────────────────────────────────
+
+class _GoogleLogoPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width;
+    final cx = s / 2;
+    final cy = s / 2;
+    final r = s * 0.42;
+    const pi = 3.14159265358979;
+
+    void arc(Color c, double start, double sweep) {
+      canvas.drawArc(
+        Rect.fromCircle(center: Offset(cx, cy), radius: r),
+        start, sweep, false,
+        Paint()
+          ..color = c
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = s * 0.18,
+      );
+    }
+
+    arc(const Color(0xFF4285F4), -pi / 2, pi / 2 + 0.15);
+    arc(const Color(0xFF34A853), 0.15, pi / 2);
+    arc(const Color(0xFFFBBC05), pi / 2 + 0.15, pi / 2);
+    arc(const Color(0xFFEA4335), pi + 0.15, pi / 2);
+
+    canvas.drawCircle(Offset(cx, cy), r - s * 0.18,
+        Paint()..color = AppColors.white);
+    canvas.drawRect(
+      Rect.fromLTWH(cx, cy - s * 0.09, r + s * 0.04, s * 0.18),
+      Paint()..color = const Color(0xFF4285F4),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ─── Divider ──────────────────────────────────────────────────────────────────
@@ -236,7 +278,7 @@ class EmailInputField extends StatelessWidget {
         TextField(
           controller: provider.emailController,
           keyboardType: TextInputType.emailAddress,
-          style: Theme.of(context).textTheme.bodyMedium,
+          style: const TextStyle(color: AppColors.ink, fontSize: 15),
           decoration: InputDecoration(
             hintText: 'tu@correo.com',
             hintStyle: TextStyle(color: AppColors.ink3),
@@ -288,7 +330,7 @@ class PasswordInputField extends StatelessWidget {
             TextField(
               controller: provider.passwordController,
               obscureText: provider.obscurePassword,
-              style: Theme.of(context).textTheme.bodyMedium,
+              style: const TextStyle(color: AppColors.ink, fontSize: 15),
               decoration: InputDecoration(
                 hintText: '••••••••',
                 hintStyle: TextStyle(color: AppColors.ink3),
