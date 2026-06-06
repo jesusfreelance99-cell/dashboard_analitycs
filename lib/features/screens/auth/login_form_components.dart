@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/routes/app_routes.dart';
 import '../../../core/widgets/app_button.dart';
 import 'login_screen_provider.dart';
 
@@ -387,7 +388,15 @@ class LoginButtonWidget extends StatelessWidget {
       builder: (context, provider, _) {
         return AppButton(
           label: 'Iniciar sesión',
-          onPressed: provider.isLoading ? () {} : provider.login,
+          onPressed: provider.isLoading
+              ? () {}
+              : () async {
+                  await provider.login();
+                  if (!context.mounted) return;
+                  Navigator.of(context).pushReplacementNamed(
+                    AppRoutes.dashboard,
+                  );
+                },
           type: ButtonType.primary,
         );
       },
