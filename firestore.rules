@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isDashboardUser() {
+      return isSignedIn();
+    }
+
+    // ── Dashboard de administración ───────────────────────────────────────────
+    match /users_dashboard/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    // ── Datos del usuario y todas sus subcolecciones ──────────────────────────
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isDashboardUser();
+      allow write: if isOwner(userId);
+    }
+    match /users/{userId}/{subPath=**} {
+      allow read: if isOwner(userId) || isDashboardUser();
+      allow write: if isOwner(userId);
+    }
+
+    // ── Categorías globales ───────────────────────────────────────────────────
+    match /categories/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if isDashboardUser();
+    }
+
+    // ── Configuración global ──────────────────────────────────────────────────
+    match /global_settings/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if isDashboardUser();
+    }
+
+    // ── Suscripciones de la plataforma ────────────────────────────────────────
+    match /platform_subscriptions/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if isDashboardUser();
+    }
+    match /platform_suscriptions/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if isDashboardUser();
+    }
+
+    // ── Solo lectura para usuarios del dashboard ──────────────────────────────
+    match /transactions/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if false;
+    }
+    match /notifications/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if false;
+    }
+    match /notificationLogs/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if false;
+    }
+    match /countryMetrics/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if false;
+    }
+    match /appVersions/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if false;
+    }
+
+    // ── Colecciones sensibles — solo lectura dashboard ────────────────────────
+    match /roleAssignments/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if false;
+    }
+    match /auditLogs/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if false;
+    }
+    match /stripeSubscriptions/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if false;
+    }
+    match /stripeRefunds/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if false;
+    }
+
+    // ── Cola de notificaciones push ───────────────────────────────────────────
+    match /notifications_queue/{docId} {
+      allow read:  if isDashboardUser();
+      allow write: if isDashboardUser();
+    }
+
+    // ── Dashboard metrics (App Store, RevenueCat, futuras integraciones) ──────
+    // Todos los documentos/subcolecciones son legibles por usuarios del dashboard
+    match /dashboard_metrics/{document=**} {
+      allow read: if isDashboardUser();
+    }
+    // Refresh triggers de App Store — solo crear desde el cliente
+    match /dashboard_metrics/appstore/refresh_triggers/{docId} {
+      allow create: if isDashboardUser();
+      allow read, delete: if false;
+    }
+    // Refresh requests de RevenueCat — solo crear desde el cliente
+    match /dashboard_metrics/revenuecat/refresh_requests/{docId} {
+      allow create: if isDashboardUser();
+      allow read, delete: if false;
+    }
+
+    // ── Catch-all: denegar todo lo demás ──────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

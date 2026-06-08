@@ -83,6 +83,8 @@ class LoginScreenProvider extends ChangeNotifier {
         print('⚠️ Error sincronizando usuarios: $e');
       }
 
+      _triggerAppStoreRefresh();
+
       // All checks passed
       _isLoading = false;
       notifyListeners();
@@ -146,6 +148,8 @@ class LoginScreenProvider extends ChangeNotifier {
         print('⚠️ Error sincronizando usuarios: $e');
       }
 
+      _triggerAppStoreRefresh();
+
       _isLoading = false;
       notifyListeners();
       return true;
@@ -159,6 +163,15 @@ class LoginScreenProvider extends ChangeNotifier {
     }
   }
 
+  void _triggerAppStoreRefresh() {
+    FirebaseFirestore.instance
+        .collection('dashboard_metrics')
+        .doc('appstore')
+        .collection('refresh_triggers')
+        .add({'created_at': FieldValue.serverTimestamp()})
+        .ignore();
+  }
+
   String _cleanErrorMessage(String error) {
     // Extrae el mensaje de error limpio
     if (error.contains('Usuario no registrado')) {
@@ -170,7 +183,7 @@ class LoginScreenProvider extends ChangeNotifier {
     } else if (error.contains('Exception:')) {
       return error.replaceFirst('Exception: ', '');
     }
-    return error.length > 100 ? error.substring(0, 100) + '...' : error;
+    return error.length > 100 ? '${error.substring(0, 100)}...' : error;
   }
 
   @override

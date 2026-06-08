@@ -1,8 +1,5 @@
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
-import { setGlobalOptions } from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
-
-setGlobalOptions({ region: 'us-central1', timeoutSeconds: 540, memory: '512MiB' });
 
 const db = admin.firestore();
 const messaging = admin.messaging();
@@ -37,7 +34,12 @@ async function sendBatch(
 // ── Función principal ─────────────────────────────────────────────────────────
 
 export const processNotificationQueue = onDocumentCreated(
-  'notifications_queue/{docId}',
+  {
+    document: 'notifications_queue/{docId}',
+    region: 'us-central1',
+    timeoutSeconds: 540,
+    memory: '512MiB',
+  },
   async (event) => {
     const snap = event.data;
     if (!snap) return;

@@ -420,14 +420,32 @@ class ResponsiveGrid extends StatelessWidget {
           1,
           (constraints.maxWidth / minTileWidth).floor(),
         );
-        final gap = 18.0;
+        const gap = 18.0;
         final tileWidth = (constraints.maxWidth - gap * (count - 1)) / count;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: children
-              .map((child) => SizedBox(width: tileWidth, child: child))
-              .toList(),
+
+        final rows = <List<Widget>>[];
+        for (int i = 0; i < children.length; i += count) {
+          rows.add(children.sublist(i, math.min(i + count, children.length)));
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (int r = 0; r < rows.length; r++) ...[
+              if (r > 0) const SizedBox(height: gap),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (int c = 0; c < rows[r].length; c++) ...[
+                      if (c > 0) const SizedBox(width: gap),
+                      SizedBox(width: tileWidth, child: rows[r][c]),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
         );
       },
     );

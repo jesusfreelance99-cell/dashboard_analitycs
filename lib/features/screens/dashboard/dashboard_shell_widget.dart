@@ -5,6 +5,7 @@ import 'package:dashboard_analitycs/core/constants/app_constants.dart';
 import 'package:dashboard_analitycs/core/providers/theme_provider.dart';
 import 'package:dashboard_analitycs/core/routes/app_routes.dart';
 import 'package:dashboard_analitycs/core/services/google_auth_service.dart';
+import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -31,6 +32,14 @@ class DashboardShellState extends State<DashboardShell> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      RevenueCatMetricsService.autoRefreshOnDashboardEntry();
+    });
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     _messageController.dispose();
@@ -53,7 +62,9 @@ class DashboardShellState extends State<DashboardShell> {
 
             final isDark = themeProvider.isDarkMode;
             return Scaffold(
-              backgroundColor: isDark ? AppColors.bgDark : const Color(0xFFF5F5F4),
+              backgroundColor: isDark
+                  ? AppColors.bgDark
+                  : const Color(0xFFF5F5F4),
               drawer: isMobile
                   ? Drawer(
                       elevation: 0,
@@ -115,7 +126,8 @@ class DashboardShellState extends State<DashboardShell> {
                             title: currentPageMeta.title,
                             subtitle: currentPageMeta.subtitle,
                           ),
-                          if (selectedPage != DashPage.notifications)
+                          if (selectedPage != DashPage.notifications &&
+                              selectedPage != DashPage.overview)
                             DateToolbar(
                               range: dashboard.range,
                               isCompact: isCompact,
@@ -166,7 +178,7 @@ class DashboardShellState extends State<DashboardShell> {
   }) {
     switch (page) {
       case DashPage.overview:
-        return OverviewPage(range: range, isCompact: isCompact);
+        return OverviewPage(range: DateRange.all, isCompact: isCompact);
       case DashPage.notifications:
         return NotificationsPage(
           titleController: _titleController,

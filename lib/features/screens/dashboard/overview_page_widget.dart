@@ -1,6 +1,8 @@
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/models/appstore_metrics_model.dart';
+import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
 import 'package:dashboard_analitycs/core/services/appstore_metrics_service.dart';
+import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -225,10 +227,16 @@ class OverviewPage extends StatelessWidget {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _AppStoreShimmer();
         }
-        return _OverviewContent(
-          range: range,
-          isCompact: isCompact,
-          appStore: snap.data,
+        return StreamBuilder<RevenueCatMetrics?>(
+          stream: RevenueCatMetricsService.stream(),
+          builder: (context, revenueSnap) {
+            return _OverviewContent(
+              range: range,
+              isCompact: isCompact,
+              appStore: snap.data,
+              revenueCat: revenueSnap.data,
+            );
+          },
         );
       },
     );
@@ -244,16 +252,21 @@ class _OverviewContent extends StatelessWidget {
     required this.range,
     required this.isCompact,
     required this.appStore,
+    required this.revenueCat,
   });
 
   final DateRange range;
   final bool isCompact;
   final AppStoreMetrics? appStore;
+  final RevenueCatMetrics? revenueCat;
 
   @override
   Widget build(BuildContext context) {
     final data = overviewRangeData(range);
     final as = appStore;
+    final rc = revenueCat;
+    final rcRange = rc?.range(range);
+    final rcOverview = rc?.overview;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,12 +353,16 @@ class _OverviewContent extends StatelessWidget {
               MetricCard(
                 label: 'Descargas',
                 value: as?.downloadsStr ?? '—',
-                helperText: as != null && as.periodLabel.isNotEmpty ? as.periodLabel : null,
+                helperText: as != null && as.periodLabel.isNotEmpty
+                    ? as.periodLabel
+                    : null,
               ),
               MetricCard(
                 label: 'Descargas repetidas',
                 value: as?.redownloadsStr ?? '—',
-                helperText: as != null && as.periodLabel.isNotEmpty ? as.periodLabel : null,
+                helperText: as != null && as.periodLabel.isNotEmpty
+                    ? as.periodLabel
+                    : null,
               ),
               MetricCard(
                 label: 'Tasa de conversión',
@@ -371,43 +388,55 @@ class _OverviewContent extends StatelessWidget {
         const SizedBox(height: 42),
 
         // ── REVENUE ───────────────────────────────────────────────────────
-        const SectionHeader(label: 'REVENUE', source: 'RevenueCat'),
+        Row(
+          children: [
+            Expanded(
+              child: SectionHeader(
+                label: 'REVENUE',
+                source: rc == null
+                    ? 'RevenueCat'
+                    : rc.updatedAtLabel.isEmpty
+                    ? rc.source
+                    : '${rc.source} · ${rc.updatedAtLabel}',
+              ),
+            ),
+            const _RevenueCatRefreshButton(),
+          ],
+        ),
         const SizedBox(height: 14),
         ResponsiveGrid(
           minTileWidth: 250,
           children: [
             MetricCard(
-              label: 'MRR',
-              value: '\$142',
+              label: 'Pruebas gratuitas',
+              value: rcOverview?.activeTrialsLabel ?? '0',
+              helperText: 'total acumulado',
+            ),
+            MetricCard(
+              label: 'Suscripciones activas',
+              value: rcOverview?.activeSubscriptionsLabel ?? '0',
+              helperText: 'total acumulado',
+            ),
+            MetricCard(
+              label: 'Ingresos recurrentes',
+              value: rcOverview?.mrrLabel ?? '-',
               accent: true,
-              badgeText: '↑ \$31',
-              badgeType: BadgeType.positive,
-              helperText: 'esta semana',
+              helperText: 'mensuales · MRR',
             ),
             MetricCard(
-              label: 'Revenue total',
-              value: data.revenue,
-              helperText: 'en el período',
+              label: 'Ingresos',
+              value: rcOverview?.revenue28dLabel ?? data.revenue,
+              helperText: 'últimos 28 días',
             ),
             MetricCard(
-              label: 'Suscriptores',
-              value: data.subscribers,
-              badgeText: '↑ 3',
-              badgeType: BadgeType.positive,
-              helperText: 'nuevos',
+              label: 'Nuevos clientes',
+              value: rcOverview?.newCustomers28dLabel ?? '0',
+              helperText: 'últimos 28 días',
             ),
             MetricCard(
-              label: 'Trials activos',
-              value: data.trials,
-              badgeText: '↑ 8',
-              badgeType: BadgeType.positive,
-              helperText: 'hoy',
-            ),
-            MetricCard(
-              label: 'Churn',
-              value: data.churn,
-              badgeText: 'este mes',
-              badgeType: BadgeType.neutral,
+              label: 'Clientes activos',
+              value: rcOverview?.activeCustomers28dLabel ?? '0',
+              helperText: 'últimos 28 días',
             ),
           ],
         ),
@@ -470,11 +499,11 @@ class _OverviewContent extends StatelessWidget {
           ),
           right: TrendMetricPanel(
             title: 'Revenue',
-            value: data.revenue,
+            value: rcRange?.revenueLabel ?? data.revenue,
             delta: '↑ 18%',
             deltaType: BadgeType.positive,
             barColor: const Color(0xFF20BB68),
-            bars: data.revenueBars,
+            bars: rcRange?.revenueBars ?? data.revenueBars,
           ),
         ),
         const SizedBox(height: 40),
@@ -488,7 +517,7 @@ class _OverviewContent extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const PanelHeader(
-                  title: 'Descargas por país',
+                  title: 'Registros por país',
                   trailing: 'Top 4',
                 ),
                 const SizedBox(height: 18),
@@ -563,7 +592,7 @@ class _AppStoreCardsShimmer extends StatelessWidget {
               5,
               (_) => Container(
                 width: tileWidth,
-                height: 110,
+                height: 160,
                 decoration: BoxDecoration(
                   color: const Color(0xFFE8E8E6),
                   borderRadius: BorderRadius.circular(28),
@@ -596,7 +625,9 @@ class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
     setState(() => _loading = true);
     try {
       await FirebaseFirestore.instance
-          .collection('appstore_refresh_triggers')
+          .collection('dashboard_metrics')
+          .doc('appstore')
+          .collection('refresh_triggers')
           .add({'created_at': FieldValue.serverTimestamp()});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -643,6 +674,78 @@ class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
                   FluentIcons.arrow_sync_20_regular,
                   size: 18,
                   color: AppColors.pink,
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REFRESH BUTTON — RevenueCat
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RevenueCatRefreshButton extends StatefulWidget {
+  const _RevenueCatRefreshButton();
+
+  @override
+  State<_RevenueCatRefreshButton> createState() =>
+      _RevenueCatRefreshButtonState();
+}
+
+class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
+  bool _loading = false;
+
+  Future<void> _refresh() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      await RevenueCatMetricsService.requestRefresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Actualización de RevenueCat en curso'),
+            backgroundColor: AppColors.ink,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al solicitar actualización de RevenueCat'),
+            backgroundColor: Color(0xFFD32F2F),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Actualizar métricas RevenueCat',
+      child: InkWell(
+        onTap: _refresh,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: _loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.success,
+                  ),
+                )
+              : const Icon(
+                  FluentIcons.arrow_sync_20_regular,
+                  size: 18,
+                  color: AppColors.success,
                 ),
         ),
       ),

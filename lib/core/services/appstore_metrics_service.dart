@@ -3,8 +3,8 @@ import '../models/appstore_metrics_model.dart';
 
 class AppStoreMetricsService {
   static final _doc = FirebaseFirestore.instance
-      .collection('appstore_metrics')
-      .doc('latest');
+      .collection('dashboard_metrics')
+      .doc('appstore');
 
   static Stream<AppStoreMetrics?> stream() {
     return _doc.snapshots().map((snap) {

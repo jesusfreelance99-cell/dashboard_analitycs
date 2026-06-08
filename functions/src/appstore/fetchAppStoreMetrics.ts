@@ -7,6 +7,10 @@ const APP_ID = '6766937646';
 const VENDOR_NUMBER = '94298138';
 const gunzip = promisify(zlib.gunzip);
 
+// Referencia única al documento de App Store en dashboard_metrics
+const appstoreDocPath = () =>
+  admin.firestore().collection('dashboard_metrics').doc('appstore');
+
 // ── Rating desde Customer Reviews ────────────────────────────────────────────
 
 async function fetchRating(token: string): Promise<{ rating: number; totalReviews: number }> {
@@ -32,7 +36,7 @@ async function fetchRating(token: string): Promise<{ rating: number; totalReview
   return { rating: Math.round(avg * 10) / 10, totalReviews: total };
 }
 
-// ── Descargas (primeras) — suma últimos 12 meses de Sales Reports ─────────────
+// ── Descargas totales — suma últimos 12 meses de Sales Reports ────────────────
 
 function monthStr(offset: number): string {
   const d = new Date();
@@ -78,30 +82,41 @@ async function fetchTotalDownloads(token: string): Promise<number> {
 
 // ── Parser de TSV con detección de columnas por nombre ───────────────────────
 
-async function parseTsv(buf: Buffer): Promise<{ impressions: number; pageViews: number; redownloads: number; appUnits: number }> {
+async function parseTsv(
+  buf: Buffer
+): Promise<{ impressions: number; pageViews: number; redownloads: number; appUnits: number }> {
   let text: string;
   try { text = (await gunzip(buf)).toString('utf-8'); }
   catch { text = buf.toString('utf-8'); }
 
-  const lines = text.split('\n');
+  const lines = text.split('\n').filter(l => l.trim());
   if (lines.length < 2) return { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
 
-  const headers = lines[0].split('\t').map(h => h.trim().toLowerCase());
+  const headerLine = lines[0];
+
+  // Valida que sea realmente un TSV (tiene tabs)
+  if (!headerLine.includes('\t')) {
+    console.warn('parseTsv: respuesta no es TSV. Primeros 200 chars:', headerLine.substring(0, 200));
+    return { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
+  }
+
+  const headers = headerLine.split('\t').map(h => h.trim().toLowerCase());
   console.log('TSV headers:', headers.join(' | '));
 
   const col = (kw: string) => headers.findIndex(h => h.includes(kw));
 
-  const impIdx  = col('impression');
-  const pvIdx   = col('page view') >= 0 ? col('page view') : col('pageview');
-  const rdIdx   = col('redownload');
-  const auIdx   = col('app unit') >= 0 ? col('app unit') : col('appunit');
+  const impIdx = col('impression');
+  const pvIdx  = col('page view') >= 0 ? col('page view') : col('pageview');
+  const rdIdx  = col('redownload');
+  const auIdx  = col('app unit') >= 0 ? col('app unit') : col('appunit');
+
+  console.log(`Column indices → imp:${impIdx} pv:${pvIdx} rd:${rdIdx} au:${auIdx}`);
 
   let impressions = 0, pageViews = 0, redownloads = 0, appUnits = 0;
 
   for (const line of lines.slice(1)) {
-    if (!line.trim()) continue;
     const c = line.split('\t');
-    const n = (idx: number) => (idx >= 0 ? parseInt(c[idx] ?? '0', 10) || 0 : 0);
+    const n = (idx: number) => (idx >= 0 ? parseFloat(c[idx] ?? '0') || 0 : 0);
     impressions += n(impIdx);
     pageViews   += n(pvIdx);
     redownloads += n(rdIdx);
@@ -112,11 +127,12 @@ async function parseTsv(buf: Buffer): Promise<{ impressions: number; pageViews: 
 }
 
 // ── Analytics desde Analytics Reports API (ONGOING — reutiliza requestId) ────
+// analyticsRequestId se guarda en el mismo documento dashboard_metrics/appstore
 
-async function getOrCreateOngoingRequestId(db: admin.firestore.Firestore, token: string): Promise<string | null> {
-  const configRef = db.collection('appstore_metrics').doc('config');
-  const config = await configRef.get();
-  const saved = config.data()?.analyticsRequestId as string | undefined;
+async function getOrCreateOngoingRequestId(token: string): Promise<string | null> {
+  const docRef = appstoreDocPath();
+  const snap = await docRef.get();
+  const saved = snap.data()?.analyticsRequestId as string | undefined;
 
   if (saved) {
     console.log(`Reusando analyticsRequestId: ${saved}`);
@@ -132,7 +148,7 @@ async function getOrCreateOngoingRequestId(db: admin.firestore.Firestore, token:
       body: JSON.stringify({
         data: {
           type: 'analyticsReportRequests',
-          attributes: { accessType: 'ONGOING', stoppedDueToPrivacy: false },
+          attributes: { accessType: 'ONGOING' },
           relationships: { app: { data: { type: 'apps', id: APP_ID } } },
         },
       }),
@@ -140,29 +156,30 @@ async function getOrCreateOngoingRequestId(db: admin.firestore.Firestore, token:
   );
 
   if (!createRes.ok) {
-    console.warn(`Analytics create ${createRes.status}: ${await createRes.text()}`);
+    const body = await createRes.text();
+    console.warn(`Analytics create ${createRes.status}: ${body}`);
     return null;
   }
 
   const { data: { id } } = await createRes.json() as { data: { id: string } };
   console.log(`Nuevo requestId creado: ${id}`);
-  await configRef.set({ analyticsRequestId: id }, { merge: true });
+  // Guardamos el ID en el mismo documento del appstore (merge para no sobreescribir métricas)
+  await docRef.set({ analyticsRequestId: id }, { merge: true });
   return id;
 }
 
 async function fetchAnalytics(
-  db: admin.firestore.Firestore,
   token: string
 ): Promise<{ impressions: number; redownloads: number; conversion: number }> {
-  const requestId = await getOrCreateOngoingRequestId(db, token);
+  const requestId = await getOrCreateOngoingRequestId(token);
   if (!requestId) return { impressions: 0, redownloads: 0, conversion: 0 };
 
-  // Tipos de reporte a buscar (en orden de prioridad)
-  const reportTypes = ['APP_STORE_ENGAGEMENT', 'APP_STORE_ACQUISITION'];
+  // APP_STORE_ACQUISITION: impresiones, descargas, page views, redownloads
+  const reportTypes = ['APP_STORE_ACQUISITION', 'APP_STORE_ENGAGEMENT'];
   let reportId: string | null = null;
 
-  // Espera hasta 180 s (18 × 10 s)
-  for (let attempt = 0; attempt < 18 && !reportId; attempt++) {
+  // Espera hasta 120 s. Para ONGOING los reportes deben estar listos de inmediato.
+  for (let attempt = 0; attempt < 12 && !reportId; attempt++) {
     if (attempt > 0) await new Promise(r => setTimeout(r, 10000));
 
     for (const reportType of reportTypes) {
@@ -172,66 +189,102 @@ async function fetchAnalytics(
         token
       );
       if (!rRes.ok) {
-        console.warn(`Reports list ${reportType} → ${rRes.status}`);
+        console.warn(`Reports list ${reportType} → ${rRes.status}: ${await rRes.text()}`);
         continue;
       }
       const { data } = await rRes.json() as {
         data: Array<{ id: string; attributes: { processingState: string; reportType: string } }>;
       };
-      console.log(`Attempt ${attempt + 1} [${reportType}]: ${data.length} reports, states: ${data.map(r => r.attributes.processingState).join(', ')}`);
-      const ready = data.find(r => r.attributes.processingState === 'COMPLETE');
+
+      if (data.length === 0) {
+        console.log(`Attempt ${attempt + 1} [${reportType}]: sin reportes aún`);
+        continue;
+      }
+
+      const states = data.map(r => `${r.attributes.reportType}:${r.attributes.processingState}`).join(', ');
+      console.log(`Attempt ${attempt + 1} [${reportType}]: ${data.length} reportes → ${states}`);
+
+      // Apple usa 'READY' para reportes disponibles en modo ONGOING
+      const ready = data.find(
+        r => r.attributes.processingState === 'READY' ||
+             r.attributes.processingState === 'COMPLETE'
+      );
       if (ready) {
         reportId = ready.id;
-        console.log(`Report listo: ${reportId} (${reportType})`);
+        console.log(`Report disponible: ${reportId} (${ready.attributes.reportType} / ${ready.attributes.processingState})`);
         break;
       }
     }
   }
 
   if (!reportId) {
-    console.warn('Analytics report no disponible en 180 s — primer run puede tardar más');
+    console.warn('No hay reportes disponibles. Si es el primer run, Apple puede tardar hasta 24h en generar el primer reporte ONGOING.');
     return { impressions: 0, redownloads: 0, conversion: 0 };
   }
 
-  // Obtener instancias DAILY
+  // Obtener instancias DAILY (paginadas, máx 200)
   const instRes = await appleGet(
-    `https://api.appstoreconnect.apple.com/v1/analyticsReports/${reportId}/instances?filter[granularity]=DAILY`,
+    `https://api.appstoreconnect.apple.com/v1/analyticsReports/${reportId}/instances` +
+    `?filter[granularity]=DAILY&limit=200`,
     token
   );
 
   if (!instRes.ok) {
-    console.warn(`Instances ${instRes.status}`);
+    console.warn(`Instances ${instRes.status}: ${await instRes.text()}`);
     return { impressions: 0, redownloads: 0, conversion: 0 };
   }
 
   const { data: instances } = await instRes.json() as {
-    data: Array<{ attributes: { downloadUrl: string; processingDate: string } }>;
+    data: Array<{ id: string; attributes: { downloadUrl: string; processingDate: string } }>;
   };
   console.log(`${instances.length} instancias encontradas`);
 
-  let impressions = 0, pageViews = 0, redownloads = 0, appUnits = 0;
-
-  for (const inst of instances) {
-    const dlRes = await fetch(inst.attributes.downloadUrl, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!dlRes.ok) continue;
-    const parsed = await parseTsv(Buffer.from(await dlRes.arrayBuffer()));
-    impressions  += parsed.impressions;
-    pageViews    += parsed.pageViews;
-    redownloads  += parsed.redownloads;
-    appUnits     += parsed.appUnits;
+  if (instances.length === 0) {
+    console.warn('Sin instancias disponibles para este reporte');
+    return { impressions: 0, redownloads: 0, conversion: 0 };
   }
 
-  const conversion = impressions > 0 ? Math.round((pageViews / impressions) * 1000) / 10 : 0;
-  console.log(`✅ Analytics: imp=${impressions} pv=${pageViews} rd=${redownloads} units=${appUnits} conv=${conversion}%`);
+  // Descarga en paralelo (máx 10 concurrentes)
+  const CONCURRENCY = 10;
+  let impressions = 0, pageViews = 0, redownloads = 0, appUnits = 0;
+
+  for (let i = 0; i < instances.length; i += CONCURRENCY) {
+    const batch = instances.slice(i, i + CONCURRENCY);
+    const results = await Promise.allSettled(
+      batch.map(async inst => {
+        const dlRes = await fetch(inst.attributes.downloadUrl, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!dlRes.ok) {
+          console.warn(`Download falló ${dlRes.status} para instancia ${inst.attributes.processingDate}`);
+          return null;
+        }
+        return parseTsv(Buffer.from(await dlRes.arrayBuffer()));
+      })
+    );
+
+    for (const r of results) {
+      if (r.status === 'fulfilled' && r.value) {
+        impressions  += r.value.impressions;
+        pageViews    += r.value.pageViews;
+        redownloads  += r.value.redownloads;
+        appUnits     += r.value.appUnits;
+      }
+    }
+  }
+
+  const conversion = impressions > 0
+    ? Math.round((pageViews / impressions) * 1000) / 10
+    : 0;
+
+  console.log(`✅ Analytics totales: imp=${impressions} pv=${pageViews} rd=${redownloads} units=${appUnits} conv=${conversion}%`);
   return { impressions, redownloads, conversion };
 }
 
 // ── Orquestador principal ─────────────────────────────────────────────────────
 
 export async function fetchAndStoreAppStoreMetrics(privateKey: string): Promise<void> {
-  const db = admin.firestore();
+  const docRef = appstoreDocPath();
   const token = generateAppleJWT(privateKey);
 
   const [ratingData, totalDownloads] = await Promise.all([
@@ -239,7 +292,8 @@ export async function fetchAndStoreAppStoreMetrics(privateKey: string): Promise<
     fetchTotalDownloads(token),
   ]);
 
-  await db.collection('appstore_metrics').doc('latest').set({
+  // merge: true para preservar analyticsRequestId que está en el mismo documento
+  await docRef.set({
     rating: ratingData.rating,
     total_reviews: ratingData.totalReviews,
     downloads_last_month: totalDownloads,
@@ -249,20 +303,21 @@ export async function fetchAndStoreAppStoreMetrics(privateKey: string): Promise<
     conversion: null,
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
     status: 'partial',
-  }, { merge: false });
+  }, { merge: true });
 
-  console.log(`✅ Parcial: rating=${ratingData.rating} descargas=${totalDownloads}`);
+  console.log(`✅ Parcial guardado: rating=${ratingData.rating} descargas=${totalDownloads}`);
 
   try {
-    const analytics = await fetchAnalytics(db, token);
-    await db.collection('appstore_metrics').doc('latest').update({
+    const analytics = await fetchAnalytics(token);
+    await docRef.update({
       impressions: analytics.impressions,
       redownloads: analytics.redownloads,
       conversion: analytics.conversion,
       status: 'complete',
     });
+    console.log('✅ Métricas completas guardadas en dashboard_metrics/appstore');
   } catch (err) {
     console.error('Analytics error:', err);
-    await db.collection('appstore_metrics').doc('latest').update({ status: 'complete' });
+    await docRef.update({ status: 'complete' });
   }
 }
