@@ -6,9 +6,11 @@ import 'package:dashboard_analitycs/core/services/user_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/user_sync_service.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'models.dart';
 import 'shared_widgets.dart';
+import 'user_detail_panel.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE
@@ -331,6 +333,7 @@ class _UsersPageState extends State<UsersPage> {
                                     user: user,
                                     wide: wide,
                                     isLast: i == _pageUsers.length - 1,
+                                    onTap: () => showUserDetail(context, user),
                                   );
                                 }),
                               ],
@@ -651,17 +654,23 @@ class _UserRow extends StatelessWidget {
     required this.user,
     required this.wide,
     required this.isLast,
+    required this.onTap,
   });
 
   final UserModel user;
   final bool wide;
   final bool isLast;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        wide ? _WideRow(user: user) : _NarrowCard(user: user),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: wide ? _WideRow(user: user) : _NarrowCard(user: user),
+        ),
         if (!isLast)
           const Divider(height: 1, thickness: 1, color: AppColors.progressBg),
       ],
@@ -854,18 +863,35 @@ class _PlanBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isPro = plan == 'pro';
+    if (isPro) {
+      return Container(
+        width: 32,
+        height: 26,
+        decoration: BoxDecoration(
+          color: AppColors.goldLight,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Center(
+          child: FaIcon(
+            FontAwesomeIcons.crown,
+            size: 13,
+            color: AppColors.goldDark,
+          ),
+        ),
+      );
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isPro ? AppColors.goldLight : AppColors.fieldBg,
+        color: AppColors.fieldBg,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(
-        isPro ? 'Pro' : 'Free',
+      child: const Text(
+        'Free',
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: isPro ? AppColors.goldDark : AppColors.ink2,
+          color: AppColors.ink2,
         ),
       ),
     );
@@ -1087,37 +1113,42 @@ class _EmptyUsers extends StatelessWidget {
   const _EmptyUsers();
 
   @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 40),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(FluentIcons.people_24_regular, size: 48, color: AppColors.ink3),
-            SizedBox(height: 12),
-            Text(
-              'Sin usuarios aún',
-              style: TextStyle(fontSize: 18, color: AppColors.ink2),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const _EmptySvg(label: 'Sin usuarios aún');
 }
 
 class _EmptyFilter extends StatelessWidget {
   const _EmptyFilter();
 
   @override
+  Widget build(BuildContext context) =>
+      const _EmptySvg(label: 'Sin resultados para este filtro');
+}
+
+class _EmptySvg extends StatelessWidget {
+  const _EmptySvg({required this.label});
+
+  final String label;
+
+  @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(vertical: 40),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final asset = isDark
+        ? 'assets/svg/dark_empty_tables.svg'
+        : 'assets/svg/empty_tables.svg';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 32),
       child: Center(
-        child: Text(
-          'Sin resultados para este filtro',
-          style: TextStyle(fontSize: 16, color: AppColors.ink3),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(asset, width: 160, height: 160),
+            const SizedBox(height: 16),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 16, color: AppColors.ink2),
+            ),
+          ],
         ),
       ),
     );
