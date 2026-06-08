@@ -278,89 +278,164 @@ class _NotificationsPageState extends State<NotificationsPage> {
                   style: TextStyle(fontSize: 18, color: AppColors.ink2),
                 ),
                 const SizedBox(height: 28),
-                Flex(
-                  direction: stacked ? Axis.vertical : Axis.horizontal,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      flex: 7,
-                      child: Panel(
+                if (stacked) ...[
+                  // Vertical: sin Expanded — altura libre en scroll
+                  Panel(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _RecipientsSection(
+                          tab: _tab,
+                          onTabChanged: (t) => setState(() {
+                            _tab = t;
+                            _selectedIds.clear();
+                            _searchController.clear();
+                            _searchResults.clear();
+                          }),
+                          searchController: _searchController,
+                          onSearchChanged: _onSearchChanged,
+                          searchResults: _searchResults,
+                          searching: _loadingUsers,
+                          selectedIds: _selectedIds,
+                          onToggleUser: _toggleUser,
+                        ),
+                        const SizedBox(height: 30),
+                        const FormLabel('Título'),
+                        TextInput(
+                          controller: widget.titleController,
+                          hintText: 'Ej: Tu resumen de gastos está listo',
+                          maxLengthLabel: '0/40',
+                        ),
+                        const SizedBox(height: 24),
+                        const FormLabel('Mensaje'),
+                        TextAreaInput(
+                          controller: widget.messageController,
+                          hintText:
+                              'Escribe el mensaje que verán tus usuarios...',
+                          maxLengthLabel: '0/160',
+                          maxLines: 6,
+                        ),
+                        const SizedBox(height: 24),
+                        _SendSection(
+                          sendState: _sendState,
+                          sentCount: _sentCount,
+                          totalCount: _totalCount,
+                          errorMessage: _errorMessage,
+                          onSend: _send,
+                          onReset: _resetSendState,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'VISTA PREVIA',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 3,
+                            color: AppColors.ink3,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      PhonePreview(
+                        title: previewTitle,
+                        message: previewMessage,
+                        sendMode: PreviewSendMode.now,
+                      ),
+                    ],
+                  ),
+                ] else
+                  // Horizontal: Expanded funciona en Row con altura finita
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        flex: 7,
+                        child: Panel(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _RecipientsSection(
+                                tab: _tab,
+                                onTabChanged: (t) => setState(() {
+                                  _tab = t;
+                                  _selectedIds.clear();
+                                  _searchController.clear();
+                                  _searchResults.clear();
+                                }),
+                                searchController: _searchController,
+                                onSearchChanged: _onSearchChanged,
+                                searchResults: _searchResults,
+                                searching: _loadingUsers,
+                                selectedIds: _selectedIds,
+                                onToggleUser: _toggleUser,
+                              ),
+                              const SizedBox(height: 30),
+                              const FormLabel('Título'),
+                              TextInput(
+                                controller: widget.titleController,
+                                hintText: 'Ej: Tu resumen de gastos está listo',
+                                maxLengthLabel: '0/40',
+                              ),
+                              const SizedBox(height: 24),
+                              const FormLabel('Mensaje'),
+                              TextAreaInput(
+                                controller: widget.messageController,
+                                hintText:
+                                    'Escribe el mensaje que verán tus usuarios...',
+                                maxLengthLabel: '0/160',
+                                maxLines: 6,
+                              ),
+                              const SizedBox(height: 24),
+                              _SendSection(
+                                sendState: _sendState,
+                                sentCount: _sentCount,
+                                totalCount: _totalCount,
+                                errorMessage: _errorMessage,
+                                onSend: _send,
+                                onReset: _resetSendState,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 34),
+                      Expanded(
+                        flex: 5,
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.center,
                           children: [
-                            _RecipientsSection(
-                              tab: _tab,
-                              onTabChanged: (t) => setState(() {
-                                _tab = t;
-                                _selectedIds.clear();
-                                _searchController.clear();
-                                _searchResults.clear();
-                              }),
-                              searchController: _searchController,
-                              onSearchChanged: _onSearchChanged,
-                              searchResults: _searchResults,
-                              searching: _loadingUsers,
-                              selectedIds: _selectedIds,
-                              onToggleUser: _toggleUser,
-                            ),
-                            const SizedBox(height: 30),
-                            const FormLabel('Título'),
-                            TextInput(
-                              controller: widget.titleController,
-                              hintText: 'Ej: Tu resumen de gastos está listo',
-                              maxLengthLabel: '0/40',
+                            const Padding(
+                              padding: EdgeInsets.only(top: 8),
+                              child: Text(
+                                'VISTA PREVIA',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 3,
+                                  color: AppColors.ink3,
+                                ),
+                              ),
                             ),
                             const SizedBox(height: 24),
-                            const FormLabel('Mensaje'),
-                            TextAreaInput(
-                              controller: widget.messageController,
-                              hintText:
-                                  'Escribe el mensaje que verán tus usuarios...',
-                              maxLengthLabel: '0/160',
-                              maxLines: 6,
-                            ),
-                            const SizedBox(height: 24),
-                            _SendSection(
-                              sendState: _sendState,
-                              sentCount: _sentCount,
-                              totalCount: _totalCount,
-                              errorMessage: _errorMessage,
-                              onSend: _send,
-                              onReset: _resetSendState,
+                            PhonePreview(
+                              title: previewTitle,
+                              message: previewMessage,
+                              sendMode: PreviewSendMode.now,
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    SizedBox(width: stacked ? 0 : 34, height: stacked ? 28 : 0),
-                    Expanded(
-                      flex: 5,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          const Padding(
-                            padding: EdgeInsets.only(top: 8),
-                            child: Text(
-                              'VISTA PREVIA',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 3,
-                                color: AppColors.ink3,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          PhonePreview(
-                            title: previewTitle,
-                            message: previewMessage,
-                            sendMode: PreviewSendMode.now,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
                 const SizedBox(height: 40),
                 const _NotificationLogsSection(),
               ],
