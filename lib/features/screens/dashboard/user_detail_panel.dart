@@ -1,6 +1,7 @@
 import 'dart:math' show min;
 
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
+import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/core/models/user_detail_model.dart';
 import 'package:dashboard_analitycs/core/models/user_model.dart';
 import 'package:dashboard_analitycs/core/services/user_detail_service.dart';
@@ -19,7 +20,7 @@ Future<void> showUserDetail(BuildContext context, UserModel user) {
     barrierLabel: '',
     barrierColor: AppColors.ink.withValues(alpha: 0.22),
     transitionDuration: const Duration(milliseconds: 260),
-    pageBuilder: (ctx, _, __) => _UserDetailSheet(user: user),
+    pageBuilder: (ctx, _, _) => _UserDetailSheet(user: user),
     transitionBuilder: (ctx, animation, _, child) {
       return SlideTransition(
         position: Tween<Offset>(
@@ -69,7 +70,7 @@ class _UserDetailSheetState extends State<_UserDetailSheet> {
     return Align(
       alignment: Alignment.centerRight,
       child: Material(
-        color: AppColors.fieldBg,
+        color: context.dc.elevated,
         child: SizedBox(
           width: width,
           height: double.infinity,
@@ -113,24 +114,24 @@ class _SheetContent extends StatelessWidget {
               children: [
                 const SizedBox(height: 24),
                 _InfoSection(detail: detail),
-                _divider(),
+                _divider(context),
                 _DeviceSection(detail: detail),
-                _divider(),
+                _divider(context),
                 _PermissionsSection(detail: detail),
                 if (detail.planUser != null) ...[
-                  _divider(),
+                  _divider(context),
                   _PlanSection(plan: detail.planUser!),
                 ],
                 if (detail.subscriptions.isNotEmpty) ...[
-                  _divider(),
+                  _divider(context),
                   _SubscriptionsSection(subs: detail.subscriptions),
                 ],
                 if (detail.budgets.isNotEmpty) ...[
-                  _divider(),
+                  _divider(context),
                   _BudgetsSection(budgets: detail.budgets),
                 ],
                 if (detail.recentExpenses.isNotEmpty) ...[
-                  _divider(),
+                  _divider(context),
                   _ExpensesSection(expenses: detail.recentExpenses),
                 ],
               ],
@@ -141,9 +142,9 @@ class _SheetContent extends StatelessWidget {
     );
   }
 
-  Widget _divider() => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24),
-        child: Divider(height: 1, thickness: 1, color: AppColors.progressBg),
+  Widget _divider(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Divider(height: 1, thickness: 1, color: context.dc.divider),
       );
 }
 
@@ -178,7 +179,7 @@ class _Header extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 20, 20, 24),
-      color: AppColors.white,
+      color: context.dc.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -210,19 +211,19 @@ class _Header extends StatelessWidget {
                   children: [
                     Text(
                       detail.fullName.isNotEmpty ? detail.fullName : '—',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.w700,
                         letterSpacing: -0.5,
-                        color: AppColors.ink,
+                        color: context.dc.ink,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       detail.email,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 14,
-                        color: AppColors.ink2,
+                        color: context.dc.ink2,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -245,13 +246,13 @@ class _Header extends StatelessWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: AppColors.fieldBg,
+                    color: context.dc.elevated,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     FluentIcons.dismiss_20_regular,
                     size: 18,
-                    color: AppColors.ink2,
+                    color: context.dc.ink2,
                   ),
                 ),
               ),
@@ -316,6 +317,16 @@ class _DeviceSection extends StatelessWidget {
   const _DeviceSection({required this.detail});
   final UserDetail detail;
 
+  Widget _osIcon(BuildContext context, String branch) {
+    final lower = branch.toLowerCase();
+    if (lower.contains('ios') || lower.contains('apple')) {
+      return FaIcon(FontAwesomeIcons.apple, size: 14, color: context.dc.ink3);
+    } else if (lower.contains('android')) {
+      return FaIcon(FontAwesomeIcons.android, size: 14, color: context.dc.ink3);
+    }
+    return Icon(FluentIcons.phone_20_regular, size: 16, color: context.dc.ink3);
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasDevice = detail.deviceBranch.isNotEmpty ||
@@ -331,6 +342,7 @@ class _DeviceSection extends StatelessWidget {
         if (detail.deviceBranch.isNotEmpty)
           _InfoRow(
             icon: FluentIcons.phone_20_regular,
+            leadingWidget: _osIcon(context, detail.deviceBranch),
             label: 'Sistema',
             value: detail.deviceBranch,
           ),
@@ -349,14 +361,15 @@ class _DeviceSection extends StatelessWidget {
         if (detail.deviceVersion.isNotEmpty)
           _InfoRow(
             icon: FluentIcons.code_20_regular,
-            label: 'SO',
+            leadingWidget: _osIcon(context, detail.deviceBranch),
+            label: 'Versión del sistema',
             value: detail.deviceVersion,
           ),
         if (detail.language.isNotEmpty)
           _InfoRow(
             icon: FluentIcons.translate_20_regular,
             label: 'Idioma',
-            value: detail.language,
+            value: _langLabel(detail.language),
           ),
       ],
     );
@@ -384,26 +397,10 @@ class _PermissionsSection extends StatelessWidget {
           spacing: 10,
           runSpacing: 10,
           children: [
-            _PermChip(
-              icon: FluentIcons.camera_20_regular,
-              label: 'Cámara',
-              granted: detail.permCamera,
-            ),
-            _PermChip(
-              icon: FluentIcons.location_20_regular,
-              label: 'Ubicación',
-              granted: detail.permLocation,
-            ),
-            _PermChip(
-              icon: FluentIcons.alert_20_regular,
-              label: 'Notificaciones',
-              granted: detail.permNotifications,
-            ),
-            _PermChip(
-              icon: FluentIcons.mic_20_regular,
-              label: 'Voz',
-              granted: detail.permVoice,
-            ),
+            _PermChip(label: 'Cámara', granted: detail.permCamera),
+            _PermChip(label: 'Ubicación', granted: detail.permLocation),
+            _PermChip(label: 'Notificaciones', granted: detail.permNotifications),
+            _PermChip(label: 'Voz', granted: detail.permVoice),
           ],
         ),
       ],
@@ -444,13 +441,13 @@ class _PlanSection extends StatelessWidget {
         ),
         if (plan.startDate != null)
           _InfoRow(
-            icon: FluentIcons.play_circle_20_regular,
+            icon: FluentIcons.calendar_20_regular,
             label: 'Inicio',
             value: _fmtDate(plan.startDate!),
           ),
         if (plan.endDate != null)
           _InfoRow(
-            icon: FluentIcons.stop_20_regular,
+            icon: FluentIcons.calendar_20_regular,
             label: 'Vence',
             value: _fmtDate(plan.endDate!),
           ),
@@ -458,8 +455,7 @@ class _PlanSection extends StatelessWidget {
           _InfoRow(
             icon: FluentIcons.tag_20_regular,
             label: 'ID suscripción',
-            value: plan.subscriptionId,
-            mono: true,
+            value: _subIdLabel(plan.subscriptionId),
           ),
       ],
     );
@@ -514,7 +510,7 @@ class _SubItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: context.dc.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -527,16 +523,16 @@ class _SubItem extends StatelessWidget {
               children: [
                 Text(
                   sub.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.ink,
+                    color: context.dc.ink,
                   ),
                 ),
                 if (sub.categorieName.isNotEmpty)
                   Text(
                     sub.categorieName,
-                    style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                    style: TextStyle(fontSize: 12, color: context.dc.ink3),
                   ),
               ],
             ),
@@ -546,20 +542,20 @@ class _SubItem extends StatelessWidget {
             children: [
               Text(
                 amount,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.ink,
+                  color: context.dc.ink,
                 ),
               ),
               Text(
                 freqLabel,
-                style: const TextStyle(fontSize: 12, color: AppColors.ink2),
+                style: TextStyle(fontSize: 12, color: context.dc.ink2),
               ),
               if (nextPay != null)
                 Text(
                   'Próximo: $nextPay',
-                  style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+                  style: TextStyle(fontSize: 11, color: context.dc.ink3),
                 ),
             ],
           ),
@@ -594,7 +590,7 @@ class _BudgetItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: context.dc.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -611,19 +607,19 @@ class _BudgetItem extends StatelessWidget {
           Expanded(
             child: Text(
               budget.nameCategory,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: AppColors.ink,
+                color: context.dc.ink,
               ),
             ),
           ),
           Text(
             _fmtAmount(budget.valueBudget, ''),
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w700,
-              color: AppColors.ink,
+              color: context.dc.ink,
             ),
           ),
         ],
@@ -662,7 +658,7 @@ class _ExpenseItem extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: context.dc.surface,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Row(
@@ -680,17 +676,16 @@ class _ExpenseItem extends StatelessWidget {
                   entry.description.isNotEmpty
                       ? entry.description
                       : entry.categorieName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.ink,
+                    color: context.dc.ink,
                   ),
                 ),
                 if (date.isNotEmpty)
                   Text(
                     date,
-                    style:
-                        const TextStyle(fontSize: 12, color: AppColors.ink3),
+                    style: TextStyle(fontSize: 12, color: context.dc.ink3),
                   ),
               ],
             ),
@@ -731,15 +726,15 @@ class _Section extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(icon, size: 16, color: AppColors.ink3),
+            Icon(icon, size: 16, color: context.dc.ink3),
             const SizedBox(width: 8),
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 1.2,
-                color: AppColors.ink3,
+                color: context.dc.ink3,
               ),
             ),
           ],
@@ -757,14 +752,14 @@ class _InfoRow extends StatelessWidget {
     required this.label,
     this.value,
     this.valueWidget,
-    this.mono = false,
+    this.leadingWidget,
   });
 
   final IconData icon;
   final String label;
   final String? value;
   final Widget? valueWidget;
-  final bool mono;
+  final Widget? leadingWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -773,26 +768,31 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: AppColors.ink3),
-          const SizedBox(width: 10),
           SizedBox(
-            width: 96,
+            width: 20,
+            child: leadingWidget ?? Icon(icon, size: 16, color: context.dc.ink3),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 130,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 13, color: AppColors.ink2),
+              style: TextStyle(fontSize: 13, color: context.dc.ink2),
             ),
           ),
           Expanded(
-            child: valueWidget ??
-                Text(
-                  value ?? '—',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.ink,
-                    fontFamily: mono ? 'monospace' : null,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: valueWidget ??
+                  Text(
+                    value ?? '—',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: context.dc.ink,
+                    ),
                   ),
-                ),
+            ),
           ),
         ],
       ),
@@ -802,37 +802,32 @@ class _InfoRow extends StatelessWidget {
 
 class _PermChip extends StatelessWidget {
   const _PermChip({
-    required this.icon,
     required this.label,
     required this.granted,
   });
 
-  final IconData icon;
   final String label;
   final bool granted;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: granted
             ? AppColors.success.withValues(alpha: 0.10)
-            : AppColors.fieldBg,
+            : AppColors.danger.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: granted
-              ? AppColors.success.withValues(alpha: 0.25)
-              : AppColors.progressBg,
-        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            icon,
+            granted
+                ? FluentIcons.checkmark_circle_20_filled
+                : FluentIcons.dismiss_circle_20_filled,
             size: 14,
-            color: granted ? AppColors.success : AppColors.ink3,
+            color: granted ? AppColors.success : AppColors.danger,
           ),
           const SizedBox(width: 6),
           Text(
@@ -840,7 +835,7 @@ class _PermChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
-              color: granted ? AppColors.success : AppColors.ink3,
+              color: granted ? AppColors.success : AppColors.danger,
             ),
           ),
         ],
@@ -893,31 +888,17 @@ class _StatusChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: active
-            ? AppColors.success.withValues(alpha: 0.10)
-            : AppColors.danger.withValues(alpha: 0.10),
+            ? AppColors.success.withValues(alpha: 0.12)
+            : AppColors.danger.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 6,
-            height: 6,
-            decoration: BoxDecoration(
-              color: active ? AppColors.liveGreen : AppColors.danger,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 5),
-          Text(
-            active ? 'Activo' : 'Inactivo',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: active ? AppColors.success : AppColors.danger,
-            ),
-          ),
-        ],
+      child: Text(
+        active ? 'Activo' : 'Inactivo',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: active ? AppColors.success : AppColors.danger,
+        ),
       ),
     );
   }
@@ -978,20 +959,20 @@ class _SheetShimmer extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.fromLTRB(24, 20, 20, 24),
-          color: AppColors.white,
+          color: context.dc.surface,
           child: Row(
             children: [
-              _box(64, 64, radius: 20),
+              _box(context, 64, 64, radius: 20),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _box(140, 20),
+                    _box(context, 140, 20),
                     const SizedBox(height: 8),
-                    _box(200, 14),
+                    _box(context, 200, 14),
                     const SizedBox(height: 12),
-                    _box(100, 24, radius: 999),
+                    _box(context, 100, 24, radius: 999),
                   ],
                 ),
               ),
@@ -1001,11 +982,11 @@ class _SheetShimmer extends StatelessWidget {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: AppColors.fieldBg,
+                    color: context.dc.elevated,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(FluentIcons.dismiss_20_regular,
-                      size: 18, color: AppColors.ink2),
+                  child: Icon(FluentIcons.dismiss_20_regular,
+                      size: 18, color: context.dc.ink2),
                 ),
               ),
             ],
@@ -1020,7 +1001,7 @@ class _SheetShimmer extends StatelessWidget {
                 6,
                 (i) => Padding(
                   padding: const EdgeInsets.only(bottom: 16),
-                  child: _box(double.infinity, 48, radius: 14),
+                  child: _box(context, double.infinity, 48, radius: 14),
                 ),
               ),
             ),
@@ -1030,11 +1011,12 @@ class _SheetShimmer extends StatelessWidget {
     );
   }
 
-  Widget _box(double w, double h, {double radius = 8}) => Container(
+  Widget _box(BuildContext context, double w, double h, {double radius = 8}) =>
+      Container(
         width: w,
         height: h,
         decoration: BoxDecoration(
-          color: AppColors.shimmerBase,
+          color: context.dc.shimmerBase,
           borderRadius: BorderRadius.circular(radius),
         ),
       );
@@ -1062,22 +1044,21 @@ class _SheetError extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: AppColors.white,
+                  color: context.dc.elevated,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(FluentIcons.dismiss_20_regular,
-                    size: 18, color: AppColors.ink2),
+                child: Icon(FluentIcons.dismiss_20_regular,
+                    size: 18, color: context.dc.ink2),
               ),
             ),
           ),
         ),
         const Spacer(),
-        const Icon(FluentIcons.warning_20_regular,
-            size: 48, color: AppColors.ink3),
+        Icon(FluentIcons.warning_20_regular, size: 48, color: context.dc.ink3),
         const SizedBox(height: 12),
-        const Text(
+        Text(
           'No se pudo cargar la información',
-          style: TextStyle(fontSize: 16, color: AppColors.ink2),
+          style: TextStyle(fontSize: 16, color: context.dc.ink2),
         ),
         const Spacer(),
       ],
@@ -1091,10 +1072,53 @@ class _SheetError extends StatelessWidget {
 
 String _fmtDate(DateTime d) {
   const months = [
-    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+    'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+    'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
   ];
-  return '${d.day} ${months[d.month - 1]} ${d.year}';
+  final period = d.hour < 12 ? 'a.m.' : 'p.m.';
+  final h12 = d.hour % 12 == 0 ? 12 : d.hour % 12;
+  final min = d.minute.toString().padLeft(2, '0');
+  return '${d.day} de ${months[d.month - 1]} ${d.year} $h12:$min $period';
+}
+
+String _langLabel(String code) {
+  final parts = code.toLowerCase().split(RegExp(r'[-_]'));
+  final lang = parts.first;
+  final region = parts.length > 1 ? parts[1] : '';
+  const latinRegions = {
+    'co', 'mx', 'ar', 'cl', 'pe', 've', 'bo', 'ec',
+    'uy', 'py', 'cr', 'pa', 'hn', 'sv', 'ni', 'do',
+    'cu', 'pr', 'gt', '419',
+  };
+  switch (lang) {
+    case 'es':
+      if (region == 'es') return 'Español (España)';
+      if (region.isEmpty || latinRegions.contains(region)) return 'Español (Latinoamérica)';
+      return 'Español';
+    case 'en':
+      if (region == 'us') return 'Inglés (EE.UU.)';
+      if (region == 'gb') return 'Inglés (Reino Unido)';
+      return 'Inglés';
+    case 'pt':
+      if (region == 'br') return 'Portugués (Brasil)';
+      if (region == 'pt') return 'Portugués (Portugal)';
+      return 'Portugués';
+    case 'fr': return 'Francés';
+    case 'de': return 'Alemán';
+    case 'it': return 'Italiano';
+    case 'ja': return 'Japonés';
+    case 'zh': return 'Chino';
+    case 'ko': return 'Coreano';
+    case 'ru': return 'Ruso';
+    default: return code;
+  }
+}
+
+String _subIdLabel(String id) {
+  final lower = id.toLowerCase();
+  if (lower.contains('yearly') || lower.contains('annual')) return 'Suscripción anual';
+  if (lower.contains('monthly')) return 'Suscripción mensual';
+  return id;
 }
 
 String _fmtFrequency(String freq) {

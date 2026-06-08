@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/app_constants.dart';
+import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -195,7 +196,7 @@ class RangeSegmentedControl extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: context.dc.surface,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
@@ -236,7 +237,7 @@ class SegmentButton extends StatelessWidget {
         curve: Curves.easeOut,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFF1F1EF) : Colors.transparent,
+          color: selected ? context.dc.chipSelected : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Text(
@@ -244,7 +245,7 @@ class SegmentButton extends StatelessWidget {
           style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w700,
-            color: AppColors.ink.withValues(alpha: selected ? 1 : 0.68),
+            color: context.dc.ink.withValues(alpha: selected ? 1 : 0.68),
           ),
         ),
       ),
@@ -312,16 +313,13 @@ class MetricCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 26),
       decoration: BoxDecoration(
-        color: accent ? const Color(0xFFFBEEF2) : AppColors.white,
+        color: accent ? const Color(0xFFFBEEF2) : context.dc.surface,
         borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: const TextStyle(fontSize: 16, color: AppColors.ink2),
-          ),
+          Text(label, style: TextStyle(fontSize: 16, color: context.dc.ink2)),
           const SizedBox(height: 18),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -332,12 +330,12 @@ class MetricCard extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     value,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 52,
                       fontWeight: FontWeight.w700,
                       height: 0.95,
                       letterSpacing: -2.2,
-                      color: AppColors.ink,
+                      color: context.dc.ink,
                     ),
                   ),
                 ),
@@ -359,7 +357,7 @@ class MetricCard extends StatelessWidget {
               if (helperText != null)
                 Text(
                   helperText!,
-                  style: const TextStyle(fontSize: 16, color: AppColors.ink3),
+                  style: TextStyle(fontSize: 16, color: context.dc.ink3),
                 ),
             ],
           ),
@@ -493,7 +491,7 @@ class Panel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: context.dc.surface,
         borderRadius: BorderRadius.circular(32),
       ),
       child: child,
@@ -513,17 +511,14 @@ class PanelHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w700,
-            color: AppColors.ink,
+            color: context.dc.ink,
           ),
         ),
         const Spacer(),
-        Text(
-          trailing,
-          style: const TextStyle(fontSize: 16, color: AppColors.ink3),
-        ),
+        Text(trailing, style: TextStyle(fontSize: 16, color: context.dc.ink3)),
       ],
     );
   }
@@ -684,27 +679,23 @@ class SearchField extends StatelessWidget {
     return Container(
       height: 78,
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: context.dc.input,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
         children: [
           const SizedBox(width: 24),
-          const Icon(
-            FluentIcons.search_20_regular,
-            size: 34,
-            color: AppColors.ink3,
-          ),
+          Icon(FluentIcons.search_20_regular, size: 34, color: context.dc.hint),
           const SizedBox(width: 14),
           Expanded(
             child: TextField(
               controller: controller,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Buscar por nombre o correo...',
-                hintStyle: TextStyle(fontSize: 20, color: AppColors.ink3),
+                hintStyle: TextStyle(fontSize: 20, color: context.dc.hint),
               ),
-              style: const TextStyle(fontSize: 20, color: AppColors.ink),
+              style: TextStyle(fontSize: 20, color: context.dc.ink),
             ),
           ),
           const SizedBox(width: 22),

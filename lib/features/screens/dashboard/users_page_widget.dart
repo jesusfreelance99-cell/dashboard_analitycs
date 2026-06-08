@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:country_flags/country_flags.dart';
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
+import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/core/models/user_model.dart';
 import 'package:dashboard_analitycs/core/services/country_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/user_metrics_service.dart';
@@ -8,6 +10,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'empty_tables_component.dart';
 import 'models.dart';
 import 'shared_widgets.dart';
 import 'user_detail_panel.dart';
@@ -254,6 +257,23 @@ class _UsersPageState extends State<UsersPage> {
         LayoutBuilder(
           builder: (_, constraints) {
             final wide = constraints.maxWidth > 800;
+            final total = _loading ? null : _allUsers.length;
+            final active = _loading ? null : _allUsers.where((u) => u.status).length;
+            final inactive = _loading ? null : _allUsers.where((u) => !u.status).length;
+            final pro = _loading ? null : _allUsers.where((u) => u.plan == 'pro').length;
+            final free = _loading ? null : _allUsers.where((u) => u.plan != 'pro').length;
+
+            final statusItems = [
+              (label: 'Todos', count: total),
+              (label: 'Activos', count: active),
+              (label: 'Inactivos', count: inactive),
+            ];
+            final planItems = [
+              (label: 'Todos', count: total),
+              (label: 'Pro', count: pro),
+              (label: 'Gratuito', count: free),
+            ];
+
             if (wide) {
               return Row(
                 children: [
@@ -262,7 +282,7 @@ class _UsersPageState extends State<UsersPage> {
                   Expanded(
                     flex: 3,
                     child: _FilterBar(
-                      items: const ['Todos', 'Activos', 'Inactivos'],
+                      items: statusItems,
                       selected: _statusFilter,
                       onChanged: (v) => setState(() {
                         _statusFilter = v;
@@ -274,7 +294,7 @@ class _UsersPageState extends State<UsersPage> {
                   Expanded(
                     flex: 3,
                     child: _FilterBar(
-                      items: const ['Todos', 'Pro', 'Gratuito'],
+                      items: planItems,
                       selected: _planFilter,
                       onChanged: (v) => setState(() {
                         _planFilter = v;
@@ -291,7 +311,7 @@ class _UsersPageState extends State<UsersPage> {
                 SearchField(controller: widget.searchController),
                 const SizedBox(height: 12),
                 _FilterBar(
-                  items: const ['Todos', 'Activos', 'Inactivos'],
+                  items: statusItems,
                   selected: _statusFilter,
                   onChanged: (v) => setState(() {
                     _statusFilter = v;
@@ -300,7 +320,7 @@ class _UsersPageState extends State<UsersPage> {
                 ),
                 const SizedBox(height: 12),
                 _FilterBar(
-                  items: const ['Todos', 'Pro', 'Gratuito'],
+                  items: planItems,
                   selected: _planFilter,
                   onChanged: (v) => setState(() {
                     _planFilter = v;
@@ -369,7 +389,7 @@ class _FilterBar extends StatelessWidget {
     required this.onChanged,
   });
 
-  final List<String> items;
+  final List<({String label, int? count})> items;
   final String selected;
   final ValueChanged<String> onChanged;
 
@@ -378,7 +398,7 @@ class _FilterBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
-        color: AppColors.white,
+        color: context.dc.surface,
         borderRadius: BorderRadius.circular(24),
       ),
       child: Row(
@@ -386,26 +406,45 @@ class _FilterBar extends StatelessWidget {
           for (int i = 0; i < items.length; i++) ...[
             Expanded(
               child: GestureDetector(
-                onTap: () => onChanged(items[i]),
+                onTap: () => onChanged(items[i].label),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                   decoration: BoxDecoration(
-                    color: items[i] == selected
-                        ? AppColors.progressBg
+                    color: items[i].label == selected
+                        ? context.dc.chipSelected
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(18),
                   ),
-                  child: Text(
-                    items[i],
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: items[i] == selected
-                          ? AppColors.ink
-                          : AppColors.ink2,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        items[i].label,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: items[i].label == selected
+                              ? context.dc.ink
+                              : context.dc.ink2,
+                        ),
+                      ),
+                      if (items[i].count != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          _compactNum(items[i].count!),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: items[i].label == selected
+                                ? context.dc.ink2
+                                : context.dc.ink3,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
@@ -416,6 +455,18 @@ class _FilterBar extends StatelessWidget {
       ),
     );
   }
+}
+
+String _compactNum(int n) {
+  if (n >= 1000000) {
+    final v = n / 1000000;
+    return '${v % 1 == 0 ? v.toInt() : v.toStringAsFixed(1)}M';
+  }
+  if (n >= 1000) {
+    final v = n / 1000;
+    return '${v % 1 == 0 ? v.toInt() : v.toStringAsFixed(1)}k';
+  }
+  return '$n';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -491,28 +542,28 @@ class _CountryChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: AppColors.fieldBg,
+        color: context.dc.elevated,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(entry.flag, style: const TextStyle(fontSize: 22)),
+          _FlagWidget(isoCode: entry.isoCode, size: 28),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 entry.name,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  color: AppColors.ink,
+                  color: context.dc.ink,
                 ),
               ),
               Text(
                 '${entry.count} · ${entry.percent}',
-                style: const TextStyle(fontSize: 13, color: AppColors.ink2),
+                style: TextStyle(fontSize: 13, color: context.dc.ink2),
               ),
             ],
           ),
@@ -540,6 +591,32 @@ class _CountryList extends StatelessWidget {
   }
 }
 
+class _FlagWidget extends StatelessWidget {
+  const _FlagWidget({required this.isoCode, required this.size});
+
+  final String isoCode;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    if (isoCode.isEmpty) {
+      return SizedBox(
+        width: size,
+        height: size * 0.7,
+        child: Icon(FluentIcons.globe_20_regular, size: size * 0.8, color: AppColors.ink3),
+      );
+    }
+    return CountryFlag.fromCountryCode(
+      isoCode,
+      theme: ImageTheme(
+        width: size,
+        height: size * 0.7,
+        shape: const RoundedRectangle(4),
+      ),
+    );
+  }
+}
+
 class _CountryRowEntry extends StatelessWidget {
   const _CountryRowEntry({required this.entry});
 
@@ -551,7 +628,7 @@ class _CountryRowEntry extends StatelessWidget {
       children: [
         SizedBox(
           width: 40,
-          child: Text(entry.flag, style: const TextStyle(fontSize: 26)),
+          child: _FlagWidget(isoCode: entry.isoCode, size: 32),
         ),
         Expanded(
           child: Text(
@@ -817,39 +894,26 @@ class _UserAvatar extends StatelessWidget {
 
   final UserModel user;
 
-  static const _palette = [
-    AppColors.chartBlue,
-    AppColors.chartGreen,
-    AppColors.chartPurple,
-    AppColors.chartPink,
-    AppColors.chartAmber,
-    AppColors.chartOlive,
+  static const _svgAvatars = [
+    'assets/svg/profile/Avatar Image.svg',
+    'assets/svg/profile/Avatar-21.svg',
+    'assets/svg/profile/avatar3.svg',
+    'assets/svg/profile/avatar_2.svg',
   ];
+  static const _pngAvatar = 'assets/svg/profile/Avatar-1.png';
 
   @override
   Widget build(BuildContext context) {
-    final initial = user.fullName.isNotEmpty
-        ? user.fullName[0].toUpperCase()
-        : user.email.isNotEmpty
-            ? user.email[0].toUpperCase()
-            : '?';
-    final color = _palette[user.id.hashCode.abs() % _palette.length];
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: Text(
-          initial,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
+    final idx = user.id.hashCode.abs() % 5;
+    final isSvg = idx < _svgAvatars.length;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: isSvg
+            ? SvgPicture.asset(_svgAvatars[idx], fit: BoxFit.cover)
+            : Image.asset(_pngAvatar, fit: BoxFit.cover),
       ),
     );
   }
@@ -1113,44 +1177,18 @@ class _EmptyUsers extends StatelessWidget {
   const _EmptyUsers();
 
   @override
-  Widget build(BuildContext context) => const _EmptySvg(label: 'Sin usuarios aún');
+  Widget build(BuildContext context) => const EmptyTablesComponent(
+        title: 'Sin usuarios aún',
+        description: 'Los usuarios aparecerán aquí una vez que se registren.',
+      );
 }
 
 class _EmptyFilter extends StatelessWidget {
   const _EmptyFilter();
 
   @override
-  Widget build(BuildContext context) =>
-      const _EmptySvg(label: 'Sin resultados para este filtro');
-}
-
-class _EmptySvg extends StatelessWidget {
-  const _EmptySvg({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final asset = isDark
-        ? 'assets/svg/dark_empty_tables.svg'
-        : 'assets/svg/empty_tables.svg';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SvgPicture.asset(asset, width: 160, height: 160),
-            const SizedBox(height: 16),
-            Text(
-              label,
-              style: const TextStyle(fontSize: 16, color: AppColors.ink2),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const EmptyTablesComponent(
+        title: 'Sin resultados',
+        description: 'Intenta con otro filtro o búsqueda.',
+      );
 }

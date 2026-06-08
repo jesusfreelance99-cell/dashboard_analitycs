@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class CountryEntry {
   final String name;
   final String flag;
+  final String isoCode;
   final int count;
   final double fraction;
   final String percent;
@@ -10,6 +11,7 @@ class CountryEntry {
   const CountryEntry({
     required this.name,
     required this.flag,
+    required this.isoCode,
     required this.count,
     required this.fraction,
     required this.percent,
@@ -80,6 +82,7 @@ class CountryMetricsService {
       result.add(CountryEntry(
         name: e.key,
         flag: _flagFor(e.key),
+        isoCode: _isoFor(e.key),
         count: e.value,
         fraction: (e.value / total).clamp(0.0, 1.0),
         percent: '${(e.value / total * 100).toStringAsFixed(1)}%',
@@ -89,6 +92,7 @@ class CountryMetricsService {
       result.add(CountryEntry(
         name: 'Otros',
         flag: '🌐',
+        isoCode: '',
         count: othersCount,
         fraction: (othersCount / total).clamp(0.0, 1.0),
         percent: '${(othersCount / total * 100).toStringAsFixed(1)}%',
@@ -104,6 +108,71 @@ class CountryMetricsService {
     }
     return '🌐';
   }
+
+  static String _isoFor(String name) {
+    final key = _norm(name);
+    for (final entry in _isos.entries) {
+      if (key.contains(entry.key)) return entry.value;
+    }
+    return '';
+  }
+
+  static const Map<String, String> _isos = {
+    'colombia': 'CO',
+    'mexico': 'MX',
+    'estados unidos': 'US',
+    'united states': 'US',
+    'espana': 'ES',
+    'spain': 'ES',
+    'argentina': 'AR',
+    'venezuela': 'VE',
+    'peru': 'PE',
+    'chile': 'CL',
+    'ecuador': 'EC',
+    'brasil': 'BR',
+    'brazil': 'BR',
+    'panama': 'PA',
+    'guatemala': 'GT',
+    'costa rica': 'CR',
+    'dominicana': 'DO',
+    'dominican': 'DO',
+    'bolivia': 'BO',
+    'honduras': 'HN',
+    'nicaragua': 'NI',
+    'salvador': 'SV',
+    'paraguay': 'PY',
+    'uruguay': 'UY',
+    'cuba': 'CU',
+    'puerto rico': 'PR',
+    'canada': 'CA',
+    'portugal': 'PT',
+    'francia': 'FR',
+    'france': 'FR',
+    'alemania': 'DE',
+    'germany': 'DE',
+    'reino unido': 'GB',
+    'united kingdom': 'GB',
+    'italia': 'IT',
+    'italy': 'IT',
+    'irlanda': 'IE',
+    'ireland': 'IE',
+    'holanda': 'NL',
+    'netherlands': 'NL',
+    'belgica': 'BE',
+    'belgium': 'BE',
+    'suiza': 'CH',
+    'switzerland': 'CH',
+    'suecia': 'SE',
+    'sweden': 'SE',
+    'noruega': 'NO',
+    'norway': 'NO',
+    'australia': 'AU',
+    'japon': 'JP',
+    'japan': 'JP',
+    'china': 'CN',
+    'corea': 'KR',
+    'korea': 'KR',
+  };
 
   static String _norm(String s) => s
       .toLowerCase()

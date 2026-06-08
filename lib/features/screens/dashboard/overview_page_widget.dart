@@ -16,6 +16,7 @@ import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import 'empty_tables_component.dart';
 import 'models.dart';
 import 'shared_widgets.dart';
 
@@ -538,14 +539,9 @@ class _OverviewContent extends StatelessWidget {
                         if (entries == null) ...[
                           _CountryShimmer(),
                         ] else if (entries.isEmpty) ...[
-                          const Center(
-                            child: Text(
-                              'Sin datos de país',
-                              style: TextStyle(
-                                fontSize: 15,
-                                color: AppColors.ink3,
-                              ),
-                            ),
+                          const EmptyTablesComponent(
+                            title: 'Sin datos de país',
+                            description: 'Aún no hay registros de ubicación.',
                           ),
                         ] else ...[
                           for (int i = 0; i < entries.length; i++) ...[
@@ -1305,12 +1301,7 @@ class _DownloadsTrendCardState extends State<_DownloadsTrendCard> {
           SizedBox(
             height: 210,
             child: points.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Sin datos disponibles aún',
-                      style: TextStyle(fontSize: 15, color: AppColors.ink3),
-                    ),
-                  )
+                ? const EmptyTablesComponent(title: 'Sin datos disponibles aún')
                 : _buildChart(points),
           ),
         ],
@@ -1668,12 +1659,7 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
           SizedBox(
             height: 210,
             child: points.isEmpty
-                ? const Center(
-                    child: Text(
-                      'Sin datos disponibles aún',
-                      style: TextStyle(fontSize: 15, color: AppColors.ink3),
-                    ),
-                  )
+                ? const EmptyTablesComponent(title: 'Sin datos disponibles aún')
                 : _buildRevenueChart(points),
           ),
         ],
