@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:country_flags/country_flags.dart';
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -1978,17 +1977,12 @@ class _CountryEntryRow extends StatelessWidget {
       children: [
         SizedBox(
           width: 46,
-          child: entry.isoCode.isNotEmpty
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: SizedBox(
-                    width: 40,
-                    height: 28,
-                    child: CountryFlag.fromCountryCode(entry.isoCode),
-                  ),
-                )
-              : const Icon(Icons.public_rounded, size: 28, color: AppColors.ink3),
+          child: Text(
+            entry.flag,
+            style: const TextStyle(fontSize: 26, height: 1),
+          ),
         ),
+        const SizedBox(width: 18),
         Expanded(
           child: Text(
             entry.name,
