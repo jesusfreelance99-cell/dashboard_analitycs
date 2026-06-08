@@ -50,6 +50,27 @@ class AppColors {
   static const Color chartRed = Color(0xFFE24B4A);
   static const Color chartOlive = Color(0xFF639922);
 
+  // ── Shimmer / placeholders ──────────────────────────────────────
+  static const Color shimmerBase   = Color(0xFFE8E8E6); // fondo de placeholders
+  static const Color shimmerLight  = Color(0xFFF5F5F3); // destello shimmer
+
+  // ── Progress bars ────────────────────────────────────────────────
+  static const Color progressBg    = Color(0xFFF1F1EF); // fondo barra de progreso
+  static const Color progressFill  = Color(0xFFBEBDB6); // relleno barra de progreso
+
+  // ── Advertencia ─────────────────────────────────────────────────
+  static const Color warningBg     = Color(0xFFFFF3CD); // fondo badge warning
+  static const Color warningText   = Color(0xFF856404); // texto badge warning
+
+  // ── Dorado / corona Pro ─────────────────────────────────────────
+  static const Color goldLight     = Color(0xFFFFD760); // fondo ícono corona
+  static const Color goldDark      = Color(0xFF8A6300); // ícono corona
+  static const Color goldGradStart = Color(0xFFFFC61F); // gradiente plan pro start
+  static const Color goldGradEnd   = Color(0xFFF3B100); // gradiente plan pro end
+
+  // ── Estrella / rating ────────────────────────────────────────────
+  static const Color starAmber     = Color(0xFFF5A524); // ícono estrella rating
+
   // ── Heredados (retrocompatibilidad con widgets existentes) ───────
   static const Color magentaVibrante = pink;
   static const Color rosaBrillante = Color(0xFFFF4081);

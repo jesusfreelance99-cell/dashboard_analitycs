@@ -162,22 +162,22 @@ class _NotificationsPageState extends State<NotificationsPage> {
       final recipientUsers = isAll
           ? <Map<String, String>>[]
           : _allUsers
-              .where((u) => _selectedIds.contains(u.id))
-              .map((u) => {'id': u.id, 'name': u.fullName, 'email': u.email})
-              .toList();
+                .where((u) => _selectedIds.contains(u.id))
+                .map((u) => {'id': u.id, 'name': u.fullName, 'email': u.email})
+                .toList();
 
       // Documento ligero — la Cloud Function hace el trabajo pesado
       final docRef = await FirebaseFirestore.instance
           .collection('notifications_queue')
           .add({
-        'title': title,
-        'message': message,
-        'status': 'pending',
-        'created_at': FieldValue.serverTimestamp(),
-        'recipient_type': isAll ? 'all' : 'specific',
-        if (!isAll) 'recipient_ids': _selectedIds.toList(),
-        if (recipientUsers.isNotEmpty) 'recipients': recipientUsers,
-      });
+            'title': title,
+            'message': message,
+            'status': 'pending',
+            'created_at': FieldValue.serverTimestamp(),
+            'recipient_type': isAll ? 'all' : 'specific',
+            if (!isAll) 'recipient_ids': _selectedIds.toList(),
+            if (recipientUsers.isNotEmpty) 'recipients': recipientUsers,
+          });
 
       // Stream del documento para mostrar progreso en tiempo real
       _progressSub?.cancel();
@@ -208,7 +208,8 @@ class _NotificationsPageState extends State<NotificationsPage> {
           if (mounted) {
             setState(() {
               _sendState = _SendState.error;
-              _errorMessage = d['error'] as String? ?? 'Error en Cloud Function';
+              _errorMessage =
+                  d['error'] as String? ?? 'Error en Cloud Function';
             });
           }
         }
@@ -404,7 +405,10 @@ class _NotificationLogsSection extends StatelessWidget {
               return const Padding(
                 padding: EdgeInsets.symmetric(vertical: 32),
                 child: Center(
-                  child: CircularProgressIndicator(color: AppColors.pink, strokeWidth: 2),
+                  child: CircularProgressIndicator(
+                    color: AppColors.pink,
+                    strokeWidth: 2,
+                  ),
                 ),
               );
             }
@@ -485,11 +489,15 @@ class _LogItemState extends State<_LogItem> {
 
     String recipientLabel;
     if (recipientType == 'all') {
-      recipientLabel = 'Todos los usuarios · ${recipientCount ?? '—'} destinatarios';
+      recipientLabel =
+          'Todos los usuarios · ${recipientCount ?? '—'} destinatarios';
     } else if (recipients != null && recipients.isNotEmpty) {
-      recipientLabel = '${recipients.length} usuario${recipients.length == 1 ? '' : 's'} específico${recipients.length == 1 ? '' : 's'}';
+      recipientLabel =
+          '${recipients.length} usuario${recipients.length == 1 ? '' : 's'} específico${recipients.length == 1 ? '' : 's'}';
     } else {
-      recipientLabel = recipientCount != null ? '$recipientCount destinatarios' : '—';
+      recipientLabel = recipientCount != null
+          ? '$recipientCount destinatarios'
+          : '—';
     }
 
     return Container(
@@ -527,13 +535,19 @@ class _LogItemState extends State<_LogItem> {
                         message,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13, color: AppColors.ink2),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.ink2,
+                        ),
                       ),
                       const SizedBox(height: 6),
                       Row(
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
                             decoration: BoxDecoration(
                               color: statusColor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(6),
@@ -548,16 +562,26 @@ class _LogItemState extends State<_LogItem> {
                             ),
                           ),
                           const SizedBox(width: 10),
-                          const Icon(FluentIcons.people_20_regular, size: 14, color: AppColors.ink3),
+                          const Icon(
+                            FluentIcons.people_20_regular,
+                            size: 14,
+                            color: AppColors.ink3,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             recipientLabel,
-                            style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.ink3,
+                            ),
                           ),
                           const Spacer(),
                           Text(
                             dateLabel,
-                            style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.ink3,
+                            ),
                           ),
                         ],
                       ),
@@ -591,7 +615,10 @@ class _LogItemState extends State<_LogItem> {
                   final email = r['email'] as String? ?? '';
                   final label = name.isNotEmpty ? name : email;
                   return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF1F1EF),
                       borderRadius: BorderRadius.circular(8),

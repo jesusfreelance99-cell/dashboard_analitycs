@@ -52,6 +52,13 @@ service cloud.firestore {
       allow write: if isDashboardUser();
     }
 
+    // ── Plan de usuario (subcollección de users) ─────────────────────────────
+    // Cubre tanto acceso directo como collectionGroup queries del dashboard
+    match /users/{userId}/plan_user/{docId} {
+      allow read: if isOwner(userId) || isDashboardUser();
+      allow write: if isOwner(userId);
+    }
+
     // ── Solo lectura para usuarios del dashboard ──────────────────────────────
     match /transactions/{docId} {
       allow read:  if isDashboardUser();

@@ -91,6 +91,20 @@ class RevenueCatOverviewMetrics {
       RevenueCatRangeMetrics.formatInteger(activeCustomers28d);
 }
 
+class RevenueCatDailyPoint {
+  final String date;
+  final double revenue;
+
+  const RevenueCatDailyPoint({required this.date, required this.revenue});
+
+  factory RevenueCatDailyPoint.fromMap(Map<String, dynamic> m) {
+    return RevenueCatDailyPoint(
+      date: m['date'] as String? ?? '',
+      revenue: (m['revenue'] as num?)?.toDouble() ?? 0,
+    );
+  }
+}
+
 class RevenueCatRangeMetrics {
   const RevenueCatRangeMetrics({
     this.mrr = 0,
@@ -101,6 +115,7 @@ class RevenueCatRangeMetrics {
     this.newCustomers = 0,
     this.activeCustomers = 0,
     this.revenueBars = const [42, 68, 88, 124, 98],
+    this.timeSeries = const [],
     this.periodLabel = '',
   });
 
@@ -112,12 +127,15 @@ class RevenueCatRangeMetrics {
   final int newCustomers;
   final int activeCustomers;
   final List<double> revenueBars;
+  final List<RevenueCatDailyPoint> timeSeries;
   final String periodLabel;
 
   factory RevenueCatRangeMetrics.fromMap(Map<String, dynamic> map) {
     final rawBars = (map['revenue_bars'] as List<dynamic>? ?? const [])
         .map((item) => (item as num?)?.toDouble() ?? 0)
         .toList();
+
+    final rawSeries = map['revenue_time_series'] as List<dynamic>? ?? const [];
 
     return RevenueCatRangeMetrics(
       mrr: (map['mrr'] as num?)?.toDouble() ?? 0,
@@ -128,6 +146,10 @@ class RevenueCatRangeMetrics {
       newCustomers: (map['new_customers'] as num?)?.toInt() ?? 0,
       activeCustomers: (map['active_customers'] as num?)?.toInt() ?? 0,
       revenueBars: rawBars.isEmpty ? const [42, 68, 88, 124, 98] : rawBars,
+      timeSeries: rawSeries
+          .whereType<Map<String, dynamic>>()
+          .map(RevenueCatDailyPoint.fromMap)
+          .toList(),
       periodLabel: map['period_label'] as String? ?? '',
     );
   }

@@ -642,8 +642,8 @@ class CountryRow extends StatelessWidget {
             child: LinearProgressIndicator(
               value: data.progress,
               minHeight: 14,
-              backgroundColor: const Color(0xFFF1F1EF),
-              valueColor: const AlwaysStoppedAnimation(Color(0xFFBEBDB6)),
+              backgroundColor: AppColors.progressBg,
+              valueColor: const AlwaysStoppedAnimation(AppColors.progressFill),
             ),
           ),
         ),

@@ -89,6 +89,36 @@ function extractChartValues(payload: Record<string, unknown>): number[] {
     .filter((value) => Number.isFinite(value));
 }
 
+type RevenuePoint = { date: string; revenue: number };
+
+function extractRevenueTimeSeries(payload: Record<string, unknown>): RevenuePoint[] {
+  const values = Array.isArray(payload.values) ? payload.values : [];
+  const result: RevenuePoint[] = [];
+
+  for (const entry of values) {
+    const record = asRecord(entry);
+    if (!record) continue;
+
+    const revenue =
+      typeof record.value === 'number' ? record.value
+      : typeof record.y === 'number' ? record.y
+      : 0;
+
+    // RevenueCat v2 charts pueden usar 'period', 'date', o 'x' para la fecha
+    const date =
+      typeof record.period === 'string' ? record.period
+      : typeof record.date === 'string' ? record.date
+      : typeof record.x === 'string' ? record.x
+      : '';
+
+    if (date && Number.isFinite(revenue)) {
+      result.push({ date, revenue });
+    }
+  }
+
+  return result;
+}
+
 function latestChartValue(payload: Record<string, unknown>): number {
   const values = extractChartValues(payload);
   if (values.length > 0) return values[values.length - 1] ?? 0;
@@ -338,6 +368,8 @@ async function fetchRangeMetrics(
       ),
     ]);
 
+  const revenueTimeSeries = extractRevenueTimeSeries(revenueChart);
+
   return {
     mrr: latestChartValue(mrr),
     revenue: pickNumber(revenueMetric.value),
@@ -347,6 +379,7 @@ async function fetchRangeMetrics(
     new_customers: 0,
     active_customers: 0,
     revenue_bars: normalizeBars(extractChartValues(revenueChart)),
+    revenue_time_series: revenueTimeSeries,
     period_label: range.periodLabel,
     start_date: range.startDate ?? null,
     end_date: range.endDate,

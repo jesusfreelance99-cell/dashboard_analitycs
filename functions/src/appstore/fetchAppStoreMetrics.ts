@@ -126,6 +126,15 @@ async function parseTsv(
   return { impressions, pageViews, redownloads, appUnits };
 }
 
+// ── Tipos ─────────────────────────────────────────────────────────────────────
+
+type DailyPoint = {
+  date: string;       // "YYYY-MM-DD"
+  downloads: number;
+  impressions: number;
+  redownloads: number;
+};
+
 // ── Analytics desde Analytics Reports API (ONGOING — reutiliza requestId) ────
 // analyticsRequestId se guarda en el mismo documento dashboard_metrics/appstore
 
@@ -170,9 +179,9 @@ async function getOrCreateOngoingRequestId(token: string): Promise<string | null
 
 async function fetchAnalytics(
   token: string
-): Promise<{ impressions: number; redownloads: number; conversion: number }> {
+): Promise<{ impressions: number; redownloads: number; conversion: number; timeSeries: DailyPoint[] }> {
   const requestId = await getOrCreateOngoingRequestId(token);
-  if (!requestId) return { impressions: 0, redownloads: 0, conversion: 0 };
+  if (!requestId) return { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
 
   // APP_STORE_ACQUISITION: impresiones, descargas, page views, redownloads
   const reportTypes = ['APP_STORE_ACQUISITION', 'APP_STORE_ENGAGEMENT'];
@@ -219,7 +228,7 @@ async function fetchAnalytics(
 
   if (!reportId) {
     console.warn('No hay reportes disponibles. Si es el primer run, Apple puede tardar hasta 24h en generar el primer reporte ONGOING.');
-    return { impressions: 0, redownloads: 0, conversion: 0 };
+    return { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
   }
 
   // Obtener instancias DAILY (paginadas, máx 200)
@@ -231,7 +240,7 @@ async function fetchAnalytics(
 
   if (!instRes.ok) {
     console.warn(`Instances ${instRes.status}: ${await instRes.text()}`);
-    return { impressions: 0, redownloads: 0, conversion: 0 };
+    return { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
   }
 
   const { data: instances } = await instRes.json() as {
@@ -241,44 +250,54 @@ async function fetchAnalytics(
 
   if (instances.length === 0) {
     console.warn('Sin instancias disponibles para este reporte');
-    return { impressions: 0, redownloads: 0, conversion: 0 };
+    return { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
   }
 
-  // Descarga en paralelo (máx 10 concurrentes)
+  // Descarga en paralelo (máx 10 concurrentes) — preserva datos por día
   const CONCURRENCY = 10;
   let impressions = 0, pageViews = 0, redownloads = 0, appUnits = 0;
+  const timeSeries: DailyPoint[] = [];
 
   for (let i = 0; i < instances.length; i += CONCURRENCY) {
     const batch = instances.slice(i, i + CONCURRENCY);
     const results = await Promise.allSettled(
       batch.map(async inst => {
+        const date = inst.attributes.processingDate; // "YYYY-MM-DD"
         const dlRes = await fetch(inst.attributes.downloadUrl, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!dlRes.ok) {
-          console.warn(`Download falló ${dlRes.status} para instancia ${inst.attributes.processingDate}`);
+          console.warn(`Download falló ${dlRes.status} para instancia ${date}`);
           return null;
         }
-        return parseTsv(Buffer.from(await dlRes.arrayBuffer()));
+        const parsed = await parseTsv(Buffer.from(await dlRes.arrayBuffer()));
+        return { date, ...parsed };
       })
     );
 
     for (const r of results) {
       if (r.status === 'fulfilled' && r.value) {
-        impressions  += r.value.impressions;
-        pageViews    += r.value.pageViews;
-        redownloads  += r.value.redownloads;
-        appUnits     += r.value.appUnits;
+        const { date, impressions: imp, pageViews: pv, redownloads: rd, appUnits: au } = r.value;
+        impressions  += imp;
+        pageViews    += pv;
+        redownloads  += rd;
+        appUnits     += au;
+        if (date) {
+          timeSeries.push({ date, downloads: au, impressions: imp, redownloads: rd });
+        }
       }
     }
   }
+
+  // Ordenar cronológicamente (ascendente)
+  timeSeries.sort((a, b) => a.date.localeCompare(b.date));
 
   const conversion = impressions > 0
     ? Math.round((pageViews / impressions) * 1000) / 10
     : 0;
 
-  console.log(`✅ Analytics totales: imp=${impressions} pv=${pageViews} rd=${redownloads} units=${appUnits} conv=${conversion}%`);
-  return { impressions, redownloads, conversion };
+  console.log(`✅ Analytics totales: imp=${impressions} pv=${pageViews} rd=${redownloads} units=${appUnits} conv=${conversion}% timeSeries=${timeSeries.length} días`);
+  return { impressions, redownloads, conversion, timeSeries };
 }
 
 // ── Orquestador principal ─────────────────────────────────────────────────────
@@ -313,6 +332,7 @@ export async function fetchAndStoreAppStoreMetrics(privateKey: string): Promise<
       impressions: analytics.impressions,
       redownloads: analytics.redownloads,
       conversion: analytics.conversion,
+      time_series: analytics.timeSeries,
       status: 'complete',
     });
     console.log('✅ Métricas completas guardadas en dashboard_metrics/appstore');
