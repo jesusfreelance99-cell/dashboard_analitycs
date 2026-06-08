@@ -1,8 +1,10 @@
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/models/appstore_metrics_model.dart';
 import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
+import 'package:dashboard_analitycs/core/models/user_model.dart';
 import 'package:dashboard_analitycs/core/services/appstore_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
+import 'package:dashboard_analitycs/core/services/user_metrics_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -445,43 +447,47 @@ class _OverviewContent extends StatelessWidget {
         // ── USUARIOS ─────────────────────────────────────────────────────
         const SectionHeader(label: 'USUARIOS', source: 'Firebase'),
         const SizedBox(height: 14),
-        ResponsiveGrid(
-          minTileWidth: 250,
-          children: [
-            MetricCard(
-              label: 'Registrados',
-              value: data.users,
-              badgeText: '↑ 3',
-              badgeType: BadgeType.positive,
-              helperText: 'hoy',
-            ),
-            MetricCard(
-              label: 'Plan Pro',
-              value: '${data.proUsers}',
-              accent: true,
-              valueSuffix: const FaIcon(
-                FontAwesomeIcons.crown,
-                color: Color(0xFFF0AB21),
-                size: 24,
-              ),
-              badgeText:
-                  '${(data.proUsers / 40 * 100).toStringAsFixed(1)}% del total',
-              badgeType: BadgeType.neutral,
-            ),
-            MetricCard(
-              label: 'Plan Gratuito',
-              value: '${40 - data.proUsers}',
-              badgeText:
-                  '${(((40 - data.proUsers) / 40) * 100).toStringAsFixed(1)}% del total',
-              badgeType: BadgeType.neutral,
-            ),
-            MetricCard(
-              label: 'Activos',
-              value: data.activeUsers,
-              badgeText: '↑ 92.5%',
-              badgeType: BadgeType.positive,
-            ),
-          ],
+        FutureBuilder<UserCounts>(
+          future: UserMetricsService.future,
+          builder: (context, snap) {
+            final u = snap.data ?? UserCounts.empty;
+            return ResponsiveGrid(
+              minTileWidth: 250,
+              children: [
+                MetricCard(
+                  label: 'Registrados',
+                  value: u.total > 0 ? '${u.total}' : '—',
+                  badgeText: u.newToday > 0 ? '↑ ${u.newToday} hoy' : null,
+                  badgeType: BadgeType.positive,
+                  helperText: 'total',
+                ),
+                MetricCard(
+                  label: 'Plan Pro',
+                  value: '${u.pro}',
+                  accent: true,
+                  valueSuffix: const FaIcon(
+                    FontAwesomeIcons.crown,
+                    color: Color(0xFFF0AB21),
+                    size: 24,
+                  ),
+                  badgeText: '${u.proPercent} del total',
+                  badgeType: BadgeType.neutral,
+                ),
+                MetricCard(
+                  label: 'Plan Gratuito',
+                  value: '${u.free}',
+                  badgeText: '${u.freePercent} del total',
+                  badgeType: BadgeType.neutral,
+                ),
+                MetricCard(
+                  label: 'Activos',
+                  value: '${u.active}',
+                  badgeText: '↑ ${u.activePercent}',
+                  badgeType: BadgeType.positive,
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 34),
 
@@ -511,58 +517,62 @@ class _OverviewContent extends StatelessWidget {
         // ── DISTRIBUCIÓN ─────────────────────────────────────────────────
         const SectionHeader(label: 'DISTRIBUCIÓN', source: ''),
         const SizedBox(height: 14),
-        ResponsiveSplit(
-          left: Panel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const PanelHeader(
-                  title: 'Registros por país',
-                  trailing: 'Top 4',
-                ),
-                const SizedBox(height: 18),
-                for (final country in data.downloadCountries) ...[
-                  CountryRow(data: country),
-                  if (country != data.downloadCountries.last)
+        FutureBuilder<UserCounts>(
+          future: UserMetricsService.future,
+          builder: (context, snap) {
+            final u = snap.data ?? UserCounts.empty;
+            return ResponsiveSplit(
+              left: Panel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const PanelHeader(
+                      title: 'Registros por país',
+                      trailing: 'Top 4',
+                    ),
                     const SizedBox(height: 18),
-                ],
-              ],
-            ),
-          ),
-          right: Panel(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const PanelHeader(
-                  title: 'Distribución por plan',
-                  trailing: '40 usuarios',
+                    for (final country in data.downloadCountries) ...[
+                      CountryRow(data: country),
+                      if (country != data.downloadCountries.last)
+                        const SizedBox(height: 18),
+                    ],
+                  ],
                 ),
-                const SizedBox(height: 28),
-                PlanDistributionBar(proportion: data.proUsers / 40),
-                const SizedBox(height: 28),
-                PlanRow(
-                  icon: const FaIcon(FontAwesomeIcons.crown, size: 24),
-                  iconBackground: const Color(0xFFFFD760),
-                  iconColor: const Color(0xFF8A6300),
-                  title: 'Plan Pro',
-                  subtitle: 'de pago',
-                  value: '${data.proUsers}',
-                  percentage:
-                      '${(data.proUsers / 40 * 100).toStringAsFixed(1)}%',
+              ),
+              right: Panel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    PanelHeader(
+                      title: 'Distribución por plan',
+                      trailing: '${u.total} usuarios',
+                    ),
+                    const SizedBox(height: 28),
+                    PlanDistributionBar(proportion: u.proProportion),
+                    const SizedBox(height: 28),
+                    PlanRow(
+                      icon: const FaIcon(FontAwesomeIcons.crown, size: 24),
+                      iconBackground: const Color(0xFFFFD760),
+                      iconColor: const Color(0xFF8A6300),
+                      title: 'Plan Pro',
+                      subtitle: 'de pago',
+                      value: '${u.pro}',
+                      percentage: u.proPercent,
+                    ),
+                    const SizedBox(height: 26),
+                    PlanRow(
+                      icon: const Icon(FluentIcons.gift_20_regular, size: 24),
+                      iconBackground: const Color(0xFFF1F1EF),
+                      iconColor: AppColors.ink3,
+                      title: 'Plan Gratuito',
+                      value: '${u.free}',
+                      percentage: u.freePercent,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 26),
-                PlanRow(
-                  icon: const Icon(FluentIcons.gift_20_regular, size: 24),
-                  iconBackground: const Color(0xFFF1F1EF),
-                  iconColor: AppColors.ink3,
-                  title: 'Plan Gratuito',
-                  value: '${40 - data.proUsers}',
-                  percentage:
-                      '${(((40 - data.proUsers) / 40) * 100).toStringAsFixed(1)}%',
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         ),
         const SizedBox(height: 48),
       ],
@@ -865,23 +875,35 @@ class PlanDistributionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
     return Container(
       height: 32,
       decoration: BoxDecoration(
         color: const Color(0xFFF1F1EF),
         borderRadius: BorderRadius.circular(18),
       ),
-      child: FractionallySizedBox(
-        widthFactor: proportion.clamp(0.0, 1.0),
-        alignment: Alignment.centerLeft,
-        child: Container(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFFC61F), Color(0xFFF3B100)],
+      child: Stack(
+        children: [
+          Container(
+            width: size.width * (1 - proportion),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8E8E6),
+              borderRadius: BorderRadius.circular(18),
             ),
-            borderRadius: BorderRadius.circular(18),
           ),
-        ),
+          FractionallySizedBox(
+            widthFactor: proportion.clamp(0.0, 1.0),
+            alignment: Alignment.centerLeft,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFC61F), Color(0xFFF3B100)],
+                ),
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

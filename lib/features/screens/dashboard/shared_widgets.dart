@@ -326,14 +326,20 @@ class MetricCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 52,
-                  fontWeight: FontWeight.w700,
-                  height: 0.95,
-                  letterSpacing: -2.2,
-                  color: AppColors.ink,
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 52,
+                      fontWeight: FontWeight.w700,
+                      height: 0.95,
+                      letterSpacing: -2.2,
+                      color: AppColors.ink,
+                    ),
+                  ),
                 ),
               ),
               if (valueSuffix != null) ...[
