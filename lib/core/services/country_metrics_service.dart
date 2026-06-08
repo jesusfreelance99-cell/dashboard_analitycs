@@ -19,68 +19,72 @@ class CountryEntry {
 class CountryMetricsService {
   static final _db = FirebaseFirestore.instance;
 
-  static Future<List<CountryEntry>>? _future;
+  static Map<String, int>? _rawCache;
+  static Future<Map<String, int>>? _rawFuture;
 
-  static Future<List<CountryEntry>> get future => _future ??= _load();
+  static Future<List<CountryEntry>>? _summaryFuture;
+  static Future<List<CountryEntry>>? _allFuture;
 
-  static void refresh() => _future = null;
+  /// Top 3 + Otros — para el overview
+  static Future<List<CountryEntry>> get future =>
+      _summaryFuture ??= _raw().then((r) => _build(r, limit: 3));
 
-  static Future<List<CountryEntry>> _load() async {
+  /// Todos ordenados por count — para la página de Usuarios
+  static Future<List<CountryEntry>> get allFuture =>
+      _allFuture ??= _raw().then((r) => _build(r, limit: 999));
+
+  static void refresh() {
+    _rawCache = null;
+    _rawFuture = null;
+    _summaryFuture = null;
+    _allFuture = null;
+  }
+
+  static Future<Map<String, int>> _raw() =>
+      _rawFuture ??= _fetchRaw();
+
+  static Future<Map<String, int>> _fetchRaw() async {
+    if (_rawCache != null) return _rawCache!;
     try {
       final snap = await _db.collection('users').limit(10000).get();
-      final names = <String>[];
-
+      final counts = <String, int>{};
       for (final doc in snap.docs) {
-        final data = doc.data();
-        // address puede no existir o ser null
-        final address = data['address'];
-        if (address is! Map) {
-          names.add('');
-          continue;
-        }
-        final raw = address['country'];
-        final name = (raw is String) ? raw.trim() : '';
-        names.add(name);
+        final address = doc.data()['address'];
+        final addr = address is Map ? address as Map<String, dynamic> : <String, dynamic>{};
+        final name = (addr['country'] as String? ?? '').trim();
+        counts[name] = (counts[name] ?? 0) + 1;
       }
-
-      return _aggregate(names);
+      _rawCache = counts;
+      return counts;
     } catch (_) {
-      return [];
+      return {};
     }
   }
 
-  static List<CountryEntry> _aggregate(List<String> names) {
-    final counts = <String, int>{};
-    for (final name in names) {
-      counts[name] = (counts[name] ?? 0) + 1;
-    }
-
-    final total = names.length;
+  static List<CountryEntry> _build(Map<String, int> counts, {required int limit}) {
+    final total = counts.values.fold(0, (a, b) => a + b);
     if (total == 0) return [];
 
-    // Separa conocidos (con nombre) de desconocidos/vacíos
-    final knownEntries = counts.entries
+    final known = counts.entries
         .where((e) => e.key.isNotEmpty)
         .toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     final unknownCount = counts[''] ?? 0;
-
-    final top3 = knownEntries.take(3).toList();
+    final top = known.take(limit).toList();
     final othersCount =
-        knownEntries.skip(3).fold(unknownCount, (acc, e) => acc + e.value);
+        known.skip(limit).fold(unknownCount, (acc, e) => acc + e.value);
 
     final result = <CountryEntry>[];
-    for (final entry in top3) {
+    for (final e in top) {
       result.add(CountryEntry(
-        name: entry.key,
-        flag: _flagForCountry(entry.key),
-        count: entry.value,
-        fraction: (entry.value / total).clamp(0.0, 1.0),
-        percent: '${(entry.value / total * 100).toStringAsFixed(1)}%',
+        name: e.key,
+        flag: _flagFor(e.key),
+        count: e.value,
+        fraction: (e.value / total).clamp(0.0, 1.0),
+        percent: '${(e.value / total * 100).toStringAsFixed(1)}%',
       ));
     }
-
     if (othersCount > 0) {
       result.add(CountryEntry(
         name: 'Otros',
@@ -90,20 +94,18 @@ class CountryMetricsService {
         percent: '${(othersCount / total * 100).toStringAsFixed(1)}%',
       ));
     }
-
     return result;
   }
 
-  static String _flagForCountry(String name) {
-    // Normaliza para comparación sin tildes ni mayúsculas
-    final key = _normalize(name);
-    for (final entry in _countryFlags.entries) {
+  static String _flagFor(String name) {
+    final key = _norm(name);
+    for (final entry in _flags.entries) {
       if (key.contains(entry.key)) return entry.value;
     }
     return '🌐';
   }
 
-  static String _normalize(String s) => s
+  static String _norm(String s) => s
       .toLowerCase()
       .replaceAll('á', 'a')
       .replaceAll('é', 'e')
@@ -113,7 +115,8 @@ class CountryMetricsService {
       .replaceAll('ü', 'u')
       .replaceAll('ñ', 'n');
 
-  static const Map<String, String> _countryFlags = {
+  // Mapa de keyword normalizada → emoji bandera
+  static const Map<String, String> _flags = {
     'colombia': '🇨🇴',
     'mexico': '🇲🇽',
     'estados unidos': '🇺🇸',
@@ -141,5 +144,41 @@ class CountryMetricsService {
     'cuba': '🇨🇺',
     'puerto rico': '🇵🇷',
     'canada': '🇨🇦',
+    'portugal': '🇵🇹',
+    'francia': '🇫🇷',
+    'france': '🇫🇷',
+    'alemania': '🇩🇪',
+    'germany': '🇩🇪',
+    'reino unido': '🇬🇧',
+    'united kingdom': '🇬🇧',
+    'italia': '🇮🇹',
+    'italy': '🇮🇹',
+    'irlanda': '🇮🇪',
+    'ireland': '🇮🇪',
   };
+
+  // Clasificación de continente — normalizada
+  static const Set<String> _america = {
+    'colombia', 'mexico', 'estados unidos', 'united states', 'argentina',
+    'venezuela', 'peru', 'chile', 'ecuador', 'brasil', 'brazil', 'panama',
+    'guatemala', 'costa rica', 'dominicana', 'dominican', 'bolivia',
+    'honduras', 'nicaragua', 'el salvador', 'salvador', 'paraguay',
+    'uruguay', 'cuba', 'puerto rico', 'canada',
+  };
+
+  static const Set<String> _europe = {
+    'espana', 'spain', 'portugal', 'francia', 'france', 'alemania',
+    'germany', 'reino unido', 'united kingdom', 'italia', 'italy',
+    'irlanda', 'ireland', 'holanda', 'netherlands', 'belgica', 'belgium',
+    'suiza', 'switzerland', 'suecia', 'sweden', 'noruega', 'norway',
+  };
+
+  /// Devuelve el continente de una entrada ('América', 'Europa', 'Otros')
+  static String continentOf(CountryEntry e) {
+    if (e.name == 'Otros') return 'Otros';
+    final key = _norm(e.name);
+    if (_america.any((k) => key.contains(k))) return 'América';
+    if (_europe.any((k) => key.contains(k))) return 'Europa';
+    return 'Otros';
+  }
 }

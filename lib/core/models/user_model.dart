@@ -8,6 +8,8 @@ class UserModel {
   final String plan;
   final String createdAt;
   final String syncedAt;
+  final String country;
+  final String city;
 
   UserModel({
     required this.id,
@@ -19,20 +21,27 @@ class UserModel {
     required this.plan,
     required this.createdAt,
     required this.syncedAt,
+    this.country = '',
+    this.city = '',
   });
 
   factory UserModel.fromFirestore(String docId, Map<String, dynamic> data) {
-    final userInfo = data['user_info'] ?? {};
+    final userInfo = data['user_info'];
+    final ui = userInfo is Map ? userInfo as Map<String, dynamic> : <String, dynamic>{};
+    final address = data['address'];
+    final addr = address is Map ? address as Map<String, dynamic> : <String, dynamic>{};
     return UserModel(
       id: docId,
-      fullName: userInfo['full_name'] ?? '',
-      email: userInfo['email'] ?? '',
-      fcmToken: userInfo['fcm_token'] ?? '',
-      status: userInfo['status'] ?? false,
-      role: userInfo['role'] ?? 'customer',
-      plan: userInfo['plan'] ?? '',
-      createdAt: userInfo['created_at'] ?? '',
+      fullName: ui['full_name'] as String? ?? '',
+      email: ui['email'] as String? ?? '',
+      fcmToken: ui['fcm_token'] as String? ?? '',
+      status: ui['status'] == true,
+      role: ui['role'] as String? ?? 'customer',
+      plan: ui['plan'] as String? ?? '',
+      createdAt: ui['created_at'] as String? ?? '',
       syncedAt: DateTime.now().toIso8601String(),
+      country: addr['country'] as String? ?? '',
+      city: addr['city'] as String? ?? '',
     );
   }
 
@@ -47,20 +56,24 @@ class UserModel {
       'plan': plan,
       'created_at': createdAt,
       'synced_at': syncedAt,
+      'country': country,
+      'city': city,
     };
   }
 
   factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
-      id: map['id'] ?? '',
-      fullName: map['full_name'] ?? '',
-      email: map['email'] ?? '',
-      fcmToken: map['fcm_token'] ?? '',
+      id: map['id'] as String? ?? '',
+      fullName: map['full_name'] as String? ?? '',
+      email: map['email'] as String? ?? '',
+      fcmToken: map['fcm_token'] as String? ?? '',
       status: (map['status'] ?? 0) == 1,
-      role: map['role'] ?? 'customer',
-      plan: map['plan'] ?? '',
-      createdAt: map['created_at'] ?? '',
-      syncedAt: map['synced_at'] ?? '',
+      role: map['role'] as String? ?? 'customer',
+      plan: map['plan'] as String? ?? '',
+      createdAt: map['created_at'] as String? ?? '',
+      syncedAt: map['synced_at'] as String? ?? '',
+      country: map['country'] as String? ?? '',
+      city: map['city'] as String? ?? '',
     );
   }
 
