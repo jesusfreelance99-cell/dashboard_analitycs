@@ -185,7 +185,7 @@ class DashboardShellState extends State<DashboardShell> {
           messageController: _messageController,
         );
       case DashPage.users:
-        return UsersPage(searchController: _searchController);
+        return UsersPage(searchController: _searchController, range: range);
       case DashPage.funnel:
         return const PlaceholderPage(
           title: 'Embudo de onboarding',

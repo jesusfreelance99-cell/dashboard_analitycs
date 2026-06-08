@@ -35,6 +35,9 @@ class CountryMetricsService {
   static Future<List<CountryEntry>> get allFuture =>
       _allFuture ??= _raw().then((r) => _build(r, limit: 999));
 
+  static List<CountryEntry> fromCounts(Map<String, int> counts, {int limit = 999}) =>
+      _build(counts, limit: limit);
+
   static void refresh() {
     _rawCache = null;
     _rawFuture = null;

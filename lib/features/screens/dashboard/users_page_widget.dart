@@ -4,11 +4,11 @@ import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/core/models/user_model.dart';
 import 'package:dashboard_analitycs/core/services/country_metrics_service.dart';
-import 'package:dashboard_analitycs/core/services/user_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/user_sync_service.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'dashboard_provider.dart';
 import 'empty_tables_component.dart';
 import 'models.dart';
 import 'shared_widgets.dart';
@@ -19,9 +19,14 @@ import 'user_detail_panel.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 class UsersPage extends StatefulWidget {
-  const UsersPage({super.key, required this.searchController});
+  const UsersPage({
+    super.key,
+    required this.searchController,
+    required this.range,
+  });
 
   final TextEditingController searchController;
+  final DateRange range;
 
   @override
   State<UsersPage> createState() => _UsersPageState();
@@ -38,10 +43,27 @@ class _UsersPageState extends State<UsersPage> {
   String _continentFilter = 'Todos';
   int _page = 0;
 
+  // ── lifecycle ────────────────────────────────────────────────────────────────
+
+  @override
+  void didUpdateWidget(UsersPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.range != widget.range) setState(() {});
+  }
+
   // ── computed ────────────────────────────────────────────────────────────────
 
+  List<UserModel> get _dateFiltered {
+    final start = DashboardProvider.rangeStart(widget.range);
+    if (start == null) return _allUsers;
+    return _allUsers.where((u) {
+      final d = DateTime.tryParse(u.createdAt);
+      return d != null && d.isAfter(start);
+    }).toList();
+  }
+
   List<UserModel> get _filtered {
-    var list = _allUsers;
+    var list = _dateFiltered;
 
     final q = widget.searchController.text.trim().toLowerCase();
     if (q.isNotEmpty) {
@@ -68,11 +90,12 @@ class _UsersPageState extends State<UsersPage> {
         list = list.where((u) => u.plan != 'pro').toList();
     }
 
-    list = [...list]..sort((a, b) {
-      final da = DateTime.tryParse(a.createdAt) ?? DateTime(0);
-      final db = DateTime.tryParse(b.createdAt) ?? DateTime(0);
-      return db.compareTo(da);
-    });
+    list = [...list]
+      ..sort((a, b) {
+        final da = DateTime.tryParse(a.createdAt) ?? DateTime(0);
+        final db = DateTime.tryParse(b.createdAt) ?? DateTime(0);
+        return db.compareTo(da);
+      });
 
     return list;
   }
@@ -149,23 +172,24 @@ class _UsersPageState extends State<UsersPage> {
         const SizedBox(height: 28),
 
         // ── MÉTRICAS ─────────────────────────────────────────────────────────
-        FutureBuilder<UserCounts>(
-          future: UserMetricsService.future,
-          builder: (_, snap) {
-            final u = snap.data ?? UserCounts.empty;
+        Builder(
+          builder: (context) {
+            final u = _loading
+                ? UserCounts.empty
+                : UserCounts.fromUsers(_dateFiltered);
             return ResponsiveGrid(
               minTileWidth: 220,
               children: [
                 MetricCard(
                   label: 'Total registrados',
-                  value: u.total > 0 ? '${u.total}' : '—',
+                  value: _loading ? '—' : '${u.total}',
                   badgeText: u.newToday > 0 ? '↑ ${u.newToday} hoy' : null,
                   badgeType: BadgeType.positive,
                   helperText: 'usuarios',
                 ),
                 MetricCard(
                   label: 'Plan Pro',
-                  value: '${u.pro}',
+                  value: _loading ? '—' : '${u.pro}',
                   accent: true,
                   valueSuffix: const FaIcon(
                     FontAwesomeIcons.crown,
@@ -177,13 +201,13 @@ class _UsersPageState extends State<UsersPage> {
                 ),
                 MetricCard(
                   label: 'Plan Gratuito',
-                  value: '${u.free}',
+                  value: _loading ? '—' : '${u.free}',
                   badgeText: '${u.freePercent} del total',
                   badgeType: BadgeType.neutral,
                 ),
                 MetricCard(
                   label: 'Activos',
-                  value: '${u.active}',
+                  value: _loading ? '—' : '${u.active}',
                   badgeText: '↑ ${u.activePercent}',
                   badgeType: BadgeType.positive,
                 ),
@@ -215,13 +239,18 @@ class _UsersPageState extends State<UsersPage> {
                 ],
               ),
               const SizedBox(height: 18),
-              FutureBuilder<List<CountryEntry>>(
-                future: CountryMetricsService.allFuture,
-                builder: (_, snap) {
-                  final all = snap.data;
-                  if (all == null) return const _CountryShimmerList();
+              Builder(
+                builder: (context) {
+                  if (_loading) return const _CountryShimmerList();
 
-                  final filtered = _continentFilter == 'Todos'
+                  final countMap = <String, int>{};
+                  for (final u in _dateFiltered) {
+                    final name = u.country.trim();
+                    countMap[name] = (countMap[name] ?? 0) + 1;
+                  }
+                  final all = CountryMetricsService.fromCounts(countMap);
+
+                  final entries = _continentFilter == 'Todos'
                       ? all
                       : all.where((e) {
                           if (_continentFilter == 'Otros') {
@@ -232,13 +261,16 @@ class _UsersPageState extends State<UsersPage> {
                               _continentFilter;
                         }).toList();
 
-                  if (filtered.isEmpty) {
-                    return const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
+                  if (entries.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
                       child: Center(
                         child: Text(
                           'Sin usuarios en este continente',
-                          style: TextStyle(fontSize: 16, color: AppColors.ink3),
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: context.dc.ink3,
+                          ),
                         ),
                       ),
                     );
@@ -248,8 +280,8 @@ class _UsersPageState extends State<UsersPage> {
                     builder: (_, constraints) {
                       final wide = constraints.maxWidth > 700;
                       return wide
-                          ? _CountryGrid(entries: filtered)
-                          : _CountryList(entries: filtered);
+                          ? _CountryGrid(entries: entries)
+                          : _CountryList(entries: entries);
                     },
                   );
                 },
@@ -267,19 +299,19 @@ class _UsersPageState extends State<UsersPage> {
         LayoutBuilder(
           builder: (_, constraints) {
             final wide = constraints.maxWidth > 800;
-            final total = _loading ? null : _allUsers.length;
+            final total = _loading ? null : _dateFiltered.length;
             final active = _loading
                 ? null
-                : _allUsers.where((u) => u.status).length;
+                : _dateFiltered.where((u) => u.status).length;
             final inactive = _loading
                 ? null
-                : _allUsers.where((u) => !u.status).length;
+                : _dateFiltered.where((u) => !u.status).length;
             final pro = _loading
                 ? null
-                : _allUsers.where((u) => u.plan == 'pro').length;
+                : _dateFiltered.where((u) => u.plan == 'pro').length;
             final free = _loading
                 ? null
-                : _allUsers.where((u) => u.plan != 'pro').length;
+                : _dateFiltered.where((u) => u.plan != 'pro').length;
 
             final statusItems = [
               (label: 'Todos', count: total),
@@ -908,8 +940,18 @@ String _fmtDate(String iso) {
   final d = DateTime.tryParse(iso);
   if (d == null) return '—';
   const months = [
-    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
-    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+    'ene',
+    'feb',
+    'mar',
+    'abr',
+    'may',
+    'jun',
+    'jul',
+    'ago',
+    'sep',
+    'oct',
+    'nov',
+    'dic',
   ];
   return '${d.day} ${months[d.month - 1]} ${d.year}';
 }

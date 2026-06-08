@@ -50,6 +50,16 @@ class DashboardProvider extends ChangeNotifier {
       case DateRange.all: return 'todo el tiempo';
     }
   }
+
+  static DateTime? rangeStart(DateRange range) {
+    final now = DateTime.now();
+    switch (range) {
+      case DateRange.d7:  return now.subtract(const Duration(days: 7));
+      case DateRange.d30: return now.subtract(const Duration(days: 30));
+      case DateRange.d90: return now.subtract(const Duration(days: 90));
+      case DateRange.all: return null;
+    }
+  }
 }
 
 class RangeData {
