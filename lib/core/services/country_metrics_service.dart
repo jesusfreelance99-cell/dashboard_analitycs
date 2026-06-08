@@ -35,8 +35,10 @@ class CountryMetricsService {
   static Future<List<CountryEntry>> get allFuture =>
       _allFuture ??= _raw().then((r) => _build(r, limit: 999));
 
-  static List<CountryEntry> fromCounts(Map<String, int> counts, {int limit = 999}) =>
-      _build(counts, limit: limit);
+  static List<CountryEntry> fromCounts(
+    Map<String, int> counts, {
+    int limit = 999,
+  }) => _build(counts, limit: limit);
 
   static void refresh() {
     _rawCache = null;
@@ -45,8 +47,7 @@ class CountryMetricsService {
     _allFuture = null;
   }
 
-  static Future<Map<String, int>> _raw() =>
-      _rawFuture ??= _fetchRaw();
+  static Future<Map<String, int>> _raw() => _rawFuture ??= _fetchRaw();
 
   static Future<Map<String, int>> _fetchRaw() async {
     if (_rawCache != null) return _rawCache!;
@@ -55,7 +56,9 @@ class CountryMetricsService {
       final counts = <String, int>{};
       for (final doc in snap.docs) {
         final address = doc.data()['address'];
-        final addr = address is Map ? address as Map<String, dynamic> : <String, dynamic>{};
+        final addr = address is Map
+            ? address as Map<String, dynamic>
+            : <String, dynamic>{};
         final name = (addr['country'] as String? ?? '').trim();
         counts[name] = (counts[name] ?? 0) + 1;
       }
@@ -66,40 +69,46 @@ class CountryMetricsService {
     }
   }
 
-  static List<CountryEntry> _build(Map<String, int> counts, {required int limit}) {
+  static List<CountryEntry> _build(
+    Map<String, int> counts, {
+    required int limit,
+  }) {
     final total = counts.values.fold(0, (a, b) => a + b);
     if (total == 0) return [];
 
-    final known = counts.entries
-        .where((e) => e.key.isNotEmpty)
-        .toList()
+    final known = counts.entries.where((e) => e.key.isNotEmpty).toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
     final unknownCount = counts[''] ?? 0;
     final top = known.take(limit).toList();
-    final othersCount =
-        known.skip(limit).fold(unknownCount, (acc, e) => acc + e.value);
+    final othersCount = known
+        .skip(limit)
+        .fold(unknownCount, (acc, e) => acc + e.value);
 
     final result = <CountryEntry>[];
     for (final e in top) {
-      result.add(CountryEntry(
-        name: e.key,
-        flag: _flagFor(e.key),
-        isoCode: _isoFor(e.key),
-        count: e.value,
-        fraction: (e.value / total).clamp(0.0, 1.0),
-        percent: '${(e.value / total * 100).toStringAsFixed(1)}%',
-      ));
+      result.add(
+        CountryEntry(
+          name: e.key,
+          flag: _flagFor(e.key),
+          isoCode: _isoFor(e.key),
+          count: e.value,
+          fraction: (e.value / total).clamp(0.0, 1.0),
+          percent: '${(e.value / total * 100).toStringAsFixed(1)}%',
+        ),
+      );
     }
     if (othersCount > 0) {
-      result.add(CountryEntry(
-        name: 'Otros',
-        flag: '🌐',
-        isoCode: '',
-        count: othersCount,
-        fraction: (othersCount / total).clamp(0.0, 1.0),
-        percent: '${(othersCount / total * 100).toStringAsFixed(1)}%',
-      ));
+      result.add(
+        CountryEntry(
+          name: 'Otros',
+          flag: '🌐',
+          isoCode: '',
+          count: othersCount,
+          fraction: (othersCount / total).clamp(0.0, 1.0),
+          percent: '${(othersCount / total * 100).toStringAsFixed(1)}%',
+        ),
+      );
     }
     return result;
   }
@@ -189,6 +198,7 @@ class CountryMetricsService {
 
   // Mapa de keyword normalizada → emoji bandera
   static const Map<String, String> _flags = {
+    //TODO: CAMBIAR POR BANDERAS DEL PAQUETE DE ICONOS O FLAGS QUE USAMOS EN USUARIOS
     'colombia': '🇨🇴',
     'mexico': '🇲🇽',
     'estados unidos': '🇺🇸',
@@ -231,18 +241,58 @@ class CountryMetricsService {
 
   // Clasificación de continente — normalizada
   static const Set<String> _america = {
-    'colombia', 'mexico', 'estados unidos', 'united states', 'argentina',
-    'venezuela', 'peru', 'chile', 'ecuador', 'brasil', 'brazil', 'panama',
-    'guatemala', 'costa rica', 'dominicana', 'dominican', 'bolivia',
-    'honduras', 'nicaragua', 'el salvador', 'salvador', 'paraguay',
-    'uruguay', 'cuba', 'puerto rico', 'canada',
+    'colombia',
+    'mexico',
+    'estados unidos',
+    'united states',
+    'argentina',
+    'venezuela',
+    'peru',
+    'chile',
+    'ecuador',
+    'brasil',
+    'brazil',
+    'panama',
+    'guatemala',
+    'costa rica',
+    'dominicana',
+    'dominican',
+    'bolivia',
+    'honduras',
+    'nicaragua',
+    'el salvador',
+    'salvador',
+    'paraguay',
+    'uruguay',
+    'cuba',
+    'puerto rico',
+    'canada',
   };
 
   static const Set<String> _europe = {
-    'espana', 'spain', 'portugal', 'francia', 'france', 'alemania',
-    'germany', 'reino unido', 'united kingdom', 'italia', 'italy',
-    'irlanda', 'ireland', 'holanda', 'netherlands', 'belgica', 'belgium',
-    'suiza', 'switzerland', 'suecia', 'sweden', 'noruega', 'norway',
+    'espana',
+    'spain',
+    'portugal',
+    'francia',
+    'france',
+    'alemania',
+    'germany',
+    'reino unido',
+    'united kingdom',
+    'italia',
+    'italy',
+    'irlanda',
+    'ireland',
+    'holanda',
+    'netherlands',
+    'belgica',
+    'belgium',
+    'suiza',
+    'switzerland',
+    'suecia',
+    'sweden',
+    'noruega',
+    'norway',
   };
 
   /// Devuelve el continente de una entrada ('América', 'Europa', 'Otros')
