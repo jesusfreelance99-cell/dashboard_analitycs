@@ -41,9 +41,10 @@ class _SidebarItemState extends State<SidebarItem>
       duration: const Duration(milliseconds: 220),
     );
     _scale = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack);
-    _iconScale = Tween<double>(begin: 1.0, end: 1.18).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack),
-    );
+    _iconScale = Tween<double>(
+      begin: 1.0,
+      end: 1.18,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack));
     if (widget.selected) _ctrl.value = 1.0;
   }
 
@@ -288,6 +289,7 @@ class SectionHeader extends StatelessWidget {
 
 class MetricCard extends StatelessWidget {
   const MetricCard({
+    super.key,
     required this.label,
     required this.value,
     this.badgeText,
@@ -418,17 +420,14 @@ class ResponsiveGrid extends StatelessWidget {
           1,
           (constraints.maxWidth / minTileWidth).floor(),
         );
-        return GridView.builder(
-          itemCount: children.length,
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: count,
-            mainAxisSpacing: 18,
-            crossAxisSpacing: 18,
-            mainAxisExtent: 206,
-          ),
-          itemBuilder: (context, index) => children[index],
+        final gap = 18.0;
+        final tileWidth = (constraints.maxWidth - gap * (count - 1)) / count;
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: children
+              .map((child) => SizedBox(width: tileWidth, child: child))
+              .toList(),
         );
       },
     );

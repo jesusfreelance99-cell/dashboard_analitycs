@@ -51,6 +51,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   int _sentCount = 0;
   int _totalCount = 0;
   String? _errorMessage;
+  StreamSubscription<DocumentSnapshot>? _progressSub;
 
   @override
   void initState() {
@@ -60,16 +61,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
   @override
   void dispose() {
+    _progressSub?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  // carga todos los usuarios una sola vez (SQLite → Firestore como fallback)
   Future<void> _loadUsers() async {
     try {
       var users = await UserSyncService().getAllUsersLocal();
       if (users.isEmpty) {
-        // fallback: Firestore directo (funciona en web)
         final snap = await FirebaseFirestore.instance
             .collection('users')
             .limit(5000)
@@ -80,7 +80,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
       }
       if (mounted) setState(() => _allUsers = users);
     } catch (_) {
-      // sin usuarios disponibles — la búsqueda quedará vacía
+      // sin usuarios disponibles
     } finally {
       if (mounted) setState(() => _loadingUsers = false);
     }
@@ -135,13 +135,15 @@ class _NotificationsPageState extends State<NotificationsPage> {
 
     try {
       if (_tab == _RecipientTab.all) {
-        tokens = await UserSyncService().getActiveFcmTokens();
+        tokens = _allUsers
+            .where((u) => u.status && u.fcmToken.isNotEmpty)
+            .map((u) => u.fcmToken)
+            .toList();
       } else {
-        tokens = [];
-        for (final id in _selectedIds) {
-          final token = await UserSyncService().getUserFcmToken(id);
-          if (token != null && token.isNotEmpty) tokens.add(token);
-        }
+        tokens = _allUsers
+            .where((u) => _selectedIds.contains(u.id) && u.fcmToken.isNotEmpty)
+            .map((u) => u.fcmToken)
+            .toList();
       }
 
       if (tokens.isEmpty) {
@@ -156,38 +158,61 @@ class _NotificationsPageState extends State<NotificationsPage> {
         _errorMessage = null;
       });
 
-      const batchSize = 500;
-      final firestore = FirebaseFirestore.instance;
+      final isAll = _tab == _RecipientTab.all;
+      final recipientUsers = isAll
+          ? <Map<String, String>>[]
+          : _allUsers
+              .where((u) => _selectedIds.contains(u.id))
+              .map((u) => {'id': u.id, 'name': u.fullName, 'email': u.email})
+              .toList();
 
-      for (int i = 0; i < tokens.length; i += batchSize) {
-        final batch = tokens.sublist(
-          i,
-          (i + batchSize).clamp(0, tokens.length),
-        );
+      // Documento ligero — la Cloud Function hace el trabajo pesado
+      final docRef = await FirebaseFirestore.instance
+          .collection('notifications_queue')
+          .add({
+        'title': title,
+        'message': message,
+        'status': 'pending',
+        'created_at': FieldValue.serverTimestamp(),
+        'recipient_type': isAll ? 'all' : 'specific',
+        if (!isAll) 'recipient_ids': _selectedIds.toList(),
+        if (recipientUsers.isNotEmpty) 'recipients': recipientUsers,
+      });
 
-        await firestore.collection('notifications_queue').add({
-          'title': title,
-          'message': message,
-          'fcm_tokens': batch,
-          'status': 'pending',
-          'created_at': FieldValue.serverTimestamp(),
+      // Stream del documento para mostrar progreso en tiempo real
+      _progressSub?.cancel();
+      _progressSub = docRef.snapshots().listen((snap) {
+        if (!snap.exists || !mounted) return;
+        final d = snap.data() as Map<String, dynamic>;
+        final status = d['status'] as String? ?? 'pending';
+        final sent = d['sent_count'] as int? ?? 0;
+        final total = d['total_count'] as int? ?? tokens.length;
+
+        setState(() {
+          _sentCount = sent;
+          _totalCount = total;
         });
 
-        if (mounted) {
-          setState(
-            () => _sentCount = (i + batch.length).clamp(0, tokens.length),
-          );
+        if (status == 'completed') {
+          _progressSub?.cancel();
+          if (mounted) {
+            setState(() => _sendState = _SendState.done);
+            widget.titleController.clear();
+            widget.messageController.clear();
+            _selectedIds.clear();
+            _searchController.clear();
+            _searchResults.clear();
+          }
+        } else if (status == 'failed') {
+          _progressSub?.cancel();
+          if (mounted) {
+            setState(() {
+              _sendState = _SendState.error;
+              _errorMessage = d['error'] as String? ?? 'Error en Cloud Function';
+            });
+          }
         }
-      }
-
-      if (mounted) {
-        setState(() => _sendState = _SendState.done);
-        widget.titleController.clear();
-        widget.messageController.clear();
-        _selectedIds.clear();
-        _searchController.clear();
-        _searchResults.clear();
-      }
+      });
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -335,11 +360,257 @@ class _NotificationsPageState extends State<NotificationsPage> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 40),
+                const _NotificationLogsSection(),
               ],
             );
           },
         );
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HISTORIAL DE ENVÍOS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _NotificationLogsSection extends StatelessWidget {
+  const _NotificationLogsSection();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Historial de envíos',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.8,
+            color: AppColors.ink,
+          ),
+        ),
+        const SizedBox(height: 16),
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('notifications_queue')
+              .orderBy('created_at', descending: true)
+              .limit(4)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 32),
+                child: Center(
+                  child: CircularProgressIndicator(color: AppColors.pink, strokeWidth: 2),
+                ),
+              );
+            }
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F3),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Text(
+                  'Aún no hay notificaciones enviadas.',
+                  style: TextStyle(color: AppColors.ink3, fontSize: 15),
+                ),
+              );
+            }
+            final docs = snapshot.data!.docs;
+            return Column(
+              children: docs.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return _LogItem(data: data);
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _LogItem extends StatefulWidget {
+  const _LogItem({required this.data});
+  final Map<String, dynamic> data;
+
+  @override
+  State<_LogItem> createState() => _LogItemState();
+}
+
+class _LogItemState extends State<_LogItem> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.data;
+    final title = data['title'] as String? ?? '—';
+    final message = data['message'] as String? ?? '—';
+    final status = data['status'] as String? ?? 'pending';
+    final recipientType = data['recipient_type'] as String?;
+    final recipientCount = data['recipient_count'] as int?;
+    final recipients = (data['recipients'] as List?)
+        ?.cast<Map<String, dynamic>>()
+        .toList();
+    final createdAt = data['created_at'];
+
+    final statusColor = switch (status) {
+      'completed' => const Color(0xFF1B9C5B),
+      'failed' => AppColors.danger,
+      _ => AppColors.ink3,
+    };
+    final statusIcon = switch (status) {
+      'completed' => FluentIcons.checkmark_circle_20_filled,
+      'failed' => FluentIcons.error_circle_20_regular,
+      _ => FluentIcons.clock_20_regular,
+    };
+    final statusLabel = switch (status) {
+      'completed' => 'Entregada',
+      'failed' => 'Fallida',
+      _ => 'Pendiente',
+    };
+
+    String dateLabel = '—';
+    if (createdAt is Timestamp) {
+      final dt = createdAt.toDate().toLocal();
+      dateLabel =
+          '${dt.day}/${dt.month}/${dt.year}  ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    }
+
+    String recipientLabel;
+    if (recipientType == 'all') {
+      recipientLabel = 'Todos los usuarios · ${recipientCount ?? '—'} destinatarios';
+    } else if (recipients != null && recipients.isNotEmpty) {
+      recipientLabel = '${recipients.length} usuario${recipients.length == 1 ? '' : 's'} específico${recipients.length == 1 ? '' : 's'}';
+    } else {
+      recipientLabel = recipientCount != null ? '$recipientCount destinatarios' : '—';
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        color: AppColors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEAEAE8)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── cabecera ──
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(statusIcon, color: statusColor, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        message,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, color: AppColors.ink2),
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: statusColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              statusLabel,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: statusColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Icon(FluentIcons.people_20_regular, size: 14, color: AppColors.ink3),
+                          const SizedBox(width: 4),
+                          Text(
+                            recipientLabel,
+                            style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                          ),
+                          const Spacer(),
+                          Text(
+                            dateLabel,
+                            style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (recipients != null && recipients.isNotEmpty)
+                  IconButton(
+                    onPressed: () => setState(() => _expanded = !_expanded),
+                    icon: Icon(
+                      _expanded
+                          ? FluentIcons.chevron_up_20_regular
+                          : FluentIcons.chevron_down_20_regular,
+                      size: 18,
+                      color: AppColors.ink3,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // ── lista de destinatarios (expandible) ──
+          if (_expanded && recipients != null && recipients.isNotEmpty) ...[
+            const Divider(height: 1, color: Color(0xFFEAEAE8)),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: recipients.map((r) {
+                  final name = r['name'] as String? ?? '';
+                  final email = r['email'] as String? ?? '';
+                  final label = name.isNotEmpty ? name : email;
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F1EF),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.ink2,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
