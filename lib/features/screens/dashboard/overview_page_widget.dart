@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
+import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:dashboard_analitycs/core/models/appstore_metrics_model.dart';
 import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
@@ -270,7 +271,11 @@ class _OverviewContent extends StatelessWidget {
 
   String _buildGreeting() {
     final hour = DateTime.now().hour;
-    final saludo = hour < 12 ? 'Buenos días' : hour < 19 ? 'Buenas tardes' : 'Buenas noches';
+    final saludo = hour < 12
+        ? 'Buenos días'
+        : hour < 19
+        ? 'Buenas tardes'
+        : 'Buenas noches';
     final user = FirebaseAuth.instance.currentUser;
     final nombre = user?.displayName?.split(' ').first ?? 'Jesús';
     return '$saludo, $nombre 👋';
@@ -288,21 +293,21 @@ class _OverviewContent extends StatelessWidget {
       children: [
         Text(
           _buildGreeting(),
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 44,
             height: 1.03,
             fontWeight: FontWeight.w700,
             letterSpacing: -2,
-            color: AppColors.ink,
+            color: context.dc.ink,
           ),
         ),
         const SizedBox(height: 12),
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'Esto es lo que está pasando en Trevo hoy.',
-                style: TextStyle(fontSize: 18, color: AppColors.ink2),
+                style: TextStyle(fontSize: 18, color: context.dc.ink2),
               ),
             ),
             if (as != null && as.status == 'partial')
@@ -539,9 +544,11 @@ class _OverviewContent extends StatelessWidget {
                         if (entries == null) ...[
                           _CountryShimmer(),
                         ] else if (entries.isEmpty) ...[
-                          const EmptyTablesComponent(
-                            title: 'Sin datos de país',
-                            description: 'Aún no hay registros de ubicación.',
+                          Expanded(
+                            child: const EmptyTablesComponent(
+                              title: 'Sin datos de país',
+                              description: 'Aún no hay registros de ubicación.',
+                            ),
                           ),
                         ] else ...[
                           for (int i = 0; i < entries.length; i++) ...[
@@ -1450,17 +1457,27 @@ class _RevenueBarPoint {
 }
 
 DateRange _trendRangeToDateRange(_TrendRange r) => switch (r) {
-      _TrendRange.d7  => DateRange.d7,
-      _TrendRange.d30 => DateRange.d30,
-      _TrendRange.d90 => DateRange.d90,
-      _TrendRange.ytd => DateRange.all,
-      _TrendRange.all => DateRange.all,
-    };
+  _TrendRange.d7 => DateRange.d7,
+  _TrendRange.d30 => DateRange.d30,
+  _TrendRange.d90 => DateRange.d90,
+  _TrendRange.ytd => DateRange.all,
+  _TrendRange.all => DateRange.all,
+};
 
 List<_RevenueBarPoint> _aggregateRevenue(List<RevenueCatDailyPoint> series) {
   const months = [
-    'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-    'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
+    'Ene',
+    'Feb',
+    'Mar',
+    'Abr',
+    'May',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dic',
   ];
   if (series.isEmpty) return [];
 
@@ -1481,7 +1498,7 @@ List<_RevenueBarPoint> _aggregateRevenue(List<RevenueCatDailyPoint> series) {
 (String, bool)? _computeRevenueDelta(List<_RevenueBarPoint> points) {
   if (points.length < 2) return null;
   final half = points.length ~/ 2;
-  final first  = points.sublist(0, half).fold(0.0, (s, p) => s + p.revenue);
+  final first = points.sublist(0, half).fold(0.0, (s, p) => s + p.revenue);
   final second = points.sublist(half).fold(0.0, (s, p) => s + p.revenue);
   if (first == 0) return null;
   final pct = ((second - first) / first * 100).round();
@@ -1516,11 +1533,14 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
   final _pickerKey = GlobalKey();
 
   void _togglePicker() {
-    if (_overlay != null) { _closeOverlay(); return; }
+    if (_overlay != null) {
+      _closeOverlay();
+      return;
+    }
     final box = _pickerKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null) return;
     final pos = box.localToGlobal(Offset.zero);
-    final sz  = box.size;
+    final sz = box.size;
 
     _overlay = OverlayEntry(
       builder: (_) => Stack(
@@ -1538,7 +1558,10 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
               ranges: _ranges,
               selected: _range,
               onSelect: (r) {
-                setState(() { _range = r; _touchedIndex = null; });
+                setState(() {
+                  _range = r;
+                  _touchedIndex = null;
+                });
                 _closeOverlay();
               },
             ),
@@ -1555,17 +1578,20 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
   }
 
   @override
-  void dispose() { _closeOverlay(); super.dispose(); }
+  void dispose() {
+    _closeOverlay();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final rc        = widget.revenueCat;
+    final rc = widget.revenueCat;
     final dateRange = _trendRangeToDateRange(_range);
     final rangeData = rc?.range(dateRange);
-    final series    = rangeData?.timeSeries ?? [];
-    final points    = _aggregateRevenue(series);
-    final total     = points.fold(0.0, (s, p) => s + p.revenue);
-    final display   = total > 0
+    final series = rangeData?.timeSeries ?? [];
+    final points = _aggregateRevenue(series);
+    final total = points.fold(0.0, (s, p) => s + p.revenue);
+    final display = total > 0
         ? _fmtRevenue(total)
         : (rangeData?.revenueLabel ?? '—');
     final delta = _computeRevenueDelta(points);
@@ -1600,7 +1626,9 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
                 onTap: _togglePicker,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.fieldBg,
                     borderRadius: BorderRadius.circular(20),
@@ -1668,10 +1696,16 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
   }
 
   Widget _buildRevenueChart(List<_RevenueBarPoint> points) {
-    final maxVal  = points.map((p) => p.revenue).fold(0.0, (a, b) => a > b ? a : b);
+    final maxVal = points
+        .map((p) => p.revenue)
+        .fold(0.0, (a, b) => a > b ? a : b);
     final interval = _niceInterval(maxVal, 4);
     final chartMax = interval * 5;
-    final barW = points.length <= 7 ? 28.0 : points.length <= 12 ? 18.0 : 12.0;
+    final barW = points.length <= 7
+        ? 28.0
+        : points.length <= 12
+        ? 18.0
+        : 12.0;
 
     return BarChart(
       BarChartData(
@@ -1691,8 +1725,9 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
                         : [AppColors.chartGreen, AppColors.liveGreen],
                   ),
                   width: barW,
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(8)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(8),
+                  ),
                 ),
               ],
             ),
@@ -1706,10 +1741,12 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
         ),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
-          topTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-              const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -1721,8 +1758,7 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
                   meta: meta,
                   child: Text(
                     _fmtRevenue(value),
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.ink3),
+                    style: const TextStyle(fontSize: 11, color: AppColors.ink3),
                   ),
                 );
               },
@@ -1737,15 +1773,17 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
                 if (i < 0 || i >= points.length) {
                   return const SizedBox.shrink();
                 }
-                final step =
-                    points.length > 12 ? 3 : points.length > 7 ? 2 : 1;
+                final step = points.length > 12
+                    ? 3
+                    : points.length > 7
+                    ? 2
+                    : 1;
                 if (i % step != 0) return const SizedBox.shrink();
                 return SideTitleWidget(
                   meta: meta,
                   child: Text(
                     points[i].label,
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.ink3),
+                    style: const TextStyle(fontSize: 11, color: AppColors.ink3),
                   ),
                 );
               },
@@ -1762,8 +1800,10 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (_) => AppColors.ink,
             tooltipBorderRadius: BorderRadius.circular(10),
-            tooltipPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            tooltipPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 8,
+            ),
             getTooltipItem: (group, _, rod, _) => BarTooltipItem(
               '${points[group.x].label}\n',
               const TextStyle(
@@ -1821,7 +1861,9 @@ class _RevenueRangeMenu extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 11),
+                      horizontal: 16,
+                      vertical: 11,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
@@ -1839,8 +1881,11 @@ class _RevenueRangeMenu extends StatelessWidget {
                           ),
                         ),
                         if (r == selected)
-                          const Icon(Icons.check_rounded,
-                              size: 16, color: AppColors.chartGreen),
+                          const Icon(
+                            Icons.check_rounded,
+                            size: 16,
+                            color: AppColors.chartGreen,
+                          ),
                       ],
                     ),
                   ),
@@ -1977,10 +2022,7 @@ class _CountryEntryRow extends StatelessWidget {
           child: Text(
             entry.percent,
             textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontSize: 17,
-              color: AppColors.ink2,
-            ),
+            style: const TextStyle(fontSize: 17, color: AppColors.ink2),
           ),
         ),
       ],
@@ -1994,49 +2036,52 @@ class _CountryShimmer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: List.generate(4, (i) => Padding(
-        padding: EdgeInsets.only(bottom: i < 3 ? 18 : 0),
-        child: Row(
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.shimmerBase,
-                borderRadius: BorderRadius.circular(8),
+      children: List.generate(
+        4,
+        (i) => Padding(
+          padding: EdgeInsets.only(bottom: i < 3 ? 18 : 0),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.shimmerBase,
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Container(
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: AppColors.shimmerBase,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 18),
+              Container(
+                width: 200,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: AppColors.shimmerBase,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              const SizedBox(width: 18),
+              Container(
+                width: 42,
                 height: 18,
                 decoration: BoxDecoration(
                   color: AppColors.shimmerBase,
                   borderRadius: BorderRadius.circular(6),
                 ),
               ),
-            ),
-            const SizedBox(width: 18),
-            Container(
-              width: 200,
-              height: 14,
-              decoration: BoxDecoration(
-                color: AppColors.shimmerBase,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            const SizedBox(width: 18),
-            Container(
-              width: 42,
-              height: 18,
-              decoration: BoxDecoration(
-                color: AppColors.shimmerBase,
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
-      )),
+      ),
     );
   }
 }

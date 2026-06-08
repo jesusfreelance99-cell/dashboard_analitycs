@@ -8,7 +8,6 @@ import 'package:dashboard_analitycs/core/services/user_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/user_sync_service.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'empty_tables_component.dart';
 import 'models.dart';
@@ -47,9 +46,11 @@ class _UsersPageState extends State<UsersPage> {
     final q = widget.searchController.text.trim().toLowerCase();
     if (q.isNotEmpty) {
       list = list
-          .where((u) =>
-              u.fullName.toLowerCase().contains(q) ||
-              u.email.toLowerCase().contains(q))
+          .where(
+            (u) =>
+                u.fullName.toLowerCase().contains(q) ||
+                u.email.toLowerCase().contains(q),
+          )
           .toList();
     }
 
@@ -66,6 +67,12 @@ class _UsersPageState extends State<UsersPage> {
       case 'Gratuito':
         list = list.where((u) => u.plan != 'pro').toList();
     }
+
+    list = [...list]..sort((a, b) {
+      final da = DateTime.tryParse(a.createdAt) ?? DateTime(0);
+      final db = DateTime.tryParse(b.createdAt) ?? DateTime(0);
+      return db.compareTo(da);
+    });
 
     return list;
   }
@@ -124,20 +131,20 @@ class _UsersPageState extends State<UsersPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 18),
-        const Text(
+        Text(
           'Usuarios',
           style: TextStyle(
             fontSize: 44,
             height: 1.03,
             fontWeight: FontWeight.w700,
             letterSpacing: -2,
-            color: AppColors.ink,
+            color: context.dc.ink,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Todos los usuarios registrados en Trevo.',
-          style: TextStyle(fontSize: 18, color: AppColors.ink2),
+          style: TextStyle(fontSize: 18, color: context.dc.ink2),
         ),
         const SizedBox(height: 28),
 
@@ -196,7 +203,10 @@ class _UsersPageState extends State<UsersPage> {
               Row(
                 children: [
                   const Expanded(
-                    child: PanelHeader(title: 'Registros por país', trailing: ''),
+                    child: PanelHeader(
+                      title: 'Registros por país',
+                      trailing: '',
+                    ),
                   ),
                   _ContinentChips(
                     selected: _continentFilter,
@@ -258,10 +268,18 @@ class _UsersPageState extends State<UsersPage> {
           builder: (_, constraints) {
             final wide = constraints.maxWidth > 800;
             final total = _loading ? null : _allUsers.length;
-            final active = _loading ? null : _allUsers.where((u) => u.status).length;
-            final inactive = _loading ? null : _allUsers.where((u) => !u.status).length;
-            final pro = _loading ? null : _allUsers.where((u) => u.plan == 'pro').length;
-            final free = _loading ? null : _allUsers.where((u) => u.plan != 'pro').length;
+            final active = _loading
+                ? null
+                : _allUsers.where((u) => u.status).length;
+            final inactive = _loading
+                ? null
+                : _allUsers.where((u) => !u.status).length;
+            final pro = _loading
+                ? null
+                : _allUsers.where((u) => u.plan == 'pro').length;
+            final free = _loading
+                ? null
+                : _allUsers.where((u) => u.plan != 'pro').length;
 
             final statusItems = [
               (label: 'Todos', count: total),
@@ -277,7 +295,10 @@ class _UsersPageState extends State<UsersPage> {
             if (wide) {
               return Row(
                 children: [
-                  Expanded(flex: 5, child: SearchField(controller: widget.searchController)),
+                  Expanded(
+                    flex: 5,
+                    child: SearchField(controller: widget.searchController),
+                  ),
                   const SizedBox(width: 16),
                   Expanded(
                     flex: 3,
@@ -338,28 +359,28 @@ class _UsersPageState extends State<UsersPage> {
           child: _loading
               ? const _UsersShimmer()
               : _allUsers.isEmpty
-                  ? const _EmptyUsers()
-                  : _pageUsers.isEmpty
-                      ? const _EmptyFilter()
-                      : LayoutBuilder(
-                          builder: (_, constraints) {
-                            final wide = constraints.maxWidth > 700;
-                            return Column(
-                              children: [
-                                if (wide) const _TableHeader(),
-                                ...List.generate(_pageUsers.length, (i) {
-                                  final user = _pageUsers[i];
-                                  return _UserRow(
-                                    user: user,
-                                    wide: wide,
-                                    isLast: i == _pageUsers.length - 1,
-                                    onTap: () => showUserDetail(context, user),
-                                  );
-                                }),
-                              ],
-                            );
-                          },
-                        ),
+              ? const _EmptyUsers()
+              : _pageUsers.isEmpty
+              ? const _EmptyFilter()
+              : LayoutBuilder(
+                  builder: (_, constraints) {
+                    final wide = constraints.maxWidth > 700;
+                    return Column(
+                      children: [
+                        if (wide) const _TableHeader(),
+                        ...List.generate(_pageUsers.length, (i) {
+                          final user = _pageUsers[i];
+                          return _UserRow(
+                            user: user,
+                            wide: wide,
+                            isLast: i == _pageUsers.length - 1,
+                            onTap: () => showUserDetail(context, user),
+                          );
+                        }),
+                      ],
+                    );
+                  },
+                ),
         ),
         const SizedBox(height: 14),
 
@@ -370,7 +391,9 @@ class _UsersPageState extends State<UsersPage> {
             pageCount: _pageCount,
             total: _filtered.length,
             onPrev: _page > 0 ? () => setState(() => _page--) : null,
-            onNext: _page < _pageCount - 1 ? () => setState(() => _page++) : null,
+            onNext: _page < _pageCount - 1
+                ? () => setState(() => _page++)
+                : null,
           ),
         const SizedBox(height: 48),
       ],
@@ -494,7 +517,7 @@ class _ContinentChips extends StatelessWidget {
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: active ? AppColors.ink : AppColors.fieldBg,
+                color: active ? context.dc.ink : context.dc.elevated,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
@@ -502,7 +525,7 @@ class _ContinentChips extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: active ? AppColors.white : AppColors.ink2,
+                  color: active ? context.dc.bg : context.dc.ink2,
                 ),
               ),
             ),
@@ -603,7 +626,11 @@ class _FlagWidget extends StatelessWidget {
       return SizedBox(
         width: size,
         height: size * 0.7,
-        child: Icon(FluentIcons.globe_20_regular, size: size * 0.8, color: AppColors.ink3),
+        child: Icon(
+          FluentIcons.globe_20_regular,
+          size: size * 0.8,
+          color: context.dc.ink3,
+        ),
       );
     }
     return CountryFlag.fromCountryCode(
@@ -633,10 +660,10 @@ class _CountryRowEntry extends StatelessWidget {
         Expanded(
           child: Text(
             entry.name,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w500,
-              color: AppColors.ink,
+              color: context.dc.ink,
             ),
           ),
         ),
@@ -648,8 +675,8 @@ class _CountryRowEntry extends StatelessWidget {
             child: LinearProgressIndicator(
               value: entry.fraction,
               minHeight: 10,
-              backgroundColor: AppColors.progressBg,
-              valueColor: const AlwaysStoppedAnimation(AppColors.progressFill),
+              backgroundColor: context.dc.progressBg,
+              valueColor: AlwaysStoppedAnimation(context.dc.progressFill),
             ),
           ),
         ),
@@ -659,10 +686,10 @@ class _CountryRowEntry extends StatelessWidget {
           child: Text(
             '${entry.count}',
             textAlign: TextAlign.right,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.w700,
-              color: AppColors.ink,
+              color: context.dc.ink,
             ),
           ),
         ),
@@ -672,7 +699,7 @@ class _CountryRowEntry extends StatelessWidget {
           child: Text(
             entry.percent,
             textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 14, color: AppColors.ink2),
+            style: TextStyle(fontSize: 14, color: context.dc.ink2),
           ),
         ),
       ],
@@ -697,7 +724,7 @@ class _TableHeader extends StatelessWidget {
           Expanded(flex: 4, child: _HeaderCell('Usuario')),
           Expanded(flex: 2, child: _HeaderCell('País')),
           SizedBox(width: 90, child: _HeaderCell('Plan', center: true)),
-          SizedBox(width: 90, child: _HeaderCell('Estado', center: true)),
+          SizedBox(width: 100, child: _HeaderCell('Estado', center: true)),
           SizedBox(width: 100, child: _HeaderCell('Registro', center: true)),
         ],
       ),
@@ -716,11 +743,11 @@ class _HeaderCell extends StatelessWidget {
     return Text(
       text,
       textAlign: center ? TextAlign.center : TextAlign.left,
-      style: const TextStyle(
+      style: TextStyle(
         fontSize: 12,
         fontWeight: FontWeight.w700,
         letterSpacing: 1,
-        color: AppColors.ink3,
+        color: context.dc.ink3,
       ),
     );
   }
@@ -748,8 +775,6 @@ class _UserRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: wide ? _WideRow(user: user) : _NarrowCard(user: user),
         ),
-        if (!isLast)
-          const Divider(height: 1, thickness: 1, color: AppColors.progressBg),
       ],
     );
   }
@@ -775,16 +800,16 @@ class _WideRow extends StatelessWidget {
               children: [
                 Text(
                   user.fullName.isNotEmpty ? user.fullName : '—',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.ink,
+                    color: context.dc.ink,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   user.email,
-                  style: const TextStyle(fontSize: 13, color: AppColors.ink2),
+                  style: TextStyle(fontSize: 13, color: context.dc.ink2),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -794,12 +819,18 @@ class _WideRow extends StatelessWidget {
             flex: 2,
             child: Text(
               user.country.isNotEmpty ? user.country : '—',
-              style: const TextStyle(fontSize: 14, color: AppColors.ink2),
+              style: TextStyle(fontSize: 14, color: context.dc.ink2),
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          SizedBox(width: 90, child: Center(child: _PlanBadge(plan: user.plan))),
-          SizedBox(width: 90, child: Center(child: _StatusDot(active: user.status))),
+          SizedBox(
+            width: 90,
+            child: Center(child: _PlanBadge(plan: user.plan)),
+          ),
+          SizedBox(
+            width: 90,
+            child: Center(child: _StatusDot(active: user.status)),
+          ),
           SizedBox(
             width: 100,
             child: Center(
@@ -835,16 +866,16 @@ class _NarrowCard extends StatelessWidget {
               children: [
                 Text(
                   user.fullName.isNotEmpty ? user.fullName : '—',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.ink,
+                    color: context.dc.ink,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   user.email,
-                  style: const TextStyle(fontSize: 13, color: AppColors.ink2),
+                  style: TextStyle(fontSize: 13, color: context.dc.ink2),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -854,19 +885,13 @@ class _NarrowCard extends StatelessWidget {
                     if (user.country.isNotEmpty)
                       Text(
                         user.country,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          color: AppColors.ink2,
-                        ),
+                        style: TextStyle(fontSize: 13, color: context.dc.ink2),
                       ),
                     _PlanBadge(plan: user.plan),
                     _StatusDot(active: user.status),
                     Text(
                       _fmtDate(user.createdAt),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppColors.ink3,
-                      ),
+                      style: TextStyle(fontSize: 12, color: context.dc.ink3),
                     ),
                   ],
                 ),
@@ -882,7 +907,11 @@ class _NarrowCard extends StatelessWidget {
 String _fmtDate(String iso) {
   final d = DateTime.tryParse(iso);
   if (d == null) return '—';
-  return '${d.day}/${d.month}/${d.year.toString().substring(2)}';
+  const months = [
+    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic',
+  ];
+  return '${d.day} ${months[d.month - 1]} ${d.year}';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -894,26 +923,30 @@ class _UserAvatar extends StatelessWidget {
 
   final UserModel user;
 
-  static const _svgAvatars = [
-    'assets/svg/profile/Avatar Image.svg',
-    'assets/svg/profile/Avatar-21.svg',
-    'assets/svg/profile/avatar3.svg',
-    'assets/svg/profile/avatar_2.svg',
-  ];
-  static const _pngAvatar = 'assets/svg/profile/Avatar-1.png';
+  String get _initials {
+    final parts = user.fullName.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) return '?';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return (parts.first[0] + parts.last[0]).toUpperCase();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final idx = user.id.hashCode.abs() % 5;
-    final isSvg = idx < _svgAvatars.length;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: SizedBox(
-        width: 40,
-        height: 40,
-        child: isSvg
-            ? SvgPicture.asset(_svgAvatars[idx], fit: BoxFit.cover)
-            : Image.asset(_pngAvatar, fit: BoxFit.cover),
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: context.dc.elevated,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        _initials,
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: context.dc.ink2,
+        ),
       ),
     );
   }
@@ -947,15 +980,15 @@ class _PlanBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.fieldBg,
+        color: context.dc.elevated,
         borderRadius: BorderRadius.circular(999),
       ),
-      child: const Text(
+      child: Text(
         'Free',
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: AppColors.ink2,
+          color: context.dc.ink2,
         ),
       ),
     );
@@ -969,27 +1002,23 @@ class _StatusDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            color: active ? AppColors.liveGreen : AppColors.danger,
-            shape: BoxShape.circle,
-          ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: active
+            ? AppColors.success.withValues(alpha: 0.12)
+            : AppColors.danger.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        active ? 'Activo' : 'Inactivo',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: active ? AppColors.success : AppColors.danger,
         ),
-        const SizedBox(width: 6),
-        Text(
-          active ? 'Activo' : 'Inactivo',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: active ? AppColors.success : AppColors.danger,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
@@ -1019,23 +1048,17 @@ class _PaginationBar extends StatelessWidget {
       children: [
         Text(
           '$total usuario${total == 1 ? '' : 's'}',
-          style: const TextStyle(fontSize: 14, color: AppColors.ink2),
+          style: TextStyle(fontSize: 14, color: context.dc.ink2),
         ),
         const Spacer(),
         Text(
           'Página ${page + 1} de $pageCount',
-          style: const TextStyle(fontSize: 14, color: AppColors.ink2),
+          style: TextStyle(fontSize: 14, color: context.dc.ink2),
         ),
         const SizedBox(width: 12),
-        _PageBtn(
-          icon: FluentIcons.chevron_left_20_regular,
-          onTap: onPrev,
-        ),
+        _PageBtn(icon: FluentIcons.chevron_left_20_regular, onTap: onPrev),
         const SizedBox(width: 8),
-        _PageBtn(
-          icon: FluentIcons.chevron_right_20_regular,
-          onTap: onNext,
-        ),
+        _PageBtn(icon: FluentIcons.chevron_right_20_regular, onTap: onNext),
       ],
     );
   }
@@ -1056,13 +1079,13 @@ class _PageBtn extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: enabled ? AppColors.white : AppColors.fieldBg,
+          color: enabled ? context.dc.surface : context.dc.elevated,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Icon(
           icon,
           size: 20,
-          color: enabled ? AppColors.ink : AppColors.ink3,
+          color: enabled ? context.dc.ink : context.dc.ink3,
         ),
       ),
     );
@@ -1089,7 +1112,7 @@ class _UsersShimmer extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: AppColors.shimmerBase,
+                  color: context.dc.shimmerBase,
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
@@ -1102,7 +1125,7 @@ class _UsersShimmer extends StatelessWidget {
                       height: 14,
                       width: 140,
                       decoration: BoxDecoration(
-                        color: AppColors.shimmerBase,
+                        color: context.dc.shimmerBase,
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ),
@@ -1111,7 +1134,7 @@ class _UsersShimmer extends StatelessWidget {
                       height: 12,
                       width: 200,
                       decoration: BoxDecoration(
-                        color: AppColors.shimmerLight,
+                        color: context.dc.shimmerLight,
                         borderRadius: BorderRadius.circular(6),
                       ),
                     ),
@@ -1142,7 +1165,7 @@ class _CountryShimmerList extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: AppColors.shimmerBase,
+                  color: context.dc.shimmerBase,
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
@@ -1151,7 +1174,7 @@ class _CountryShimmerList extends StatelessWidget {
                 child: Container(
                   height: 14,
                   decoration: BoxDecoration(
-                    color: AppColors.shimmerBase,
+                    color: context.dc.shimmerBase,
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
@@ -1161,7 +1184,7 @@ class _CountryShimmerList extends StatelessWidget {
                 width: 160,
                 height: 10,
                 decoration: BoxDecoration(
-                  color: AppColors.shimmerBase,
+                  color: context.dc.shimmerBase,
                   borderRadius: BorderRadius.circular(999),
                 ),
               ),
@@ -1178,9 +1201,9 @@ class _EmptyUsers extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const EmptyTablesComponent(
-        title: 'Sin usuarios aún',
-        description: 'Los usuarios aparecerán aquí una vez que se registren.',
-      );
+    title: 'Sin usuarios aún',
+    description: 'Los usuarios aparecerán aquí una vez que se registren.',
+  );
 }
 
 class _EmptyFilter extends StatelessWidget {
@@ -1188,7 +1211,7 @@ class _EmptyFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => const EmptyTablesComponent(
-        title: 'Sin resultados',
-        description: 'Intenta con otro filtro o búsqueda.',
-      );
+    title: 'Sin resultados',
+    description: 'Intenta con otro filtro o búsqueda.',
+  );
 }

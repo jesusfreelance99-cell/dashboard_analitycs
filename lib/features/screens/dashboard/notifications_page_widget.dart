@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
+import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/core/models/user_model.dart';
 import 'package:dashboard_analitycs/core/services/user_sync_service.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
@@ -263,19 +264,19 @@ class _NotificationsPageState extends State<NotificationsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const SizedBox(height: 18),
-                const Text(
+                Text(
                   'Enviar notificación',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -1.6,
-                    color: AppColors.ink,
+                    color: context.dc.ink,
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Redacta un mensaje push y elige a quién se lo envías.',
-                  style: TextStyle(fontSize: 18, color: AppColors.ink2),
+                  style: TextStyle(fontSize: 18, color: context.dc.ink2),
                 ),
                 const SizedBox(height: 28),
                 if (stacked) ...[

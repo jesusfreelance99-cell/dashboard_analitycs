@@ -317,14 +317,28 @@ class _DeviceSection extends StatelessWidget {
   const _DeviceSection({required this.detail});
   final UserDetail detail;
 
-  Widget _osIcon(BuildContext context, String branch) {
+  Widget _osValueWidget(BuildContext context, String branch) {
     final lower = branch.toLowerCase();
-    if (lower.contains('ios') || lower.contains('apple')) {
-      return FaIcon(FontAwesomeIcons.apple, size: 14, color: context.dc.ink3);
-    } else if (lower.contains('android')) {
-      return FaIcon(FontAwesomeIcons.android, size: 14, color: context.dc.ink3);
+    final bool isApple = lower.contains('ios') || lower.contains('apple');
+    final bool isAndroid = lower.contains('android');
+    if (isApple || isAndroid) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FaIcon(
+            isApple ? FontAwesomeIcons.apple : FontAwesomeIcons.android,
+            size: 15,
+            color: context.dc.ink,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            branch,
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.dc.ink),
+          ),
+        ],
+      );
     }
-    return Icon(FluentIcons.phone_20_regular, size: 16, color: context.dc.ink3);
+    return Text(branch, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.dc.ink));
   }
 
   @override
@@ -342,9 +356,8 @@ class _DeviceSection extends StatelessWidget {
         if (detail.deviceBranch.isNotEmpty)
           _InfoRow(
             icon: FluentIcons.phone_20_regular,
-            leadingWidget: _osIcon(context, detail.deviceBranch),
             label: 'Sistema',
-            value: detail.deviceBranch,
+            valueWidget: _osValueWidget(context, detail.deviceBranch),
           ),
         if (detail.deviceModel.isNotEmpty)
           _InfoRow(
@@ -361,7 +374,6 @@ class _DeviceSection extends StatelessWidget {
         if (detail.deviceVersion.isNotEmpty)
           _InfoRow(
             icon: FluentIcons.code_20_regular,
-            leadingWidget: _osIcon(context, detail.deviceBranch),
             label: 'Versión del sistema',
             value: detail.deviceVersion,
           ),
@@ -752,14 +764,12 @@ class _InfoRow extends StatelessWidget {
     required this.label,
     this.value,
     this.valueWidget,
-    this.leadingWidget,
   });
 
   final IconData icon;
   final String label;
   final String? value;
   final Widget? valueWidget;
-  final Widget? leadingWidget;
 
   @override
   Widget build(BuildContext context) {
@@ -768,11 +778,8 @@ class _InfoRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 20,
-            child: leadingWidget ?? Icon(icon, size: 16, color: context.dc.ink3),
-          ),
-          const SizedBox(width: 8),
+          Icon(icon, size: 16, color: context.dc.ink3),
+          const SizedBox(width: 10),
           SizedBox(
             width: 130,
             child: Text(

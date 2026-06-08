@@ -1,5 +1,4 @@
-import 'package:dashboard_analitycs/core/constants/app_colors.dart';
-
+import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
@@ -43,17 +42,17 @@ class TopHeader extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 24,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -1,
-                    color: AppColors.ink,
+                    color: context.dc.ink,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 15, color: AppColors.ink2),
+                  style: TextStyle(fontSize: 15, color: context.dc.ink2),
                 ),
               ],
             ),
@@ -87,31 +86,31 @@ class DateToolbar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(
+          Icon(
             FluentIcons.calendar_ltr_20_regular,
             size: 22,
-            color: AppColors.ink3,
+            color: context.dc.ink3,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text.rich(
               TextSpan(
                 children: [
-                  const TextSpan(
+                  TextSpan(
                     text: 'Periodo: ',
-                    style: TextStyle(fontSize: 16, color: AppColors.ink2),
+                    style: TextStyle(fontSize: 16, color: context.dc.ink2),
                   ),
                   TextSpan(
                     text: rangeInfo.label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: AppColors.ink,
+                      color: context.dc.ink,
                     ),
                   ),
                   TextSpan(
                     text: ' · ${rangeInfo.dates}',
-                    style: const TextStyle(fontSize: 16, color: AppColors.ink3),
+                    style: TextStyle(fontSize: 16, color: context.dc.ink3),
                   ),
                 ],
               ),
