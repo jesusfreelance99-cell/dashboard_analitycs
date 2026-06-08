@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FcmSendService {
@@ -20,11 +22,11 @@ class FcmSendService {
   }) async {
     try {
       if (fcmTokens.isEmpty) {
-        print('⚠️ No hay tokens FCM para enviar');
+        log('⚠️ No hay tokens FCM para enviar');
         return false;
       }
 
-      print('🔵 Enviando notificación a ${fcmTokens.length} usuarios...');
+      log('🔵 Enviando notificación a ${fcmTokens.length} usuarios...');
 
       // Crear documento en Firestore para que Cloud Function lo procese
       final notificationDoc = {
@@ -42,12 +44,12 @@ class FcmSendService {
           .collection('notifications_queue')
           .add(notificationDoc);
 
-      print('✅ Notificación enviada a procesar: ${docRef.id}');
-      print('📊 Destinatarios: ${fcmTokens.length}');
+      log('✅ Notificación enviada a procesar: ${docRef.id}');
+      log('📊 Destinatarios: ${fcmTokens.length}');
 
       return true;
     } catch (e) {
-      print('❌ Error enviando notificación: $e');
+      log('❌ Error enviando notificación: $e');
       return false;
     }
   }
@@ -68,7 +70,9 @@ class FcmSendService {
   }
 
   /// Obtener estado de una notificación enviada
-  Future<Map<String, dynamic>?> getNotificationStatus(String notificationId) async {
+  Future<Map<String, dynamic>?> getNotificationStatus(
+    String notificationId,
+  ) async {
     try {
       final doc = await _firestore
           .collection('notifications_queue')
@@ -78,7 +82,7 @@ class FcmSendService {
       if (!doc.exists) return null;
       return doc.data();
     } catch (e) {
-      print('❌ Error obteniendo estado: $e');
+      log('❌ Error obteniendo estado: $e');
       return null;
     }
   }
@@ -97,7 +101,7 @@ class FcmSendService {
 
       return query.docs.map((doc) => doc.data()).toList();
     } catch (e) {
-      print('❌ Error obteniendo historial: $e');
+      log('❌ Error obteniendo historial: $e');
       return [];
     }
   }

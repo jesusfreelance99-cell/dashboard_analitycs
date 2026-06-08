@@ -137,6 +137,7 @@ class _SidebarItemState extends State<SidebarItem>
 
 class UtilityItem extends StatelessWidget {
   const UtilityItem({
+    super.key,
     required this.icon,
     required this.label,
     required this.collapsed,
@@ -179,7 +180,11 @@ class UtilityItem extends StatelessWidget {
 }
 
 class RangeSegmentedControl extends StatelessWidget {
-  const RangeSegmentedControl({required this.range, required this.onChanged});
+  const RangeSegmentedControl({
+    super.key,
+    required this.range,
+    required this.onChanged,
+  });
 
   final DateRange range;
   final ValueChanged<DateRange> onChanged;
@@ -218,6 +223,7 @@ class RangeSegmentedControl extends StatelessWidget {
 
 class SegmentButton extends StatelessWidget {
   const SegmentButton({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -254,7 +260,7 @@ class SegmentButton extends StatelessWidget {
 }
 
 class SectionHeader extends StatelessWidget {
-  const SectionHeader({required this.label, required this.source});
+  const SectionHeader({super.key, required this.label, required this.source});
 
   final String label;
   final String source;
@@ -411,7 +417,11 @@ class DashBadge extends StatelessWidget {
 }
 
 class ResponsiveGrid extends StatelessWidget {
-  const ResponsiveGrid({required this.minTileWidth, required this.children});
+  const ResponsiveGrid({
+    super.key,
+    required this.minTileWidth,
+    required this.children,
+  });
 
   final double minTileWidth;
   final List<Widget> children;
@@ -457,7 +467,7 @@ class ResponsiveGrid extends StatelessWidget {
 }
 
 class ResponsiveSplit extends StatelessWidget {
-  const ResponsiveSplit({required this.left, required this.right});
+  const ResponsiveSplit({super.key, required this.left, required this.right});
 
   final Widget left;
   final Widget right;
@@ -482,7 +492,7 @@ class ResponsiveSplit extends StatelessWidget {
 }
 
 class Panel extends StatelessWidget {
-  const Panel({required this.child});
+  const Panel({super.key, required this.child});
 
   final Widget child;
 
@@ -500,7 +510,7 @@ class Panel extends StatelessWidget {
 }
 
 class PanelHeader extends StatelessWidget {
-  const PanelHeader({required this.title, required this.trailing});
+  const PanelHeader({super.key, required this.title, required this.trailing});
 
   final String title;
   final String trailing;
@@ -525,7 +535,7 @@ class PanelHeader extends StatelessWidget {
 }
 
 class MapPlaceholder extends StatelessWidget {
-  const MapPlaceholder();
+  const MapPlaceholder({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -572,6 +582,7 @@ class MapPlaceholder extends StatelessWidget {
 
 class LegendLine extends StatelessWidget {
   const LegendLine({
+    super.key,
     required this.flag,
     required this.label,
     required this.value,
@@ -606,7 +617,7 @@ class LegendLine extends StatelessWidget {
 }
 
 class CountryRow extends StatelessWidget {
-  const CountryRow({required this.data});
+  const CountryRow({super.key, required this.data});
 
   final CountryData data;
 
@@ -670,7 +681,7 @@ class CountryRow extends StatelessWidget {
 }
 
 class SearchField extends StatelessWidget {
-  const SearchField({required this.controller});
+  const SearchField({super.key, required this.controller});
 
   final TextEditingController controller;
 
@@ -706,7 +717,11 @@ class SearchField extends StatelessWidget {
 }
 
 class FilterSegment extends StatelessWidget {
-  const FilterSegment({required this.items, required this.selectedIndex});
+  const FilterSegment({
+    super.key,
+    required this.items,
+    required this.selectedIndex,
+  });
 
   final List<String> items;
   final int selectedIndex;
@@ -753,7 +768,7 @@ class FilterSegment extends StatelessWidget {
 }
 
 class UsersTablePlaceholder extends StatelessWidget {
-  const UsersTablePlaceholder();
+  const UsersTablePlaceholder({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -769,6 +784,7 @@ class UsersTablePlaceholder extends StatelessWidget {
 
 class ChoiceTile extends StatelessWidget {
   const ChoiceTile({
+    super.key,
     required this.label,
     required this.icon,
     required this.selected,
@@ -815,7 +831,7 @@ class ChoiceTile extends StatelessWidget {
 }
 
 class DisabledSearchTile extends StatelessWidget {
-  const DisabledSearchTile({required this.label});
+  const DisabledSearchTile({super.key, required this.label});
 
   final String label;
 
@@ -850,7 +866,7 @@ class DisabledSearchTile extends StatelessWidget {
 }
 
 class RecipientCount extends StatelessWidget {
-  const RecipientCount();
+  const RecipientCount({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -888,7 +904,7 @@ class RecipientCount extends StatelessWidget {
 }
 
 class FormLabel extends StatelessWidget {
-  const FormLabel(this.text);
+  const FormLabel(this.text, {super.key});
 
   final String text;
 
@@ -910,6 +926,7 @@ class FormLabel extends StatelessWidget {
 
 class TextInput extends StatelessWidget {
   const TextInput({
+    super.key,
     required this.controller,
     required this.hintText,
     required this.maxLengthLabel,
@@ -1000,7 +1017,11 @@ class TextAreaInput extends StatelessWidget {
 }
 
 class SendModeControl extends StatelessWidget {
-  const SendModeControl({required this.mode, required this.onChanged});
+  const SendModeControl({
+    super.key,
+    required this.mode,
+    required this.onChanged,
+  });
 
   final PreviewSendMode mode;
   final ValueChanged<PreviewSendMode> onChanged;
@@ -1038,6 +1059,7 @@ class SendModeControl extends StatelessWidget {
 
 class MiniSegment extends StatelessWidget {
   const MiniSegment({
+    super.key,
     required this.label,
     required this.selected,
     required this.onTap,
@@ -1203,7 +1225,7 @@ class PhonePreview extends StatelessWidget {
 }
 
 class TrevoMark extends StatelessWidget {
-  const TrevoMark({required this.size});
+  const TrevoMark({super.key, required this.size});
 
   final double size;
 

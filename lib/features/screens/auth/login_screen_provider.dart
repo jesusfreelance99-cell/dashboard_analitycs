@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -75,12 +77,12 @@ class LoginScreenProvider extends ChangeNotifier {
       }
 
       // Sincronizar usuarios desde Firebase a SQLite
-      print('🔵 Sincronizando usuarios...');
+      log('🔵 Sincronizando usuarios...');
       try {
         await UserSyncService().syncAllUsers();
-        print('✅ Usuarios sincronizados correctamente');
+        log('✅ Usuarios sincronizados correctamente');
       } catch (e) {
-        print('⚠️ Error sincronizando usuarios: $e');
+        log('⚠️ Error sincronizando usuarios: $e');
       }
 
       _triggerAppStoreRefresh();
@@ -127,25 +129,25 @@ class LoginScreenProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      print('📱 Iniciando Google Sign-In desde provider...');
+      log('📱 Iniciando Google Sign-In desde provider...');
       final result = await GoogleAuthService.signInWithGoogle();
 
       if (result == null) {
-        print('⚠️ Usuario canceló');
+        log('⚠️ Usuario canceló');
         _isLoading = false;
         notifyListeners();
         return false; // Usuario canceló
       }
 
-      print('✅ Google Sign-In completado exitosamente');
+      log('✅ Google Sign-In completado exitosamente');
 
       // Sincronizar usuarios desde Firebase a SQLite
-      print('🔵 Sincronizando usuarios...');
+      log('🔵 Sincronizando usuarios...');
       try {
         await UserSyncService().syncAllUsers();
-        print('✅ Usuarios sincronizados correctamente');
+        log('✅ Usuarios sincronizados correctamente');
       } catch (e) {
-        print('⚠️ Error sincronizando usuarios: $e');
+        log('⚠️ Error sincronizando usuarios: $e');
       }
 
       _triggerAppStoreRefresh();
@@ -156,7 +158,7 @@ class LoginScreenProvider extends ChangeNotifier {
     } catch (e) {
       final errorMsg = _cleanErrorMessage(e.toString());
       _errorMessage = errorMsg;
-      print('❌ Error en Google Sign-In: $errorMsg');
+      log('❌ Error en Google Sign-In: $errorMsg');
       _isLoading = false;
       notifyListeners();
       return false;

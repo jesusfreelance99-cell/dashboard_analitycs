@@ -1,5 +1,7 @@
 // ignore_for_file: constant_identifier_names
 
+import 'dart:developer';
+
 import 'package:firebase_analytics/firebase_analytics.dart';
 
 class AnalyticsService {
@@ -17,7 +19,7 @@ class AnalyticsService {
     try {
       await _analytics.logEvent(name: name, parameters: parameters);
     } catch (e) {
-      print('Error logging event: $e');
+      log('Error logging event: $e');
     }
   }
 
@@ -32,7 +34,7 @@ class AnalyticsService {
       );
       await _analytics.setUserId(id: userId);
     } catch (e) {
-      print('Error logging login: $e');
+      log('Error logging login: $e');
     }
   }
 
@@ -42,7 +44,7 @@ class AnalyticsService {
       await _analytics.setUserId(id: null);
       await logEvent(name: 'logout');
     } catch (e) {
-      print('Error logging logout: $e');
+      log('Error logging logout: $e');
     }
   }
 
@@ -66,7 +68,7 @@ class AnalyticsService {
         await _analytics.setUserProperty(name: 'user_role', value: role);
       }
     } catch (e) {
-      print('Error setting user properties: $e');
+      log('Error setting user properties: $e');
     }
   }
 
@@ -84,7 +86,7 @@ class AnalyticsService {
         },
       );
     } catch (e) {
-      print('Error logging page view: $e');
+      log('Error logging page view: $e');
     }
   }
 
@@ -102,7 +104,7 @@ class AnalyticsService {
         },
       );
     } catch (e) {
-      print('Error logging error event: $e');
+      log('Error logging error event: $e');
     }
   }
 
@@ -111,7 +113,7 @@ class AnalyticsService {
     try {
       await _analytics.logSearch(searchTerm: searchTerm);
     } catch (e) {
-      print('Error logging search: $e');
+      log('Error logging search: $e');
     }
   }
 
@@ -123,7 +125,7 @@ class AnalyticsService {
     try {
       await logEvent(name: action, parameters: details);
     } catch (e) {
-      print('Error logging action: $e');
+      log('Error logging action: $e');
     }
   }
 

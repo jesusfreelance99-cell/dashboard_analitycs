@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user_model.dart';
 import 'local_db_service.dart';
@@ -16,7 +18,7 @@ class UserSyncService {
   /// Sincronizar todos los usuarios desde Firestore a SQLite
   Future<void> syncAllUsers() async {
     try {
-      print('🔵 Iniciando sincronización de usuarios...');
+      log('🔵 Iniciando sincronización de usuarios...');
 
       final usersSnapshot = await _firestore
           .collection('users')
@@ -30,18 +32,18 @@ class UserSyncService {
           final user = UserModel.fromFirestore(doc.id, doc.data());
           users.add(user);
         } catch (e) {
-          print('❌ Error procesando usuario ${doc.id}: $e');
+          log('❌ Error procesando usuario ${doc.id}: $e');
         }
       }
 
       if (users.isNotEmpty) {
         await _localDb.upsertUsers(users);
-        print('✅ Sincronizados ${users.length} usuarios');
+        log('✅ Sincronizados ${users.length} usuarios');
       } else {
-        print('⚠️ No se encontraron usuarios');
+        log('⚠️ No se encontraron usuarios');
       }
     } catch (e) {
-      print('❌ Error en sincronización: $e');
+      log('❌ Error en sincronización: $e');
       rethrow;
     }
   }
@@ -49,7 +51,7 @@ class UserSyncService {
   /// Sincronizar solo usuarios activos
   Future<void> syncActiveUsers() async {
     try {
-      print('🔵 Sincronizando usuarios activos...');
+      log('🔵 Sincronizando usuarios activos...');
 
       final usersSnapshot = await _firestore
           .collection('users')
@@ -64,16 +66,16 @@ class UserSyncService {
           final user = UserModel.fromFirestore(doc.id, doc.data());
           users.add(user);
         } catch (e) {
-          print('❌ Error procesando usuario ${doc.id}: $e');
+          log('❌ Error procesando usuario ${doc.id}: $e');
         }
       }
 
       if (users.isNotEmpty) {
         await _localDb.upsertUsers(users);
-        print('✅ Sincronizados ${users.length} usuarios activos');
+        log('✅ Sincronizados ${users.length} usuarios activos');
       }
     } catch (e) {
-      print('❌ Error sincronizando usuarios activos: $e');
+      log('❌ Error sincronizando usuarios activos: $e');
       rethrow;
     }
   }
@@ -81,13 +83,16 @@ class UserSyncService {
   /// Obtener un usuario específico por ID desde Firestore
   Future<UserModel?> getUserFromFirestore(String userId) async {
     try {
-      final docSnapshot = await _firestore.collection('users').doc(userId).get();
+      final docSnapshot = await _firestore
+          .collection('users')
+          .doc(userId)
+          .get();
 
       if (!docSnapshot.exists) return null;
 
       return UserModel.fromFirestore(docSnapshot.id, docSnapshot.data() ?? {});
     } catch (e) {
-      print('❌ Error obteniendo usuario: $e');
+      log('❌ Error obteniendo usuario: $e');
       return null;
     }
   }

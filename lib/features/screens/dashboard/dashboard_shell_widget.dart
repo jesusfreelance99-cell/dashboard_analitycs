@@ -18,6 +18,7 @@ import 'overview_page_widget.dart';
 import 'placeholder_page_widget.dart';
 import 'sidebar_widget.dart';
 import 'users_page_widget.dart';
+import 'funnel_page_widget.dart';
 
 class DashboardShell extends StatefulWidget {
   const DashboardShell({super.key});
@@ -187,11 +188,7 @@ class DashboardShellState extends State<DashboardShell> {
       case DashPage.users:
         return UsersPage(searchController: _searchController, range: range);
       case DashPage.funnel:
-        return const PlaceholderPage(
-          title: 'Embudo de onboarding',
-          description:
-              'Esta sección la rediseñamos en el siguiente paso,\ncon el mismo sistema visual flat que la Vista general.',
-        );
+        return FunnelPage(range: range);
       case DashPage.cac:
         return const PlaceholderPage(
           title: 'CAC / LTV',

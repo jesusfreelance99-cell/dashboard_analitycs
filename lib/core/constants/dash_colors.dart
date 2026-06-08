@@ -3,13 +3,17 @@ import 'app_colors.dart';
 
 // Uso: context.dc.surface  /  context.dc.ink  /  etc.
 extension DashColorsX on BuildContext {
-  DashColors get dc =>
-      DashColors(Theme.of(this).brightness == Brightness.dark);
+  DashColors get dc => DashColors(Theme.of(this).brightness == Brightness.dark);
 }
 
 class DashColors {
   const DashColors(this.dark);
   final bool dark;
+
+  // Compatibilidad con widgets que aún usan la API anterior.
+  Color get primary => AppColors.pink;
+  Color get secondary => dark ? AppColors.pinkLight : AppColors.pinkDark;
+  Color get accent => dark ? AppColors.pinkLight : AppColors.pink;
 
   // ── Fondos ───────────────────────────────────────────────────────────────
   /// Fondo del scaffold / página
@@ -32,8 +36,7 @@ class DashColors {
       dark ? const Color(0xFF2C2C2E) : AppColors.shimmerBase;
   Color get shimmerLight =>
       dark ? const Color(0xFF3A3A3C) : AppColors.shimmerLight;
-  Color get progressBg =>
-      dark ? const Color(0xFF2C2C2E) : AppColors.progressBg;
+  Color get progressBg => dark ? const Color(0xFF2C2C2E) : AppColors.progressBg;
   Color get progressFill =>
       dark ? const Color(0xFF636360) : AppColors.progressFill;
 

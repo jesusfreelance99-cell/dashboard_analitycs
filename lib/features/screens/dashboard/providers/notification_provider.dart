@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import '../../../../core/models/user_model.dart';
 import '../../../../core/services/user_sync_service.dart';
@@ -26,7 +28,8 @@ class NotificationProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String get notificationTitle => _notificationTitle;
   String get notificationMessage => _notificationMessage;
-  int get recipientCount => _sendToAll ? _allUsers.length : _selectedUserIds.length;
+  int get recipientCount =>
+      _sendToAll ? _allUsers.length : _selectedUserIds.length;
 
   /// Inicializar - cargar usuarios desde base de datos local
   Future<void> initialize() async {
@@ -37,10 +40,10 @@ class NotificationProvider extends ChangeNotifier {
       _allUsers = await _userSyncService.getAllUsersLocal();
       _filteredUsers = _allUsers;
       _errorMessage = null;
-      print('✅ Usuarios cargados: ${_allUsers.length}');
+      log('✅ Usuarios cargados: ${_allUsers.length}');
     } catch (e) {
       _errorMessage = 'Error al cargar usuarios: $e';
-      print('❌ Error: $_errorMessage');
+      log('❌ Error: $_errorMessage');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -171,10 +174,10 @@ class NotificationProvider extends ChangeNotifier {
       _allUsers = await _userSyncService.getAllUsersLocal();
       _filteredUsers = _allUsers;
       _errorMessage = null;
-      print('✅ Usuarios actualizados: ${_allUsers.length}');
+      log('✅ Usuarios actualizados: ${_allUsers.length}');
     } catch (e) {
       _errorMessage = 'Error actualizando usuarios: $e';
-      print('❌ Error: $_errorMessage');
+      log('❌ Error: $_errorMessage');
     } finally {
       _isLoading = false;
       notifyListeners();

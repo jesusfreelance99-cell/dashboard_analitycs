@@ -65,6 +65,7 @@ class TopHeader extends StatelessWidget {
 
 class DateToolbar extends StatelessWidget {
   const DateToolbar({
+    super.key,
     required this.range,
     required this.isCompact,
     required this.onRangeChanged,
