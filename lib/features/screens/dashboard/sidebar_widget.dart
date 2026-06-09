@@ -1,4 +1,5 @@
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
+import 'package:dashboard_analitycs/core/services/dash_user_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
@@ -138,59 +139,73 @@ class DashboardSidebar extends StatelessWidget {
             ),
           ),
           const Divider(height: 1, color: Color(0x16140C10)),
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: collapsed && !isMobile ? 12 : 18,
-              vertical: 18,
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: AppColors.ink,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    'JD',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
-                    ),
-                  ),
+          FutureBuilder<DashUserData?>(
+            future: DashUserService.get(),
+            builder: (context, snap) {
+              final user = snap.data;
+              final initials = user?.initials ?? '?';
+              final nombre = user?.nombre ?? '…';
+              final email = user?.email ?? '';
+              return Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: collapsed && !isMobile ? 12 : 18,
+                  vertical: 18,
                 ),
-                if (!collapsed || isMobile) ...[
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Jesús David',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.ink,
-                          ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.ink,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        initials,
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Plan Pro · trial',
-                          style: TextStyle(fontSize: 12, color: AppColors.ink3),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  const Icon(
-                    FluentIcons.chevron_up_down_20_regular,
-                    color: AppColors.ink3,
-                  ),
-                ],
-              ],
-            ),
+                    if (!collapsed || isMobile) ...[
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              nombre,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.ink,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              email,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.ink3,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        FluentIcons.chevron_up_down_20_regular,
+                        color: AppColors.ink3,
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),

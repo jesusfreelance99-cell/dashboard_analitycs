@@ -12,6 +12,7 @@ import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dar
 import 'package:dashboard_analitycs/core/services/user_metrics_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dashboard_analitycs/core/services/dash_user_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
@@ -269,16 +270,11 @@ class _OverviewContent extends StatelessWidget {
   final AppStoreMetrics? appStore;
   final RevenueCatMetrics? revenueCat;
 
-  String _buildGreeting() {
-    final hour = DateTime.now().hour;
-    final saludo = hour < 12
-        ? 'Buenos días'
-        : hour < 19
-        ? 'Buenas tardes'
-        : 'Buenas noches';
-    final user = FirebaseAuth.instance.currentUser;
-    final nombre = user?.displayName?.split(' ').first ?? 'Jesús';
-    return '$saludo, $nombre 👋';
+  static String _saludo() {
+    final h = DateTime.now().hour;
+    if (h < 12) return 'Buenos días';
+    if (h < 19) return 'Buenas tardes';
+    return 'Buenas noches';
   }
 
   @override
@@ -291,15 +287,23 @@ class _OverviewContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _buildGreeting(),
-          style: TextStyle(
-            fontSize: 44,
-            height: 1.03,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -2,
-            color: context.dc.ink,
-          ),
+        FutureBuilder<DashUserData?>(
+          future: DashUserService.get(),
+          builder: (context, snap) {
+            final nombre = snap.data?.firstName ??
+                FirebaseAuth.instance.currentUser?.displayName?.split(' ').first ??
+                'Admin';
+            return Text(
+              '${_saludo()}, $nombre 👋',
+              style: TextStyle(
+                fontSize: 44,
+                height: 1.03,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -2,
+                color: context.dc.ink,
+              ),
+            );
+          },
         ),
         const SizedBox(height: 12),
         Row(
