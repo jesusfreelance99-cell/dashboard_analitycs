@@ -1593,7 +1593,13 @@ class _RevenueTrendCardState extends State<_RevenueTrendCard> {
     final dateRange = _trendRangeToDateRange(_range);
     final rangeData = rc?.range(dateRange);
     final series = rangeData?.timeSeries ?? [];
-    final points = _aggregateRevenue(series);
+    // Si timeSeries está vacía pero hay revenue total, crear un punto sintético
+    final effectiveSeries = series.isNotEmpty
+        ? series
+        : (rangeData != null && rangeData.revenue > 0
+            ? [RevenueCatDailyPoint(date: DateTime.now().toIso8601String().substring(0, 10), revenue: rangeData.revenue)]
+            : <RevenueCatDailyPoint>[]);
+    final points = _aggregateRevenue(effectiveSeries);
     final total = points.fold(0.0, (s, p) => s + p.revenue);
     final display = total > 0
         ? _fmtRevenue(total)

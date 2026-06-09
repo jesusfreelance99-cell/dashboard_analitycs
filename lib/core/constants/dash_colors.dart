@@ -23,7 +23,7 @@ class DashColors {
   Color get surface => dark ? const Color(0xFF1C1C1E) : AppColors.white;
 
   /// Superficie ligeramente elevada (inputs, chips dentro de cards)
-  Color get elevated => dark ? const Color(0xFF2C2C2E) : AppColors.fieldBg;
+  Color get elevated => dark ? const Color(0xFF2C2C2E) : AppColors.blanco;
 
   // ── Texto ─────────────────────────────────────────────────────────────────
   Color get ink => dark ? const Color(0xFFF5F5F3) : AppColors.ink;

@@ -3,11 +3,14 @@ import 'dart:math' as math;
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/core/models/features_metrics_model.dart';
+import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
 import 'package:dashboard_analitycs/core/services/features_metrics_service.dart';
+import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/core/widgets/app_shimmer.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/empty_tables_component.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/shared_widgets.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,7 +60,6 @@ class _FeaturesPageState extends State<FeaturesPage> {
         if (snap.connectionState == ConnectionState.waiting) {
           return const _FeaturesShimmer();
         }
-
         final metrics = snap.data;
 
         if (metrics == null || metrics.status == 'idle') {
@@ -67,7 +69,7 @@ class _FeaturesPageState extends State<FeaturesPage> {
               const SizedBox(height: 60),
               const EmptyTablesComponent(
                 title: 'Sin datos de features',
-                description: 'Presiona el botón ⟳ para sincronizar.',
+                description: 'Presiona ⟳ para sincronizar.',
               ),
             ],
           );
@@ -78,7 +80,9 @@ class _FeaturesPageState extends State<FeaturesPage> {
             children: [
               _buildHeader(context, metrics),
               const SizedBox(height: 60),
-              const Center(child: CircularProgressIndicator(color: AppColors.pink)),
+              const Center(
+                child: CircularProgressIndicator(color: AppColors.pink),
+              ),
             ],
           );
         }
@@ -87,21 +91,38 @@ class _FeaturesPageState extends State<FeaturesPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader(context, metrics),
-            const SizedBox(height: 20),
-            _SessionCards(metrics: metrics),
-            const SizedBox(height: 18),
-            Panel(
-              child: _ComportamientoSection(metrics: metrics),
-            ),
-            const SizedBox(height: 18),
-            Panel(
-              child: _AdoptionSection(metrics: metrics),
-            ),
-            const SizedBox(height: 18),
-            if (metrics.retention.isNotEmpty)
-              Panel(
-                child: _RetentionSection(retention: metrics.retention),
+            const SizedBox(height: 24),
+            // 1 — Métricas principales con sparklines
+            _StatsGrid(metrics: metrics),
+            // 2 — Trend + comparativa semanal
+            if (metrics.timeSeries.hasData) ...[
+              const SizedBox(height: 20),
+              _TrendSection(timeSeries: metrics.timeSeries),
+              const SizedBox(height: 20),
+              StreamBuilder<RevenueCatMetrics?>(
+                stream: RevenueCatMetricsService.stream(),
+                builder: (context, rcSnap) {
+                  final rcSeries =
+                      rcSnap.data?.range(DateRange.d30).timeSeries ??
+                      const <RevenueCatDailyPoint>[];
+                  return _WeeklyComparisonSection(
+                    timeSeries: metrics.timeSeries,
+                    rcRevenueSeries: rcSeries,
+                  );
+                },
               ),
+            ],
+            // 3 — Comportamiento
+            const SizedBox(height: 20),
+            Panel(child: _BehaviorSection(metrics: metrics)),
+            // 4 — Adopción: donut + lista
+            const SizedBox(height: 20),
+            _AdoptionRow(metrics: metrics),
+            // 5 — Retención
+            if (metrics.retention.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Panel(child: _RetentionSection(retention: metrics.retention)),
+            ],
             const SizedBox(height: 32),
           ],
         );
@@ -119,104 +140,154 @@ class _FeaturesPageState extends State<FeaturesPage> {
               Text(
                 'Uso de features',
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: 32,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -1,
+                  letterSpacing: -1.2,
                   color: context.dc.ink,
                 ),
               ),
               if (metrics?.updatedAtLabel.isNotEmpty == true)
                 Text(
-                  'Actualizado: ${metrics!.updatedAtLabel}',
-                  style: TextStyle(fontSize: 12, color: context.dc.ink3),
+                  'Actualizado ${metrics!.updatedAtLabel}',
+                  style: TextStyle(fontSize: 14, color: context.dc.ink3),
                 ),
             ],
           ),
         ),
-        _FeaturesRefreshButton(refreshing: _refreshing, onTap: _manualRefresh),
+        _RefreshBtn(refreshing: _refreshing, onTap: _manualRefresh),
       ],
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SESSION CARDS
+// STATS GRID — 4 cards simétricas con sparklines
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SessionCards extends StatefulWidget {
-  const _SessionCards({required this.metrics});
+class _StatsGrid extends StatefulWidget {
+  const _StatsGrid({required this.metrics});
   final FeaturesMetrics metrics;
 
   @override
-  State<_SessionCards> createState() => _SessionCardsState();
+  State<_StatsGrid> createState() => _StatsGridState();
 }
 
-class _SessionCardsState extends State<_SessionCards> {
+class _StatsGridState extends State<_StatsGrid> {
   DateRange _range = DateRange.d7;
+
+  String _label(DateRange r) => switch (r) {
+    DateRange.all => 'Hoy',
+    DateRange.d7 => '7 días',
+    DateRange.d30 => '30 días',
+    DateRange.d90 => '90 días',
+  };
+
+  double? _delta(int current, int base, int days, int baseDays) {
+    if (base <= 0) return null;
+    final bl = base * days / baseDays;
+    if (bl <= 0) return null;
+    return (current - bl) / bl;
+  }
 
   @override
   Widget build(BuildContext context) {
     final sm = widget.metrics.session(_range) ?? const SessionMetrics();
+    final sm30 =
+        widget.metrics.session(DateRange.d30) ?? const SessionMetrics();
+    final sm90 =
+        widget.metrics.session(DateRange.d90) ?? const SessionMetrics();
+    final ts = widget.metrics.timeSeries;
 
-    String rangeLabel(DateRange r) => switch (r) {
-      DateRange.all => 'Hoy',
-      DateRange.d7  => '7 días',
-      DateRange.d30 => '30 días',
-      DateRange.d90 => '90 días',
+    final days = switch (_range) {
+      DateRange.all => 1,
+      DateRange.d7 => 7,
+      DateRange.d30 => 30,
+      DateRange.d90 => 90,
     };
+    final baseM = (_range == DateRange.d30 || _range == DateRange.d90)
+        ? sm90
+        : sm30;
+    final baseD = (_range == DateRange.d30 || _range == DateRange.d90)
+        ? 90
+        : 30;
+    final usersDlt = _delta(sm.activeUsers, baseM.activeUsers, days, baseD);
+    final sessDlt = _delta(sm.sessions, baseM.sessions, days, baseD);
+
+    final sparkDays = ts.activeUsers.isEmpty
+        ? 0
+        : days.clamp(1, ts.activeUsers.length);
+    final usersSpark = ts.activeUsers.isNotEmpty && sparkDays > 0
+        ? ts.activeUsers.sublist(math.max(0, ts.activeUsers.length - sparkDays))
+        : <int>[];
+    final sessSpark = ts.sessions.isNotEmpty && sparkDays > 0
+        ? ts.sessions.sublist(math.max(0, ts.sessions.length - sparkDays))
+        : <int>[];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Period selector
         Row(
           children: [
             for (final r in DateRange.values) ...[
               _PeriodChip(
-                label: rangeLabel(r),
+                label: _label(r),
                 selected: _range == r,
                 onTap: () => setState(() => _range = r),
               ),
-              if (r != DateRange.values.last) const SizedBox(width: 6),
+              if (r != DateRange.values.last) const SizedBox(width: 8),
             ],
           ],
         ),
-        const SizedBox(height: 14),
-        LayoutBuilder(builder: (context, constraints) {
-          const gap = 14.0;
-          final cols = constraints.maxWidth >= 900 ? 4 : constraints.maxWidth >= 600 ? 2 : 1;
-          final w = (constraints.maxWidth - gap * (cols - 1)) / cols;
-          final cards = [
-            _StatCard(
-              label: 'Usuarios activos',
-              value: _fmtNum(sm.activeUsers),
-              icon: Icons.people_outline_rounded,
-              color: AppColors.chartBlue,
-            ),
-            _StatCard(
-              label: 'Sesiones totales',
-              value: _fmtNum(sm.sessions),
-              icon: Icons.bar_chart_rounded,
-              color: AppColors.chartPurple,
-            ),
-            _StatCard(
-              label: 'Sesiones / usuario',
-              value: sm.sessions > 0 ? sm.sessionsPerUser.toStringAsFixed(1) : '—',
-              icon: Icons.repeat_rounded,
-              color: AppColors.chartAmber,
-            ),
-            _StatCard(
-              label: 'Tiempo medio sesión',
-              value: sm.avgDurationFormatted,
-              icon: Icons.timer_outlined,
-              color: AppColors.chartGreen,
-            ),
-          ];
-          return Wrap(
-            spacing: gap,
-            runSpacing: gap,
-            children: [for (final c in cards) SizedBox(width: w, child: c)],
-          );
-        }),
+        const SizedBox(height: 16),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const gap = 16.0;
+            final cols = constraints.maxWidth >= 900
+                ? 4
+                : constraints.maxWidth >= 600
+                ? 2
+                : 1;
+            final w = (constraints.maxWidth - gap * (cols - 1)) / cols;
+            final cards = [
+              _StatCard(
+                label: 'Usuarios activos',
+                value: _fmtNum(sm.activeUsers),
+                icon: Icons.people_outline_rounded,
+                color: AppColors.chartBlue,
+                delta: usersDlt,
+                sparkline: usersSpark,
+              ),
+              _StatCard(
+                label: 'Sesiones totales',
+                value: _fmtNum(sm.sessions),
+                icon: Icons.bar_chart_rounded,
+                color: AppColors.chartPurple,
+                delta: sessDlt,
+                sparkline: sessSpark,
+              ),
+              _StatCard(
+                label: 'Sesiones por usuario',
+                value: sm.sessions > 0
+                    ? sm.sessionsPerUser.toStringAsFixed(1)
+                    : '—',
+                icon: Icons.repeat_rounded,
+                color: AppColors.chartAmber,
+              ),
+              _StatCard(
+                label: 'Duración media sesión',
+                value: sm.avgDurationFormatted,
+                icon: Icons.timer_outlined,
+                color: AppColors.chartGreen,
+              ),
+            ];
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [for (final c in cards) SizedBox(width: w, child: c)],
+            );
+          },
+        ),
       ],
     );
   }
@@ -228,20 +299,23 @@ class _StatCard extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    this.delta,
+    this.sparkline = const [],
   });
-
   final String label;
   final String value;
   final IconData icon;
   final Color color;
+  final double? delta;
+  final List<int> sparkline;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
       decoration: BoxDecoration(
-        color: context.dc.elevated,
-        borderRadius: BorderRadius.circular(20),
+        color: context.dc.surface,
+        borderRadius: BorderRadius.circular(28),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -249,32 +323,136 @@ class _StatCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 28,
-                height: 28,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: color.withAlpha(28),
-                  shape: BoxShape.circle,
+                  color: color.withAlpha(22),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, size: 14, color: color),
+                child: Icon(icon, size: 18, color: color),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(fontSize: 12, color: context.dc.ink2, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: context.dc.ink2,
+                  ),
                 ),
               ),
+              if (delta != null && delta!.abs() >= 0.01)
+                _DeltaBadge(delta: delta!),
             ],
           ),
           const SizedBox(height: 14),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 48,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -2,
+                height: 0.95,
+                color: context.dc.ink,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 44,
+            child: sparkline.length > 2
+                ? _MiniSparkline(data: sparkline, color: color)
+                : const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniSparkline extends StatelessWidget {
+  const _MiniSparkline({required this.data, required this.color});
+  final List<int> data;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final maxVal = data.reduce(math.max);
+    if (maxVal <= 0) return const SizedBox.shrink();
+    return LineChart(
+      LineChartData(
+        minY: 0,
+        maxY: maxVal * 1.4,
+        gridData: const FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        titlesData: const FlTitlesData(
+          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: data
+                .asMap()
+                .entries
+                .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
+                .toList(),
+            isCurved: true,
+            curveSmoothness: 0.35,
+            color: color,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [color.withAlpha(40), color.withAlpha(0)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+        ],
+        lineTouchData: const LineTouchData(enabled: false),
+      ),
+    );
+  }
+}
+
+class _DeltaBadge extends StatelessWidget {
+  const _DeltaBadge({required this.delta});
+  final double delta;
+
+  @override
+  Widget build(BuildContext context) {
+    final isUp = delta > 0;
+    final color = isUp ? AppColors.chartGreen : AppColors.chartRed;
+    final icon = isUp
+        ? Icons.arrow_upward_rounded
+        : Icons.arrow_downward_rounded;
+    final pct = '${isUp ? '+' : ''}${(delta * 100).toStringAsFixed(0)}%';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(20),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 2),
           Text(
-            value,
+            pct,
             style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1.5,
-              height: 1,
-              color: context.dc.ink,
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: color,
             ),
           ),
         ],
@@ -284,124 +462,747 @@ class _StatCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// COMPORTAMIENTO
+// TREND CHART — 30 días con dos líneas
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _ComportamientoSection extends StatelessWidget {
-  const _ComportamientoSection({required this.metrics});
-  final FeaturesMetrics metrics;
+class _TrendSection extends StatelessWidget {
+  const _TrendSection({required this.timeSeries});
+  final FeaturesTimeSeries timeSeries;
 
   @override
   Widget build(BuildContext context) {
-    final sm7    = metrics.session(DateRange.d7) ?? const SessionMetrics();
-    final feat7  = metrics.featureList(DateRange.d7);
-    final feat1  = metrics.featureList(DateRange.all);
+    final maxVal = timeSeries.maxValue;
+    final maxY = (maxVal * 1.3).ceilToDouble().clamp(4.0, double.infinity);
+    final interval = (maxY / 4).ceilToDouble();
+    final n = timeSeries.dates.length;
+    final labelInt = n <= 10 ? 1.0 : (n / 5).floor().toDouble();
 
-    // Features promedio por sesión (d7)
-    final totalEvents = feat7.fold(0, (acc, e) => acc + e.count);
-    final featPerSession = sm7.sessions > 0
-        ? (totalEvents / sm7.sessions).toStringAsFixed(1)
-        : '—';
+    final usersSpots = timeSeries.activeUsers
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
+        .toList();
+    final sessionSpots = timeSeries.sessions
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
+        .toList();
 
-    final topD1 = feat1.isNotEmpty ? feat1.first.displayName : '—';
-    final topD7 = feat7.isNotEmpty ? feat7.first.displayName : '—';
-
-    // Feature que más retiene (mayor retention_score)
-    final topRetention = metrics.retention.isNotEmpty
-        ? metrics.retention.reduce((a, b) => a.retentionScore > b.retentionScore ? a : b)
-        : null;
-    final topRetainName = topRetention != null
-        ? FeatureEventRow(name: topRetention.name, count: 0, uniqueUsers: 0, perSession: 0).displayName
-        : '—';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const PanelHeader(title: 'Comportamiento', trailing: 'GA4 · últimos 7 días'),
-        const SizedBox(height: 20),
-        LayoutBuilder(builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 700;
-          final stats = [
-            _BehaviorStat(
-              value: featPerSession,
-              label: 'features / sesión',
-              icon: Icons.touch_app_outlined,
-              color: AppColors.chartPurple,
-            ),
-            _BehaviorStat(
-              value: sm7.avgDurationFormatted,
-              label: 'tiempo medio sesión',
-              icon: Icons.hourglass_empty_rounded,
-              color: AppColors.chartAmber,
-            ),
-            _BehaviorStat(
-              value: sm7.engagementRatePct,
-              label: 'tasa de engagement',
-              icon: Icons.bolt_outlined,
-              color: AppColors.chartGreen,
-            ),
-          ];
-
-          return isWide
-              ? Row(
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (int i = 0; i < stats.length; i++) ...[
-                      Expanded(child: stats[i]),
-                      if (i < stats.length - 1)
-                        Container(width: 1, height: 60, color: context.dc.divider, margin: const EdgeInsets.symmetric(horizontal: 20)),
-                    ],
+                    Text(
+                      'Actividad',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: context.dc.ink,
+                      ),
+                    ),
+                    Text(
+                      'Últimos 30 días',
+                      style: TextStyle(fontSize: 13, color: context.dc.ink3),
+                    ),
                   ],
-                )
-              : Column(
-                  children: [for (final s in stats) ...[s, const SizedBox(height: 16)]],
-                );
-        }),
-        const SizedBox(height: 20),
-        Container(height: 1, color: context.dc.divider),
-        const SizedBox(height: 20),
-        LayoutBuilder(builder: (context, constraints) {
-          final isWide = constraints.maxWidth >= 600;
-          final insights = [
-            _InsightRow(
-              icon: Icons.star_rounded,
-              color: AppColors.chartAmber,
-              label: 'Más usada hoy (D1)',
-              value: topD1,
-            ),
-            _InsightRow(
-              icon: Icons.trending_up_rounded,
-              color: AppColors.chartBlue,
-              label: 'Más usada (D7)',
-              value: topD7,
-            ),
-            _InsightRow(
-              icon: Icons.loop_rounded,
-              color: AppColors.chartGreen,
-              label: 'Mejor retención',
-              value: topRetainName,
-            ),
-          ];
-          if (isWide) {
-            return Row(
-              children: [
-                for (int i = 0; i < insights.length; i++) ...[
-                  Expanded(child: insights[i]),
-                  if (i < insights.length - 1) const SizedBox(width: 12),
+                ),
+              ),
+              _LegendDot(color: AppColors.pink, label: 'Usuarios'),
+              const SizedBox(width: 16),
+              _LegendDot(color: AppColors.chartBlue, label: 'Sesiones'),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 200,
+            child: LineChart(
+              LineChartData(
+                minY: 0,
+                maxY: maxY,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: interval,
+                  getDrawingHorizontalLine: (_) =>
+                      FlLine(color: context.dc.divider, strokeWidth: 1),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 42,
+                      interval: interval,
+                      getTitlesWidget: (v, _) => Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: Text(
+                          _fmtNum(v.toInt()),
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: context.dc.ink3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 26,
+                      interval: labelInt,
+                      getTitlesWidget: (v, _) {
+                        final idx = v.toInt();
+                        if (idx < 0 || idx >= timeSeries.dates.length) {
+                          return const SizedBox.shrink();
+                        }
+                        final d = timeSeries.dates[idx];
+                        if (d.length < 8) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            '${d.substring(6)}/${d.substring(4, 6)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: context.dc.ink3,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: usersSpots,
+                    isCurved: true,
+                    curveSmoothness: 0.3,
+                    color: AppColors.pink,
+                    barWidth: 2.5,
+                    isStrokeCapRound: true,
+                    dotData: const FlDotData(show: false),
+                    belowBarData: BarAreaData(
+                      show: true,
+                      gradient: LinearGradient(
+                        colors: [
+                          AppColors.pink.withAlpha(45),
+                          AppColors.pink.withAlpha(0),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                  ),
+                  LineChartBarData(
+                    spots: sessionSpots,
+                    isCurved: true,
+                    curveSmoothness: 0.3,
+                    color: AppColors.chartBlue,
+                    barWidth: 2,
+                    isStrokeCapRound: true,
+                    dotData: const FlDotData(show: false),
+                    dashArray: [5, 3],
+                  ),
                 ],
-              ],
-            );
-          }
-          return Column(children: [
-            for (final ins in insights) ...[ins, const SizedBox(height: 8)],
-          ]);
-        }),
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (_) => context.dc.elevated,
+                    getTooltipItems: (spots) => spots.map((s) {
+                      final isUsers = s.barIndex == 0;
+                      final color = isUsers
+                          ? AppColors.pink
+                          : AppColors.chartBlue;
+                      return LineTooltipItem(
+                        '${isUsers ? 'Usuarios' : 'Sesiones'}: ${s.y.toInt()}',
+                        TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: color,
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  const _LegendDot({required this.color, required this.label});
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(label, style: TextStyle(fontSize: 12, color: context.dc.ink3)),
       ],
     );
   }
 }
 
-class _BehaviorStat extends StatelessWidget {
-  const _BehaviorStat({
+// ─────────────────────────────────────────────────────────────────────────────
+// WEEKLY COMPARISON — Esta semana vs La semana pasada
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _WeeklyComparisonSection extends StatelessWidget {
+  const _WeeklyComparisonSection({
+    required this.timeSeries,
+    this.rcRevenueSeries = const [],
+  });
+  final FeaturesTimeSeries timeSeries;
+  final List<RevenueCatDailyPoint> rcRevenueSeries;
+
+  List<double> _thisWeek(List<num> data) => data.length >= 7
+      ? data.sublist(data.length - 7).map((e) => e.toDouble()).toList()
+      : data.map((e) => e.toDouble()).toList();
+
+  List<double> _lastWeek(List<num> data) => data.length >= 14
+      ? data
+            .sublist(data.length - 14, data.length - 7)
+            .map((e) => e.toDouble())
+            .toList()
+      : <double>[];
+
+  double? _delta(num current, num prev) {
+    if (prev <= 0) return null;
+    return (current - prev) / prev;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (timeSeries.dates.length < 2) return const SizedBox.shrink();
+
+    final usersThis = _thisWeek(timeSeries.activeUsers);
+    final usersLast = _lastWeek(timeSeries.activeUsers);
+    final sessThis = _thisWeek(timeSeries.sessions);
+    final sessLast = _lastWeek(timeSeries.sessions);
+
+    final rcRevs = rcRevenueSeries.map((p) => p.revenue).toList();
+    final revThis = rcRevs.isNotEmpty ? _thisWeek(rcRevs) : <double>[];
+    final revLast = rcRevs.isNotEmpty ? _lastWeek(rcRevs) : <double>[];
+
+    final currentUsers = timeSeries.activeUsers.isNotEmpty
+        ? timeSeries.activeUsers.last
+        : 0;
+    final prevUsers = timeSeries.activeUsers.length >= 8
+        ? timeSeries.activeUsers[timeSeries.activeUsers.length - 8]
+        : 0;
+    final currentSess = timeSeries.sessions.isNotEmpty
+        ? timeSeries.sessions.last
+        : 0;
+    final prevSess = timeSeries.sessions.length >= 8
+        ? timeSeries.sessions[timeSeries.sessions.length - 8]
+        : 0;
+    final currentRev = rcRevs.isNotEmpty ? rcRevs.last : 0.0;
+    final prevRev = rcRevs.length >= 8 ? rcRevs[rcRevs.length - 8] : 0.0;
+    final hasRevenue = rcRevs.any((r) => r > 0);
+
+    final panels = [
+      _CompPanel(
+        title: 'Usuarios activos',
+        subtitle: 'por día',
+        valueStr: _fmtNum(currentUsers),
+        delta: _delta(currentUsers, prevUsers),
+        thisWeek: usersThis,
+        lastWeek: usersLast,
+        color: AppColors.chartBlue,
+      ),
+      _CompPanel(
+        title: 'Sesiones',
+        subtitle: 'por día',
+        valueStr: _fmtNum(currentSess),
+        delta: _delta(currentSess, prevSess),
+        thisWeek: sessThis,
+        lastWeek: sessLast,
+        color: AppColors.chartPurple,
+      ),
+      if (hasRevenue)
+        _CompPanel(
+          title: 'Ingresos',
+          subtitle: 'del día',
+          valueStr: '\$${currentRev.toStringAsFixed(2)}',
+          delta: _delta(currentRev, prevRev),
+          thisWeek: revThis,
+          lastWeek: revLast,
+          color: AppColors.chartGreen,
+        ),
+    ];
+
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Estadísticas semanales',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: context.dc.ink,
+                      ),
+                    ),
+                    Text(
+                      'Esta semana vs la semana pasada',
+                      style: TextStyle(fontSize: 13, color: context.dc.ink3),
+                    ),
+                  ],
+                ),
+              ),
+              // Leyenda
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 18, height: 2, color: AppColors.pink),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Esta semana',
+                    style: TextStyle(fontSize: 11, color: context.dc.ink3),
+                  ),
+                  const SizedBox(width: 14),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (int i = 0; i < 3; i++) ...[
+                        Container(width: 4, height: 2, color: context.dc.ink3),
+                        if (i < 2) const SizedBox(width: 2),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Semana pasada',
+                    style: TextStyle(fontSize: 11, color: context.dc.ink3),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 22),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= (hasRevenue ? 700 : 500);
+              if (isWide) {
+                return IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      for (int i = 0; i < panels.length; i++) ...[
+                        Expanded(child: panels[i]),
+                        if (i < panels.length - 1)
+                          Container(
+                            width: 1,
+                            margin: const EdgeInsets.symmetric(horizontal: 20),
+                            color: context.dc.divider,
+                          ),
+                      ],
+                    ],
+                  ),
+                );
+              }
+              return Column(
+                children: [
+                  for (int i = 0; i < panels.length; i++) ...[
+                    panels[i],
+                    if (i < panels.length - 1) ...[
+                      const SizedBox(height: 20),
+                      Container(height: 1, color: context.dc.divider),
+                      const SizedBox(height: 20),
+                    ],
+                  ],
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CompPanel extends StatelessWidget {
+  const _CompPanel({
+    required this.title,
+    required this.subtitle,
+    required this.valueStr,
+    required this.delta,
+    required this.thisWeek,
+    required this.lastWeek,
+    required this.color,
+  });
+  final String title;
+  final String subtitle;
+  final String valueStr;
+  final double? delta;
+  final List<double> thisWeek;
+  final List<double> lastWeek;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (thisWeek.isEmpty) return const SizedBox.shrink();
+
+    final thisSpots = thisWeek
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value))
+        .toList();
+    final lastSpots = lastWeek
+        .asMap()
+        .entries
+        .map((e) => FlSpot(e.key.toDouble(), e.value))
+        .toList();
+
+    final allVals = [...thisWeek, ...lastWeek];
+    final maxAll = allVals.fold(0.0, (m, v) => math.max(m, v));
+    final maxY = (maxAll * 1.35).clamp(2.0, double.infinity);
+    final interval = (maxY / 3).ceilToDouble().clamp(1.0, double.infinity);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        RichText(
+          text: TextSpan(
+            style: TextStyle(fontSize: 13, color: context.dc.ink3),
+            children: [
+              TextSpan(
+                text: title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: context.dc.ink2,
+                ),
+              ),
+              TextSpan(text: ' $subtitle'),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text(
+              valueStr,
+              style: TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -1.5,
+                height: 1,
+                color: context.dc.ink,
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (delta != null && delta!.abs() >= 0.001)
+              _DeltaBadge(delta: delta!),
+          ],
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 110,
+          child: LineChart(
+            LineChartData(
+              minY: 0,
+              maxY: maxY,
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                horizontalInterval: interval,
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: context.dc.divider, strokeWidth: 1),
+              ),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 36,
+                    interval: interval,
+                    getTitlesWidget: (v, _) => Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: Text(
+                        _fmtNum(v.toInt()),
+                        textAlign: TextAlign.right,
+                        style: TextStyle(fontSize: 10, color: context.dc.ink3),
+                      ),
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 22,
+                    getTitlesWidget: (v, _) {
+                      const days = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+                      final idx = v.toInt();
+                      if (idx < 0 || idx >= days.length) {
+                        return const SizedBox.shrink();
+                      }
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          days[idx],
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: context.dc.ink3,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: thisSpots,
+                  isCurved: true,
+                  curveSmoothness: 0.25,
+                  color: color,
+                  barWidth: 2.5,
+                  isStrokeCapRound: true,
+                  dotData: FlDotData(
+                    show: true,
+                    checkToShowDot: (spot, _) => spot.x == thisSpots.last.x,
+                    getDotPainter: (spot, pct, bar, idx) => FlDotCirclePainter(
+                      radius: 4,
+                      color: color,
+                      strokeWidth: 2,
+                      strokeColor: context.dc.surface,
+                    ),
+                  ),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      colors: [color.withAlpha(28), color.withAlpha(0)],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+                if (lastSpots.isNotEmpty)
+                  LineChartBarData(
+                    spots: lastSpots,
+                    isCurved: true,
+                    curveSmoothness: 0.25,
+                    color: context.dc.ink3,
+                    barWidth: 1.5,
+                    isStrokeCapRound: true,
+                    dotData: FlDotData(
+                      show: true,
+                      checkToShowDot: (spot, _) => spot.x == lastSpots.last.x,
+                      getDotPainter: (spot, pct, bar, idx) =>
+                          FlDotCirclePainter(
+                            radius: 3,
+                            color: context.dc.ink3,
+                            strokeWidth: 1.5,
+                            strokeColor: context.dc.surface,
+                          ),
+                    ),
+                    dashArray: [5, 3],
+                    belowBarData: BarAreaData(show: false),
+                  ),
+              ],
+              lineTouchData: const LineTouchData(enabled: false),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BEHAVIOR — bloques de comportamiento
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BehaviorSection extends StatelessWidget {
+  const _BehaviorSection({required this.metrics});
+  final FeaturesMetrics metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    final sm7 = metrics.session(DateRange.d7) ?? const SessionMetrics();
+    final feat7 = metrics.featureList(DateRange.d7);
+    final feat1 = metrics.featureList(DateRange.all);
+
+    final totalEvents = feat7.fold(0, (acc, e) => acc + e.count);
+    final featPerSession = sm7.sessions > 0
+        ? (totalEvents / sm7.sessions).toStringAsFixed(1)
+        : '—';
+    final topD1 = feat1.isNotEmpty ? feat1.first.displayName : '—';
+    final topD7 = feat7.isNotEmpty ? feat7.first.displayName : '—';
+    final topRetention = metrics.retention.isNotEmpty
+        ? metrics.retention.reduce(
+            (a, b) => a.retentionScore > b.retentionScore ? a : b,
+          )
+        : null;
+    final topRetainName = topRetention != null
+        ? FeatureEventRow(
+            name: topRetention.name,
+            count: 0,
+            uniqueUsers: 0,
+            perSession: 0,
+          ).displayName
+        : '—';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Comportamiento',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: context.dc.ink,
+                    ),
+                  ),
+                  Text(
+                    'GA4 · últimos 7 días',
+                    style: TextStyle(fontSize: 13, color: context.dc.ink3),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 650;
+            final blocks = [
+              _BehaviorBlock(
+                value: featPerSession,
+                label: 'Features\npor sesión',
+                icon: Icons.touch_app_outlined,
+                color: AppColors.chartPurple,
+              ),
+              _BehaviorBlock(
+                value: sm7.avgDurationFormatted,
+                label: 'Duración\nmedia sesión',
+                icon: Icons.hourglass_empty_rounded,
+                color: AppColors.chartAmber,
+              ),
+              _BehaviorBlock(
+                value: sm7.engagementRatePct,
+                label: 'Tasa de\nengagement',
+                icon: Icons.bolt_outlined,
+                color: AppColors.chartGreen,
+              ),
+            ];
+            if (isWide) {
+              return IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (int i = 0; i < blocks.length; i++) ...[
+                      Expanded(child: blocks[i]),
+                      if (i < blocks.length - 1) const SizedBox(width: 12),
+                    ],
+                  ],
+                ),
+              );
+            }
+            return Column(
+              children: [
+                for (int i = 0; i < blocks.length; i++) ...[
+                  blocks[i],
+                  if (i < blocks.length - 1) const SizedBox(height: 10),
+                ],
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 20),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isWide = constraints.maxWidth >= 580;
+            final insights = [
+              _InsightRow(
+                icon: Icons.star_rounded,
+                color: AppColors.chartAmber,
+                label: 'Más usada hoy',
+                value: topD1,
+              ),
+              _InsightRow(
+                icon: Icons.trending_up_rounded,
+                color: AppColors.chartBlue,
+                label: 'Top 7 días',
+                value: topD7,
+              ),
+              _InsightRow(
+                icon: Icons.loop_rounded,
+                color: AppColors.chartGreen,
+                label: 'Mejor retención',
+                value: topRetainName,
+              ),
+            ];
+            if (isWide) {
+              return Row(
+                children: [
+                  for (int i = 0; i < insights.length; i++) ...[
+                    Expanded(child: insights[i]),
+                    if (i < insights.length - 1) const SizedBox(width: 10),
+                  ],
+                ],
+              );
+            }
+            return Column(
+              children: [
+                for (int i = 0; i < insights.length; i++) ...[
+                  insights[i],
+                  if (i < insights.length - 1) const SizedBox(height: 8),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _BehaviorBlock extends StatelessWidget {
+  const _BehaviorBlock({
     required this.value,
     required this.label,
     required this.icon,
@@ -414,34 +1215,57 @@ class _BehaviorStat extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: color.withAlpha(26),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Icon(icon, size: 18, color: color),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -1,
-                color: context.dc.ink,
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+      decoration: BoxDecoration(
+        color: color.withAlpha(16),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: color.withAlpha(28),
+              borderRadius: BorderRadius.circular(14),
             ),
-            Text(label, style: TextStyle(fontSize: 11, color: context.dc.ink3)),
-          ],
-        ),
-      ],
+            child: Icon(icon, size: 20, color: color),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -1,
+                      height: 1,
+                      color: context.dc.ink,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -461,23 +1285,34 @@ class _InsightRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: color.withAlpha(16),
-        borderRadius: BorderRadius.circular(14),
+        color: color.withAlpha(12),
+        borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
         children: [
           Icon(icon, size: 16, color: color),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(fontSize: 10, color: context.dc.ink3)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: context.dc.ink3,
+                  ),
+                ),
                 Text(
                   value,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.dc.ink),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: context.dc.ink,
+                  ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -490,157 +1325,443 @@ class _InsightRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FEATURE ADOPTION BARS
+// ADOPTION ROW — Donut (izq) + Events list (der)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AdoptionSection extends StatefulWidget {
-  const _AdoptionSection({required this.metrics});
+class _AdoptionRow extends StatefulWidget {
+  const _AdoptionRow({required this.metrics});
   final FeaturesMetrics metrics;
 
   @override
-  State<_AdoptionSection> createState() => _AdoptionSectionState();
+  State<_AdoptionRow> createState() => _AdoptionRowState();
 }
 
-class _AdoptionSectionState extends State<_AdoptionSection> {
+class _AdoptionRowState extends State<_AdoptionRow> {
   DateRange _range = DateRange.d7;
-
-  Color _colorFor(FeatureEventRow e) => switch (e.category) {
-    FeatureCategory.financial    => AppColors.chartGreen,
-    FeatureCategory.budget       => AppColors.chartOlive,
-    FeatureCategory.voice        => AppColors.chartPurple,
-    FeatureCategory.widget       => AppColors.chartBlue,
-    FeatureCategory.subscription => AppColors.chartAmber,
-    FeatureCategory.conversion   => AppColors.pink,
-    FeatureCategory.auth         => AppColors.chartRed,
-    FeatureCategory.onboarding   => AppColors.chartPink,
-    FeatureCategory.notification => AppColors.ink3,
-    FeatureCategory.other        => AppColors.ink3,
-  };
 
   @override
   Widget build(BuildContext context) {
-    final events = widget.metrics.featureList(_range);
-    final top = events.take(12).toList();
-    final maxCount = top.fold(0, (acc, e) => math.max(acc, e.count));
+    final allEvents = widget.metrics.featureList(_range);
 
-    String rangeFullLabel(DateRange r) => switch (r) {
-      DateRange.all => 'Hoy',
-      DateRange.d7  => 'Últimos 7 días',
-      DateRange.d30 => 'Últimos 30 días',
-      DateRange.d90 => 'Últimos 90 días',
-    };
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWide = constraints.maxWidth >= 720;
+        final donut = _CategoryDonutPanel(
+          events: allEvents,
+          range: _range,
+          onRangeChanged: (r) => setState(() => _range = r),
+        );
+        final list = _TopEventsPanel(
+          events: allEvents,
+          range: _range,
+          onRangeChanged: (r) => setState(() => _range = r),
+        );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            const Expanded(
-              child: PanelHeader(title: 'Adopción de features', trailing: ''),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: context.dc.elevated,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: context.dc.divider),
-              ),
-              child: DropdownButton<DateRange>(
-                value: _range,
-                underline: const SizedBox.shrink(),
-                isDense: true,
-                icon: Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: context.dc.ink3),
-                dropdownColor: context.dc.elevated,
-                borderRadius: BorderRadius.circular(10),
-                style: TextStyle(fontSize: 12, color: context.dc.ink),
-                items: DateRange.values.map((r) => DropdownMenuItem(
-                  value: r,
-                  child: Text(rangeFullLabel(r)),
-                )).toList(),
-                onChanged: (r) { if (r != null) setState(() => _range = r); },
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        if (top.isEmpty)
-          const SizedBox(
-            height: 120,
-            child: EmptyTablesComponent(
-              title: 'Sin datos para este período',
-              description: 'Sincroniza para actualizar.',
-            ),
-          )
-        else
-          for (final e in top)
-            _FeatureBarRow(
-              event: e,
-              maxCount: maxCount,
-              color: _colorFor(e),
-            ),
-      ],
+        if (isWide) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: constraints.maxWidth * 0.42, child: donut),
+              const SizedBox(width: 16),
+              Expanded(child: list),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [donut, const SizedBox(height: 16), list],
+        );
+      },
     );
   }
 }
 
-class _FeatureBarRow extends StatelessWidget {
-  const _FeatureBarRow({
-    required this.event,
-    required this.maxCount,
-    required this.color,
+// ─ Donut panel ─
+class _CategoryDonutPanel extends StatelessWidget {
+  const _CategoryDonutPanel({
+    required this.events,
+    required this.range,
+    required this.onRangeChanged,
   });
-  final FeatureEventRow event;
-  final int maxCount;
-  final Color color;
+  final List<FeatureEventRow> events;
+  final DateRange range;
+  final ValueChanged<DateRange> onRangeChanged;
+
+  String _catName(FeatureCategory c) => switch (c) {
+    FeatureCategory.financial => 'Finanzas',
+    FeatureCategory.budget => 'Presupuesto',
+    FeatureCategory.voice => 'Voz',
+    FeatureCategory.widget => 'Widget',
+    FeatureCategory.subscription => 'Suscripción',
+    FeatureCategory.conversion => 'Conversión',
+    FeatureCategory.auth => 'Auth',
+    FeatureCategory.onboarding => 'Onboarding',
+    FeatureCategory.notification => 'Notificaciones',
+    FeatureCategory.other => 'Otros',
+  };
 
   @override
   Widget build(BuildContext context) {
-    final fraction = maxCount > 0 ? event.count / maxCount : 0.0;
-    final pct = maxCount > 0
-        ? '${(event.count / maxCount * 100).toStringAsFixed(0)}%'
-        : '0%';
+    final totals = <FeatureCategory, int>{};
+    for (final e in events) {
+      totals[e.category] = (totals[e.category] ?? 0) + e.count;
+    }
+    final total = totals.values.fold(0, (a, b) => a + b);
+    final sorted = totals.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 180,
-            child: Text(
-              event.displayName,
-              style: TextStyle(fontSize: 13, color: context.dc.ink),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Container(
-                height: 8,
-                color: context.dc.progressBg,
-                child: FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: fraction.clamp(0.01, 1.0),
-                  child: Container(color: color),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Por categoría',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                        color: context.dc.ink,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+              _RangeDropdown(value: range, onChanged: onRangeChanged),
+            ],
           ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 80,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+          const SizedBox(height: 20),
+          if (total == 0)
+            const SizedBox(
+              height: 160,
+              child: EmptyTablesComponent(title: 'Sin datos', description: ''),
+            )
+          else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(pct, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
-                const SizedBox(width: 6),
-                Text(
-                  _fmtNum(event.count),
-                  style: TextStyle(fontSize: 11, color: context.dc.ink3),
+                SizedBox(
+                  width: 140,
+                  height: 140,
+                  child: PieChart(
+                    PieChartData(
+                      sections: sorted.map((entry) {
+                        final pct = entry.value / total * 100;
+                        final color = _colorForCat(entry.key);
+                        return PieChartSectionData(
+                          value: pct,
+                          color: color,
+                          title: pct >= 10 ? '${pct.toStringAsFixed(0)}%' : '',
+                          radius: 52,
+                          titleStyle: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.white,
+                          ),
+                        );
+                      }).toList(),
+                      centerSpaceRadius: 38,
+                      sectionsSpace: 2,
+                      startDegreeOffset: -90,
+                      pieTouchData: PieTouchData(enabled: false),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 40),
+                Expanded(
+                  child: Column(
+                    children: sorted.take(7).map((entry) {
+                      final pct = total > 0 ? entry.value / total * 100 : 0.0;
+                      final color = _colorForCat(entry.key);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 9),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: color,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                _catName(entry.key),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: context.dc.ink,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Text(
+                              '${pct.toStringAsFixed(0)}%',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
               ],
             ),
+          const SizedBox(height: 8),
+          if (total > 0)
+            Text(
+              '${_fmtNum(total)} eventos totales',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: context.dc.ink3,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─ Events list panel ─
+class _TopEventsPanel extends StatefulWidget {
+  const _TopEventsPanel({
+    required this.events,
+    required this.range,
+    required this.onRangeChanged,
+  });
+  final List<FeatureEventRow> events;
+  final DateRange range;
+  final ValueChanged<DateRange> onRangeChanged;
+
+  @override
+  State<_TopEventsPanel> createState() => _TopEventsPanelState();
+}
+
+class _TopEventsPanelState extends State<_TopEventsPanel> {
+  FeatureCategory? _cat;
+  int _page = 0;
+  static const _pageSize = 5;
+
+  String _catName(FeatureCategory? c) => switch (c) {
+    null => 'Todos',
+    FeatureCategory.financial => 'Finanzas',
+    FeatureCategory.budget => 'Presupuesto',
+    FeatureCategory.voice => 'Voz',
+    FeatureCategory.widget => 'Widget',
+    FeatureCategory.subscription => 'Suscripción',
+    FeatureCategory.conversion => 'Conversión',
+    FeatureCategory.auth => 'Auth',
+    FeatureCategory.onboarding => 'Onboarding',
+    FeatureCategory.notification => 'Notificaciones',
+    FeatureCategory.other => 'Otros',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _cat == null
+        ? widget.events
+        : widget.events.where((e) => e.category == _cat).toList();
+    final totalPages = (filtered.length / _pageSize).ceil().clamp(1, 999);
+    final safePage = _page.clamp(0, totalPages - 1);
+    final pageItems = filtered.skip(safePage * _pageSize).take(_pageSize).toList();
+    final maxCount = filtered.isEmpty ? 1 : filtered.fold(0, (m, e) => math.max(m, e.count));
+    final presentCats = widget.events.map((e) => e.category).toSet().toList()
+      ..sort((a, b) => a.index.compareTo(b.index));
+
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Eventos más usados',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: context.dc.ink),
+                ),
+              ),
+              _RangeDropdown(value: widget.range, onChanged: widget.onRangeChanged),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _CatChip(
+                  label: 'Todos',
+                  color: context.dc.ink2,
+                  selected: _cat == null,
+                  onTap: () => setState(() { _cat = null; _page = 0; }),
+                ),
+                for (final cat in presentCats) ...[
+                  const SizedBox(width: 6),
+                  _CatChip(
+                    label: _catName(cat),
+                    color: _colorForCat(cat),
+                    selected: _cat == cat,
+                    onTap: () => setState(() { _cat = _cat == cat ? null : cat; _page = 0; }),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          if (pageItems.isEmpty)
+            const SizedBox(height: 100, child: EmptyTablesComponent(title: 'Sin datos', description: ''))
+          else
+            for (int i = 0; i < pageItems.length; i++)
+              _EventListRow(
+                rank: safePage * _pageSize + i + 1,
+                event: pageItems[i],
+                maxCount: maxCount,
+              ),
+          if (totalPages > 1) ...[
+            const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _PageBtn(
+                  icon: Icons.chevron_left_rounded,
+                  enabled: safePage > 0,
+                  onTap: () => setState(() => _page = safePage - 1),
+                ),
+                const SizedBox(width: 14),
+                Text(
+                  '${safePage + 1} / $totalPages',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.dc.ink2),
+                ),
+                const SizedBox(width: 14),
+                _PageBtn(
+                  icon: Icons.chevron_right_rounded,
+                  enabled: safePage < totalPages - 1,
+                  onTap: () => setState(() => _page = safePage + 1),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PageBtn extends StatelessWidget {
+  const _PageBtn({required this.icon, required this.enabled, required this.onTap});
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: enabled ? context.dc.elevated : context.dc.progressBg,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, size: 18, color: enabled ? context.dc.ink2 : context.dc.ink3),
+      ),
+    );
+  }
+}
+
+class _EventListRow extends StatelessWidget {
+  const _EventListRow({
+    required this.rank,
+    required this.event,
+    required this.maxCount,
+  });
+  final int rank;
+  final FeatureEventRow event;
+  final int maxCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colorForCat(event.category);
+    final fraction = maxCount > 0 ? event.count / maxCount : 0.0;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 11),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 24,
+            child: Text(
+              '$rank',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: context.dc.ink3,
+              ),
+            ),
+          ),
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  event.displayName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: context.dc.ink,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 5),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Container(
+                    height: 5,
+                    color: context.dc.progressBg,
+                    child: FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: fraction.clamp(0.01, 1.0),
+                      child: Container(color: color.withAlpha(200)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                _fmtNum(event.count),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: context.dc.ink,
+                ),
+              ),
+              Text(
+                '${event.uniqueUsers} usr',
+                style: TextStyle(fontSize: 11, color: context.dc.ink3),
+              ),
+            ],
           ),
         ],
       ),
@@ -649,7 +1770,7 @@ class _FeatureBarRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RETENTION TABLE
+// RETENTION
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _RetentionSection extends StatelessWidget {
@@ -660,92 +1781,197 @@ class _RetentionSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final sorted = [...retention]
       ..sort((a, b) => b.retentionScore.compareTo(a.retentionScore));
+    final maxUsers = sorted.fold(
+      0,
+      (m, r) =>
+          math.max(m, math.max(r.d1Users, math.max(r.d7Users, r.d30Users))),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const PanelHeader(
-          title: 'Retención por feature',
-          trailing: 'D1 = hoy · D7 = 7 días · D30 = 30 días',
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Retención por feature',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: context.dc.ink,
+                    ),
+                  ),
+                  Text(
+                    'D1 · D7 · D30',
+                    style: TextStyle(fontSize: 13, color: context.dc.ink3),
+                  ),
+                ],
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _RetLegend(color: AppColors.chartAmber, label: 'D1'),
+                const SizedBox(width: 12),
+                _RetLegend(color: AppColors.chartBlue, label: 'D7'),
+                const SizedBox(width: 12),
+                _RetLegend(color: AppColors.chartGreen, label: 'D30'),
+              ],
+            ),
+          ],
         ),
-        const SizedBox(height: 16),
-        // Header row
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          child: Row(
-            children: [
-              Expanded(child: Text('Feature', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.dc.ink3))),
-              retCell('D1',  context),
-              retCell('D7',  context),
-              retCell('D30', context),
-              retCell('Score', context),
-            ],
-          ),
-        ),
-        Container(height: 1, color: context.dc.divider),
-        for (int i = 0; i < sorted.length; i++)
-          _RetentionRow(
-            row: sorted[i],
-            isEven: i.isEven,
-          ),
+        const SizedBox(height: 18),
+        for (final row in sorted) _RetentionCard(row: row, maxUsers: maxUsers),
       ],
-    );
-  }
-
-  Widget retCell(String text, BuildContext context) {
-    return SizedBox(
-      width: 60,
-      child: Text(
-        text,
-        textAlign: TextAlign.end,
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.dc.ink3),
-      ),
     );
   }
 }
 
-class _RetentionRow extends StatelessWidget {
-  const _RetentionRow({required this.row, required this.isEven});
-  final FeatureRetentionRow row;
-  final bool isEven;
+class _RetLegend extends StatelessWidget {
+  const _RetLegend({required this.color, required this.label});
+  final Color color;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    final displayName = FeatureEventRow(
-      name: row.name, count: 0, uniqueUsers: 0, perSession: 0,
-    ).displayName;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: context.dc.ink2,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
+class _RetentionCard extends StatelessWidget {
+  const _RetentionCard({required this.row, required this.maxUsers});
+  final FeatureRetentionRow row;
+  final int maxUsers;
+
+  @override
+  Widget build(BuildContext context) {
+    final name = FeatureEventRow(
+      name: row.name,
+      count: 0,
+      uniqueUsers: 0,
+      perSession: 0,
+    ).displayName;
+    final catColor = _colorForCat(
+      FeatureEventRow(
+        name: row.name,
+        count: 0,
+        uniqueUsers: 0,
+        perSession: 0,
+      ).category,
+    );
     final score = row.retentionScore;
     final scoreColor = score >= 0.5
-        ? AppColors.success
+        ? AppColors.chartGreen
         : score >= 0.2
         ? AppColors.chartAmber
-        : context.dc.ink3;
+        : AppColors.chartRed;
+    final scorePct = '${(score * 100).toStringAsFixed(0)}%';
 
     return Container(
-      color: isEven ? context.dc.elevated.withAlpha(60) : null,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 9),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.dc.elevated,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              displayName,
-              style: TextStyle(fontSize: 13, color: context.dc.ink),
-              overflow: TextOverflow.ellipsis,
+          Container(
+            width: 4,
+            height: 44,
+            decoration: BoxDecoration(
+              color: catColor,
+              borderRadius: BorderRadius.circular(2),
             ),
           ),
-          numCell('${row.d1Users}', context),
-          numCell('${row.d7Users}', context),
-          numCell('${row.d30Users}', context),
-          SizedBox(
-            width: 60,
-            child: Text(
-              '${(score * 100).toStringAsFixed(0)}%',
-              textAlign: TextAlign.end,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: scoreColor,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: context.dc.ink,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _RetBar(
+                        label: 'D1',
+                        value: row.d1Users,
+                        max: maxUsers,
+                        color: AppColors.chartAmber,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _RetBar(
+                        label: 'D7',
+                        value: row.d7Users,
+                        max: maxUsers,
+                        color: AppColors.chartBlue,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _RetBar(
+                        label: 'D30',
+                        value: row.d30Users,
+                        max: maxUsers,
+                        color: AppColors.chartGreen,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: scoreColor.withAlpha(18),
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                scorePct,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: scoreColor,
+                ),
               ),
             ),
           ),
@@ -753,14 +1979,181 @@ class _RetentionRow extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget numCell(String text, BuildContext context) {
-    return SizedBox(
-      width: 60,
-      child: Text(
-        text,
-        textAlign: TextAlign.end,
-        style: TextStyle(fontSize: 13, color: context.dc.ink2),
+class _RetBar extends StatelessWidget {
+  const _RetBar({
+    required this.label,
+    required this.value,
+    required this.max,
+    required this.color,
+  });
+  final String label;
+  final int value;
+  final int max;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final frac = max > 0 ? value / max : 0.0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: context.dc.ink3,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '$value',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: context.dc.ink2,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Container(
+            height: 5,
+            color: context.dc.progressBg,
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: frac.clamp(0.0, 1.0),
+              child: Container(color: color),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHARED WIDGETS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RangeDropdown extends StatelessWidget {
+  const _RangeDropdown({required this.value, required this.onChanged});
+  final DateRange value;
+  final ValueChanged<DateRange> onChanged;
+
+  String _label(DateRange r) => switch (r) {
+    DateRange.all => 'Hoy',
+    DateRange.d7 => '7 días',
+    DateRange.d30 => '30 días',
+    DateRange.d90 => '90 días',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: context.dc.elevated,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DropdownButton<DateRange>(
+        value: value,
+        underline: const SizedBox.shrink(),
+        isDense: true,
+        icon: Icon(
+          Icons.keyboard_arrow_down_rounded,
+          size: 16,
+          color: context.dc.ink3,
+        ),
+        dropdownColor: context.dc.elevated,
+        borderRadius: BorderRadius.circular(14),
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: context.dc.ink,
+        ),
+        items: DateRange.values
+            .map((r) => DropdownMenuItem(value: r, child: Text(_label(r))))
+            .toList(),
+        onChanged: (r) {
+          if (r != null) onChanged(r);
+        },
+      ),
+    );
+  }
+}
+
+class _CatChip extends StatelessWidget {
+  const _CatChip({
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? color.withAlpha(26) : context.dc.elevated,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? color : context.dc.ink3,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PeriodChip extends StatelessWidget {
+  const _PeriodChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.pink : context.dc.elevated,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.white : context.dc.ink3,
+          ),
+        ),
       ),
     );
   }
@@ -770,8 +2163,8 @@ class _RetentionRow extends StatelessWidget {
 // REFRESH BUTTON
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FeaturesRefreshButton extends StatelessWidget {
-  const _FeaturesRefreshButton({required this.refreshing, required this.onTap});
+class _RefreshBtn extends StatelessWidget {
+  const _RefreshBtn({required this.refreshing, required this.onTap});
   final bool refreshing;
   final VoidCallback onTap;
 
@@ -780,19 +2173,21 @@ class _FeaturesRefreshButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 36,
-        height: 36,
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
           color: context.dc.elevated,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: context.dc.divider),
+          borderRadius: BorderRadius.circular(12),
         ),
         child: refreshing
             ? const Padding(
-                padding: EdgeInsets.all(8),
-                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.pink),
+                padding: EdgeInsets.all(10),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.pink,
+                ),
               )
-            : Icon(Icons.refresh_rounded, size: 18, color: context.dc.ink2),
+            : Icon(Icons.refresh_rounded, size: 20, color: context.dc.ink2),
       ),
     );
   }
@@ -811,55 +2206,45 @@ class _FeaturesShimmer extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppSkeletonBox(width: 240, height: 32, radius: 10),
-          const SizedBox(height: 6),
-          AppSkeletonBox(width: 160, height: 14, radius: 6),
-          const SizedBox(height: 20),
+          AppSkeletonBox(width: 260, height: 36, radius: 12),
+          const SizedBox(height: 8),
+          AppSkeletonBox(width: 180, height: 16, radius: 6),
+          const SizedBox(height: 24),
           Wrap(
-            spacing: 14,
-            runSpacing: 14,
-            children: List.generate(4, (_) => AppSkeletonBox(width: 200, height: 100, radius: 20)),
+            spacing: 16,
+            runSpacing: 16,
+            children: List.generate(
+              4,
+              (_) => AppSkeletonBox(width: 200, height: 130, radius: 28),
+            ),
           ),
-          const SizedBox(height: 18),
-          AppSkeletonBox(width: double.infinity, height: 180, radius: 20),
-          const SizedBox(height: 18),
-          AppSkeletonBox(width: double.infinity, height: 260, radius: 20),
+          const SizedBox(height: 20),
+          AppSkeletonBox(width: double.infinity, height: 260, radius: 32),
+          const SizedBox(height: 20),
+          AppSkeletonBox(width: double.infinity, height: 200, radius: 32),
+          const SizedBox(height: 20),
+          AppSkeletonBox(width: double.infinity, height: 180, radius: 32),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: AppSkeletonBox(
+                  width: double.infinity,
+                  height: 220,
+                  radius: 32,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: AppSkeletonBox(
+                  width: double.infinity,
+                  height: 220,
+                  radius: 32,
+                ),
+              ),
+            ],
+          ),
         ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PERIOD CHIP  (shared)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _PeriodChip extends StatelessWidget {
-  const _PeriodChip({required this.label, required this.selected, required this.onTap});
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.pink : context.dc.surface,
-          borderRadius: BorderRadius.circular(20),
-          border: selected ? null : Border.all(color: context.dc.divider),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: selected ? AppColors.white : context.dc.ink3,
-          ),
-        ),
       ),
     );
   }
@@ -869,9 +2254,24 @@ class _PeriodChip extends StatelessWidget {
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
+Color _colorForCat(FeatureCategory cat) => switch (cat) {
+  FeatureCategory.financial => AppColors.chartGreen,
+  FeatureCategory.budget => AppColors.chartOlive,
+  FeatureCategory.voice => AppColors.chartPurple,
+  FeatureCategory.widget => AppColors.chartBlue,
+  FeatureCategory.subscription => AppColors.chartAmber,
+  FeatureCategory.conversion => AppColors.pink,
+  FeatureCategory.auth => AppColors.chartRed,
+  FeatureCategory.onboarding => AppColors.chartPink,
+  FeatureCategory.notification => AppColors.ink3,
+  FeatureCategory.other => AppColors.ink3,
+};
+
 String _fmtNum(int n) {
   if (n < 1000) return '$n';
-  final s = n.toString();
-  if (s.length <= 6) return '${s.substring(0, s.length - 3)} ${s.substring(s.length - 3)}';
+  if (n < 1000000) {
+    final s = n.toString();
+    return '${s.substring(0, s.length - 3)} ${s.substring(s.length - 3)}';
+  }
   return '${(n / 1000000).toStringAsFixed(1)}M';
 }

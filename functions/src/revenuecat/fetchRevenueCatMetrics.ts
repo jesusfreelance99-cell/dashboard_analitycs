@@ -74,16 +74,23 @@ function pickMetricValue(metrics: Array<Record<string, unknown>>, id: string): n
   return pickNumber(metric?.value);
 }
 
-function extractChartValues(payload: Record<string, unknown>): number[] {
-  const values = Array.isArray(payload.values) ? payload.values : [];
+function resolveArray(payload: Record<string, unknown>): unknown[] {
+  // RevenueCat can nest the array under 'values', 'data', or 'items'
+  if (Array.isArray(payload.values)) return payload.values;
+  if (Array.isArray(payload.data)) return payload.data;
+  if (Array.isArray(payload.items)) return payload.items;
+  return [];
+}
 
-  return values
+function extractChartValues(payload: Record<string, unknown>): number[] {
+  return resolveArray(payload)
     .map((entry) => {
       if (typeof entry === 'number') return entry;
       const record = asRecord(entry);
       if (!record) return 0;
       if (typeof record.value === 'number') return record.value;
       if (typeof record.y === 'number') return record.y;
+      if (typeof record.revenue === 'number') return record.revenue;
       return 0;
     })
     .filter((value) => Number.isFinite(value));
@@ -92,27 +99,42 @@ function extractChartValues(payload: Record<string, unknown>): number[] {
 type RevenuePoint = { date: string; revenue: number };
 
 function extractRevenueTimeSeries(payload: Record<string, unknown>): RevenuePoint[] {
-  const values = Array.isArray(payload.values) ? payload.values : [];
+  const entries = resolveArray(payload);
   const result: RevenuePoint[] = [];
 
-  for (const entry of values) {
+  console.log(`extractRevenueTimeSeries: found ${entries.length} entries in payload`);
+
+  for (const entry of entries) {
     const record = asRecord(entry);
     if (!record) continue;
 
     const revenue =
       typeof record.value === 'number' ? record.value
       : typeof record.y === 'number' ? record.y
+      : typeof record.revenue === 'number' ? record.revenue
       : 0;
 
-    // RevenueCat v2 charts pueden usar 'period', 'date', o 'x' para la fecha
+    // RevenueCat v2 charts pueden usar 'period', 'date', 'x', o 't' para la fecha
     const date =
-      typeof record.period === 'string' ? record.period
-      : typeof record.date === 'string' ? record.date
-      : typeof record.x === 'string' ? record.x
+      typeof record.period === 'string' ? record.period.slice(0, 10)
+      : typeof record.date === 'string' ? record.date.slice(0, 10)
+      : typeof record.x === 'string' ? record.x.slice(0, 10)
+      : typeof record.t === 'string' ? record.t.slice(0, 10)
       : '';
 
     if (date && Number.isFinite(revenue)) {
       result.push({ date, revenue });
+    }
+  }
+
+  // Fallback: si la API no devolvió puntos pero hay un total en summary, devolvemos un punto sintético
+  if (result.length === 0) {
+    const summary = asRecord(payload.summary);
+    if (summary) {
+      const total = pickNumber(summary.total) || pickNumber(summary.revenue);
+      if (total > 0) {
+        result.push({ date: formatDate(new Date()), revenue: total });
+      }
     }
   }
 
