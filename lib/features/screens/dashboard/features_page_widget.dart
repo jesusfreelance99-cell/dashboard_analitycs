@@ -76,15 +76,7 @@ class _FeaturesPageState extends State<FeaturesPage> {
         }
 
         if (metrics.status == 'loading') {
-          return Column(
-            children: [
-              _buildHeader(context, metrics),
-              const SizedBox(height: 60),
-              const Center(
-                child: CircularProgressIndicator(color: AppColors.pink),
-              ),
-            ],
-          );
+          return const _FeaturesShimmer();
         }
 
         return Column(
@@ -118,7 +110,14 @@ class _FeaturesPageState extends State<FeaturesPage> {
             // 4 — Adopción: donut + lista
             const SizedBox(height: 20),
             _AdoptionRow(metrics: metrics),
-            // 5 — Retención
+            // 5 — Curva de retención global
+            if (metrics.retentionCurve.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Panel(
+                child: _RetentionCurveSection(curve: metrics.retentionCurve),
+              ),
+            ],
+            // 6 — Retención por feature
             if (metrics.retention.isNotEmpty) ...[
               const SizedBox(height: 20),
               Panel(child: _RetentionSection(retention: metrics.retention)),
@@ -1082,187 +1081,206 @@ class _BehaviorSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Comportamiento',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: context.dc.ink,
-                    ),
-                  ),
-                  Text(
-                    'GA4 · últimos 7 días',
-                    style: TextStyle(fontSize: 13, color: context.dc.ink3),
-                  ),
-                ],
-              ),
-            ),
-          ],
+        Text(
+          'Comportamiento',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: context.dc.ink,
+          ),
+        ),
+        Text(
+          'GA4 · últimos 7 días',
+          style: TextStyle(fontSize: 13, color: context.dc.ink3),
         ),
         const SizedBox(height: 20),
+        // ── 3 stat cards ────────────────────────────────────────────────────
         LayoutBuilder(
           builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 650;
-            final blocks = [
-              _BehaviorBlock(
-                value: featPerSession,
-                label: 'Features\npor sesión',
+            const gap = 12.0;
+            final cols = constraints.maxWidth >= 600 ? 3 : 1;
+            final w = (constraints.maxWidth - gap * (cols - 1)) / cols;
+            final cards = [
+              _BehaviorCard(
                 icon: Icons.touch_app_outlined,
                 color: AppColors.chartPurple,
+                value: featPerSession,
+                label: 'Features por sesión',
+                insight: topD7,
+                insightLabel: 'feature líder',
               ),
-              _BehaviorBlock(
-                value: sm7.avgDurationFormatted,
-                label: 'Duración\nmedia sesión',
-                icon: Icons.hourglass_empty_rounded,
+              _BehaviorCard(
+                icon: Icons.hourglass_bottom_rounded,
                 color: AppColors.chartAmber,
+                value: sm7.avgDurationFormatted,
+                label: 'Duración media',
+                insight: sm7.engagementRatePct,
+                insightLabel: 'engagement rate',
               ),
-              _BehaviorBlock(
-                value: sm7.engagementRatePct,
-                label: 'Tasa de\nengagement',
-                icon: Icons.bolt_outlined,
+              _BehaviorCard(
+                icon: Icons.bolt_rounded,
                 color: AppColors.chartGreen,
+                value: sm7.engagementRatePct,
+                label: 'Tasa engagement',
+                insight: topD1,
+                insightLabel: 'más usada hoy',
               ),
             ];
-            if (isWide) {
-              return IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (int i = 0; i < blocks.length; i++) ...[
-                      Expanded(child: blocks[i]),
-                      if (i < blocks.length - 1) const SizedBox(width: 12),
-                    ],
-                  ],
-                ),
-              );
-            }
-            return Column(
-              children: [
-                for (int i = 0; i < blocks.length; i++) ...[
-                  blocks[i],
-                  if (i < blocks.length - 1) const SizedBox(height: 10),
-                ],
-              ],
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [for (final c in cards) SizedBox(width: w, child: c)],
             );
           },
         ),
-        const SizedBox(height: 20),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final isWide = constraints.maxWidth >= 580;
-            final insights = [
-              _InsightRow(
-                icon: Icons.star_rounded,
-                color: AppColors.chartAmber,
-                label: 'Más usada hoy',
-                value: topD1,
-              ),
-              _InsightRow(
-                icon: Icons.trending_up_rounded,
-                color: AppColors.chartBlue,
-                label: 'Top 7 días',
-                value: topD7,
-              ),
-              _InsightRow(
-                icon: Icons.loop_rounded,
-                color: AppColors.chartGreen,
-                label: 'Mejor retención',
-                value: topRetainName,
-              ),
-            ];
-            if (isWide) {
-              return Row(
+        const SizedBox(height: 14),
+        // ── Insight strip ────────────────────────────────────────────────────
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          decoration: BoxDecoration(
+            color: context.dc.elevated,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth >= 520;
+              final items = [
+                _InsightChip(
+                  icon: Icons.star_rounded,
+                  color: AppColors.chartAmber,
+                  label: 'Hoy',
+                  value: topD1,
+                ),
+                _InsightChip(
+                  icon: Icons.trending_up_rounded,
+                  color: AppColors.chartBlue,
+                  label: '7 días',
+                  value: topD7,
+                ),
+                _InsightChip(
+                  icon: Icons.loop_rounded,
+                  color: AppColors.chartGreen,
+                  label: 'Retención',
+                  value: topRetainName,
+                ),
+              ];
+              if (isWide) {
+                return Row(
+                  children: [
+                    for (int i = 0; i < items.length; i++) ...[
+                      Expanded(child: items[i]),
+                      if (i < items.length - 1)
+                        Container(
+                          width: 1,
+                          height: 32,
+                          margin: const EdgeInsets.symmetric(horizontal: 12),
+                          color: context.dc.divider,
+                        ),
+                    ],
+                  ],
+                );
+              }
+              return Column(
                 children: [
-                  for (int i = 0; i < insights.length; i++) ...[
-                    Expanded(child: insights[i]),
-                    if (i < insights.length - 1) const SizedBox(width: 10),
+                  for (int i = 0; i < items.length; i++) ...[
+                    items[i],
+                    if (i < items.length - 1) ...[
+                      const SizedBox(height: 10),
+                      Container(height: 1, color: context.dc.divider),
+                      const SizedBox(height: 10),
+                    ],
                   ],
                 ],
               );
-            }
-            return Column(
-              children: [
-                for (int i = 0; i < insights.length; i++) ...[
-                  insights[i],
-                  if (i < insights.length - 1) const SizedBox(height: 8),
-                ],
-              ],
-            );
-          },
+            },
+          ),
         ),
       ],
     );
   }
 }
 
-class _BehaviorBlock extends StatelessWidget {
-  const _BehaviorBlock({
-    required this.value,
-    required this.label,
+class _BehaviorCard extends StatelessWidget {
+  const _BehaviorCard({
     required this.icon,
     required this.color,
+    required this.value,
+    required this.label,
+    required this.insight,
+    required this.insightLabel,
   });
-  final String value;
-  final String label;
   final IconData icon;
   final Color color;
+  final String value;
+  final String label;
+  final String insight;
+  final String insightLabel;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: color.withAlpha(16),
-        borderRadius: BorderRadius.circular(20),
+        color: color.withAlpha(14),
+        borderRadius: BorderRadius.circular(22),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 42,
-            height: 42,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
-              color: color.withAlpha(28),
-              borderRadius: BorderRadius.circular(14),
+              color: color.withAlpha(24),
+              borderRadius: BorderRadius.circular(12),
             ),
-            child: Icon(icon, size: 20, color: color),
+            child: Icon(icon, size: 19, color: color),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    value,
-                    style: TextStyle(
-                      fontSize: 30,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -1,
-                      height: 1,
-                      color: context.dc.ink,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: color,
-                    height: 1.3,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 14),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -1.5,
+                height: 1,
+                color: context.dc.ink,
+              ),
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(height: 1, color: color.withAlpha(30)),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  insight,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: context.dc.ink,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              Text(
+                insightLabel,
+                style: TextStyle(fontSize: 10, color: context.dc.ink3),
+              ),
+            ],
           ),
         ],
       ),
@@ -1270,8 +1288,8 @@ class _BehaviorBlock extends StatelessWidget {
   }
 }
 
-class _InsightRow extends StatelessWidget {
-  const _InsightRow({
+class _InsightChip extends StatelessWidget {
+  const _InsightChip({
     required this.icon,
     required this.color,
     required this.label,
@@ -1284,42 +1302,43 @@ class _InsightRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withAlpha(12),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: context.dc.ink3,
-                  ),
-                ),
-                Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: context.dc.ink,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
+    return Row(
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            color: color.withAlpha(18),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ],
-      ),
+          child: Icon(icon, size: 14, color: color),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: context.dc.ink3,
+                ),
+              ),
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: context.dc.ink,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1574,8 +1593,13 @@ class _TopEventsPanelState extends State<_TopEventsPanel> {
         : widget.events.where((e) => e.category == _cat).toList();
     final totalPages = (filtered.length / _pageSize).ceil().clamp(1, 999);
     final safePage = _page.clamp(0, totalPages - 1);
-    final pageItems = filtered.skip(safePage * _pageSize).take(_pageSize).toList();
-    final maxCount = filtered.isEmpty ? 1 : filtered.fold(0, (m, e) => math.max(m, e.count));
+    final pageItems = filtered
+        .skip(safePage * _pageSize)
+        .take(_pageSize)
+        .toList();
+    final maxCount = filtered.isEmpty
+        ? 1
+        : filtered.fold(0, (m, e) => math.max(m, e.count));
     final presentCats = widget.events.map((e) => e.category).toSet().toList()
       ..sort((a, b) => a.index.compareTo(b.index));
 
@@ -1588,10 +1612,17 @@ class _TopEventsPanelState extends State<_TopEventsPanel> {
               Expanded(
                 child: Text(
                   'Eventos más usados',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: context.dc.ink),
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: context.dc.ink,
+                  ),
                 ),
               ),
-              _RangeDropdown(value: widget.range, onChanged: widget.onRangeChanged),
+              _RangeDropdown(
+                value: widget.range,
+                onChanged: widget.onRangeChanged,
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1603,7 +1634,10 @@ class _TopEventsPanelState extends State<_TopEventsPanel> {
                   label: 'Todos',
                   color: context.dc.ink2,
                   selected: _cat == null,
-                  onTap: () => setState(() { _cat = null; _page = 0; }),
+                  onTap: () => setState(() {
+                    _cat = null;
+                    _page = 0;
+                  }),
                 ),
                 for (final cat in presentCats) ...[
                   const SizedBox(width: 6),
@@ -1611,7 +1645,10 @@ class _TopEventsPanelState extends State<_TopEventsPanel> {
                     label: _catName(cat),
                     color: _colorForCat(cat),
                     selected: _cat == cat,
-                    onTap: () => setState(() { _cat = _cat == cat ? null : cat; _page = 0; }),
+                    onTap: () => setState(() {
+                      _cat = _cat == cat ? null : cat;
+                      _page = 0;
+                    }),
                   ),
                 ],
               ],
@@ -1619,7 +1656,10 @@ class _TopEventsPanelState extends State<_TopEventsPanel> {
           ),
           const SizedBox(height: 16),
           if (pageItems.isEmpty)
-            const SizedBox(height: 100, child: EmptyTablesComponent(title: 'Sin datos', description: ''))
+            const SizedBox(
+              height: 100,
+              child: EmptyTablesComponent(title: 'Sin datos', description: ''),
+            )
           else
             for (int i = 0; i < pageItems.length; i++)
               _EventListRow(
@@ -1640,7 +1680,11 @@ class _TopEventsPanelState extends State<_TopEventsPanel> {
                 const SizedBox(width: 14),
                 Text(
                   '${safePage + 1} / $totalPages',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.dc.ink2),
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: context.dc.ink2,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 _PageBtn(
@@ -1658,7 +1702,11 @@ class _TopEventsPanelState extends State<_TopEventsPanel> {
 }
 
 class _PageBtn extends StatelessWidget {
-  const _PageBtn({required this.icon, required this.enabled, required this.onTap});
+  const _PageBtn({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
   final IconData icon;
   final bool enabled;
   final VoidCallback onTap;
@@ -1674,7 +1722,11 @@ class _PageBtn extends StatelessWidget {
           color: enabled ? context.dc.elevated : context.dc.progressBg,
           borderRadius: BorderRadius.circular(10),
         ),
-        child: Icon(icon, size: 18, color: enabled ? context.dc.ink2 : context.dc.ink3),
+        child: Icon(
+          icon,
+          size: 18,
+          color: enabled ? context.dc.ink2 : context.dc.ink3,
+        ),
       ),
     );
   }
@@ -1770,7 +1822,256 @@ class _EventListRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// RETENTION
+// RETENTION CURVE — cohort line chart (global user retention)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RetentionCurveSection extends StatelessWidget {
+  const _RetentionCurveSection({required this.curve});
+  final List<RetentionPoint> curve;
+
+  double _rateAt(int day) {
+    for (final p in curve) {
+      if (p.day == day) return p.rate;
+    }
+    // interpolate closest
+    RetentionPoint? prev, next;
+    for (final p in curve) {
+      if (p.day <= day) prev = p;
+      if (p.day >= day && next == null) next = p;
+    }
+    if (prev == null) return next?.rate ?? 0;
+    if (next == null || next.day == prev.day) return prev.rate;
+    final t = (day - prev.day) / (next.day - prev.day);
+    return prev.rate + (next.rate - prev.rate) * t;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (curve.isEmpty) return const SizedBox.shrink();
+
+    final maxDay = curve.last.day;
+    final d1Rate = _rateAt(1);
+    final d7Rate = _rateAt(7);
+    final d30Rate = _rateAt(math.min(30, maxDay));
+
+    final spots = curve
+        .map((p) => FlSpot(p.day.toDouble(), (p.rate * 100)))
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Header ────────────────────────────────────────────────────────────
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Retención de usuarios',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: context.dc.ink,
+                    ),
+                  ),
+                  Text(
+                    'Últimos $maxDay días · % que regresa en el día N',
+                    style: TextStyle(fontSize: 12, color: context.dc.ink3),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        // ── Summary chips ─────────────────────────────────────────────────────
+        Row(
+          children: [
+            _CurveChip(
+              label: 'Día 1',
+              rate: d1Rate,
+              color: AppColors.chartAmber,
+            ),
+            const SizedBox(width: 10),
+            _CurveChip(
+              label: 'Día 7',
+              rate: d7Rate,
+              color: AppColors.chartBlue,
+            ),
+            const SizedBox(width: 10),
+            _CurveChip(
+              label: 'Día 30',
+              rate: d30Rate,
+              color: AppColors.chartGreen,
+            ),
+          ],
+        ),
+        const SizedBox(height: 22),
+        // ── Chart ─────────────────────────────────────────────────────────────
+        SizedBox(
+          height: 220,
+          child: LineChart(
+            LineChartData(
+              minX: 0,
+              maxX: maxDay.toDouble(),
+              minY: 0,
+              maxY: 100,
+              clipData: const FlClipData.all(),
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                horizontalInterval: 20,
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: context.dc.divider, strokeWidth: 1),
+              ),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 44,
+                    interval: 20,
+                    getTitlesWidget: (v, _) => Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Text(
+                        '${v.toInt()}%',
+                        textAlign: TextAlign.right,
+                        style: TextStyle(fontSize: 11, color: context.dc.ink3),
+                      ),
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 26,
+                    interval: (maxDay / 6).ceilToDouble().clamp(1, 999),
+                    getTitlesWidget: (v, _) => Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Día ${v.toInt()}',
+                        style: TextStyle(fontSize: 10, color: context.dc.ink3),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  curveSmoothness: 0.2,
+                  color: AppColors.chartBlue,
+                  barWidth: 2.5,
+                  isStrokeCapRound: true,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      colors: [
+                        AppColors.chartBlue.withAlpha(50),
+                        AppColors.chartBlue.withAlpha(0),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ],
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => context.dc.elevated,
+                  getTooltipItems: (spots) => spots.map((s) {
+                    return LineTooltipItem(
+                      'Día ${s.x.toInt()}\n',
+                      TextStyle(fontSize: 11, color: context.dc.ink3),
+                      children: [
+                        TextSpan(
+                          text: '${s.y.toStringAsFixed(1)}%',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.chartBlue,
+                          ),
+                        ),
+                      ],
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CurveChip extends StatelessWidget {
+  const _CurveChip({
+    required this.label,
+    required this.rate,
+    required this.color,
+  });
+  final String label;
+  final double rate;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = '${(rate * 100).toStringAsFixed(1)}%';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withAlpha(16),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                  color: context.dc.ink3,
+                ),
+              ),
+              Text(
+                pct,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RETENTION — horizontal comparative bar chart
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _RetentionSection extends StatelessWidget {
@@ -1781,11 +2082,9 @@ class _RetentionSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final sorted = [...retention]
       ..sort((a, b) => b.retentionScore.compareTo(a.retentionScore));
-    final maxUsers = sorted.fold(
-      0,
-      (m, r) =>
-          math.max(m, math.max(r.d1Users, math.max(r.d7Users, r.d30Users))),
-    );
+    final maxD1 = sorted.fold(0, (m, r) => math.max(m, r.d1Users));
+    final maxD7 = sorted.fold(0, (m, r) => math.max(m, r.d7Users));
+    final maxD30 = sorted.fold(0, (m, r) => math.max(m, r.d30Users));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1805,8 +2104,8 @@ class _RetentionSection extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'D1 · D7 · D30',
-                    style: TextStyle(fontSize: 13, color: context.dc.ink3),
+                    'Usuarios únicos que repiten · D1 / D7 / D30',
+                    style: TextStyle(fontSize: 12, color: context.dc.ink3),
                   ),
                 ],
               ),
@@ -1814,24 +2113,86 @@ class _RetentionSection extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _RetLegend(color: AppColors.chartAmber, label: 'D1'),
-                const SizedBox(width: 12),
-                _RetLegend(color: AppColors.chartBlue, label: 'D7'),
-                const SizedBox(width: 12),
-                _RetLegend(color: AppColors.chartGreen, label: 'D30'),
+                _RetDot(color: AppColors.chartAmber, label: 'D1'),
+                const SizedBox(width: 14),
+                _RetDot(color: AppColors.chartBlue, label: 'D7'),
+                const SizedBox(width: 14),
+                _RetDot(color: AppColors.chartGreen, label: 'D30'),
               ],
             ),
           ],
         ),
-        const SizedBox(height: 18),
-        for (final row in sorted) _RetentionCard(row: row, maxUsers: maxUsers),
+        const SizedBox(height: 20),
+        // Column headers
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10, left: 2),
+          child: Row(
+            children: [
+              const Expanded(flex: 5, child: SizedBox.shrink()),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 11,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'D1 · 1 día',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.chartAmber,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'D7 · 7 días',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.chartBlue,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'D30 · 30 días',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.chartGreen,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 56),
+            ],
+          ),
+        ),
+        for (int i = 0; i < sorted.length; i++) ...[
+          _RetentionRow(
+            row: sorted[i],
+            maxD1: maxD1,
+            maxD7: maxD7,
+            maxD30: maxD30,
+          ),
+          if (i < sorted.length - 1)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Container(height: 1, color: context.dc.divider),
+            ),
+        ],
       ],
     );
   }
 }
 
-class _RetLegend extends StatelessWidget {
-  const _RetLegend({required this.color, required this.label});
+class _RetDot extends StatelessWidget {
+  const _RetDot({required this.color, required this.label});
   final Color color;
   final String label;
 
@@ -1843,10 +2204,7 @@ class _RetLegend extends StatelessWidget {
         Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(2),
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 5),
         Text(
@@ -1862,10 +2220,17 @@ class _RetLegend extends StatelessWidget {
   }
 }
 
-class _RetentionCard extends StatelessWidget {
-  const _RetentionCard({required this.row, required this.maxUsers});
+class _RetentionRow extends StatelessWidget {
+  const _RetentionRow({
+    required this.row,
+    required this.maxD1,
+    required this.maxD7,
+    required this.maxD30,
+  });
   final FeatureRetentionRow row;
-  final int maxUsers;
+  final int maxD1;
+  final int maxD7;
+  final int maxD30;
 
   @override
   Widget build(BuildContext context) {
@@ -1886,152 +2251,148 @@ class _RetentionCard extends StatelessWidget {
     final score = row.retentionScore;
     final scoreColor = score >= 0.5
         ? AppColors.chartGreen
-        : score >= 0.2
+        : score >= 0.25
         ? AppColors.chartAmber
         : AppColors.chartRed;
-    final scorePct = '${(score * 100).toStringAsFixed(0)}%';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: context.dc.elevated,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 44,
-            decoration: BoxDecoration(
-              color: catColor,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          flex: 5,
+          child: Row(
+            children: [
+              Container(
+                width: 3,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: catColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
                   name,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: context.dc.ink,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _RetBar(
-                        label: 'D1',
-                        value: row.d1Users,
-                        max: maxUsers,
-                        color: AppColors.chartAmber,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _RetBar(
-                        label: 'D7',
-                        value: row.d7Users,
-                        max: maxUsers,
-                        color: AppColors.chartBlue,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _RetBar(
-                        label: 'D30',
-                        value: row.d30Users,
-                        max: maxUsers,
-                        color: AppColors.chartGreen,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Container(
-            width: 52,
-            height: 52,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 11,
+          child: Row(
+            children: [
+              Expanded(
+                child: _HBar(
+                  value: row.d1Users,
+                  max: maxD1,
+                  color: AppColors.chartAmber,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _HBar(
+                  value: row.d7Users,
+                  max: maxD7,
+                  color: AppColors.chartBlue,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _HBar(
+                  value: row.d30Users,
+                  max: maxD30,
+                  color: AppColors.chartGreen,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 44,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 6),
             decoration: BoxDecoration(
               color: scoreColor.withAlpha(18),
-              shape: BoxShape.circle,
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Center(
-              child: Text(
-                scorePct,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  color: scoreColor,
-                ),
+            child: Text(
+              '${(score * 100).toStringAsFixed(0)}%',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: scoreColor,
               ),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _RetBar extends StatelessWidget {
-  const _RetBar({
-    required this.label,
-    required this.value,
-    required this.max,
-    required this.color,
-  });
-  final String label;
+class _HBar extends StatelessWidget {
+  const _HBar({required this.value, required this.max, required this.color});
   final int value;
   final int max;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final frac = max > 0 ? value / max : 0.0;
+    final frac = max > 0 ? (value / max).clamp(0.0, 1.0) : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             Text(
-              label,
+              '$value',
               style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: context.dc.ink3,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: context.dc.ink,
               ),
             ),
             const Spacer(),
-            Text(
-              '$value',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: context.dc.ink2,
+            if (max > 0 && value > 0)
+              Text(
+                '${(frac * 100).toStringAsFixed(0)}%',
+                style: TextStyle(fontSize: 10, color: context.dc.ink3),
               ),
-            ),
           ],
         ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: Container(
-            height: 5,
-            color: context.dc.progressBg,
-            child: FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: frac.clamp(0.0, 1.0),
-              child: Container(color: color),
+        const SizedBox(height: 5),
+        Stack(
+          children: [
+            Container(
+              height: 7,
+              decoration: BoxDecoration(
+                color: context.dc.progressBg,
+                borderRadius: BorderRadius.circular(4),
+              ),
             ),
-          ),
+            if (frac > 0)
+              FractionallySizedBox(
+                widthFactor: frac,
+                child: Container(
+                  height: 7,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+          ],
         ),
       ],
     );
@@ -2206,44 +2567,90 @@ class _FeaturesShimmer extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppSkeletonBox(width: 260, height: 36, radius: 12),
+          // Header
+          AppSkeletonBox(width: 240, height: 34, radius: 10),
           const SizedBox(height: 8),
-          AppSkeletonBox(width: 180, height: 16, radius: 6),
+          AppSkeletonBox(width: 160, height: 14, radius: 6),
           const SizedBox(height: 24),
-          Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children: List.generate(
-              4,
-              (_) => AppSkeletonBox(width: 200, height: 130, radius: 28),
-            ),
-          ),
-          const SizedBox(height: 20),
-          AppSkeletonBox(width: double.infinity, height: 260, radius: 32),
-          const SizedBox(height: 20),
-          AppSkeletonBox(width: double.infinity, height: 200, radius: 32),
-          const SizedBox(height: 20),
-          AppSkeletonBox(width: double.infinity, height: 180, radius: 32),
-          const SizedBox(height: 20),
+          // Period chips
           Row(
             children: [
-              Expanded(
-                child: AppSkeletonBox(
-                  width: double.infinity,
-                  height: 220,
-                  radius: 32,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: AppSkeletonBox(
-                  width: double.infinity,
-                  height: 220,
-                  radius: 32,
-                ),
-              ),
+              for (int i = 0; i < 4; i++) ...[
+                AppSkeletonBox(width: 68, height: 34, radius: 20),
+                if (i < 3) const SizedBox(width: 8),
+              ],
             ],
           ),
+          const SizedBox(height: 16),
+          // 4 stat cards
+          LayoutBuilder(
+            builder: (_, constraints) {
+              final w = (constraints.maxWidth - 48) / 4;
+              return Row(
+                children: [
+                  for (int i = 0; i < 4; i++) ...[
+                    AppSkeletonBox(width: w, height: 138, radius: 28),
+                    if (i < 3) const SizedBox(width: 16),
+                  ],
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Trend chart
+          AppSkeletonBox(width: double.infinity, height: 270, radius: 32),
+          const SizedBox(height: 20),
+          // Weekly comparison
+          AppSkeletonBox(width: double.infinity, height: 220, radius: 32),
+          const SizedBox(height: 20),
+          // Behavior: panel with 3 cards + strip
+          AppSkeletonBox(width: double.infinity, height: 220, radius: 32),
+          const SizedBox(height: 20),
+          // Adoption: donut + events list
+          LayoutBuilder(
+            builder: (_, constraints) {
+              final isWide = constraints.maxWidth >= 720;
+              if (isWide) {
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppSkeletonBox(
+                      width: constraints.maxWidth * 0.42,
+                      height: 320,
+                      radius: 32,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: AppSkeletonBox(
+                        width: double.infinity,
+                        height: 320,
+                        radius: 32,
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  AppSkeletonBox(
+                    width: double.infinity,
+                    height: 240,
+                    radius: 32,
+                  ),
+                  const SizedBox(height: 16),
+                  AppSkeletonBox(
+                    width: double.infinity,
+                    height: 320,
+                    radius: 32,
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 20),
+          // Retention chart
+          AppSkeletonBox(width: double.infinity, height: 380, radius: 32),
+          const SizedBox(height: 32),
         ],
       ),
     );

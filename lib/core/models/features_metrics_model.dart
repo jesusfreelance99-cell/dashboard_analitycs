@@ -38,12 +38,19 @@ class FeaturesTimeSeries {
   }
 }
 
+class RetentionPoint {
+  final int day;
+  final double rate; // 0.0 – 1.0
+  const RetentionPoint({required this.day, required this.rate});
+}
+
 class FeaturesMetrics {
   final String status;
   final String updatedAtLabel;
   final Map<DateRange, SessionMetrics> sessionMetrics;
   final Map<DateRange, List<FeatureEventRow>> features;
   final List<FeatureRetentionRow> retention;
+  final List<RetentionPoint> retentionCurve;
   final FeaturesTimeSeries timeSeries;
 
   const FeaturesMetrics({
@@ -52,6 +59,7 @@ class FeaturesMetrics {
     required this.sessionMetrics,
     required this.features,
     required this.retention,
+    this.retentionCurve = const [],
     this.timeSeries = const FeaturesTimeSeries(),
   });
 
@@ -70,6 +78,8 @@ class FeaturesMetrics {
     final smRaw = map['session_metrics'] as Map<String, dynamic>? ?? {};
     final featRaw = map['features'] as Map<String, dynamic>? ?? {};
     final retRaw = (map['retention'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>();
+    final curveRaw = (map['retention_curve'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>();
     final tsRaw = map['time_series'] as List<dynamic>? ?? [];
 
@@ -97,6 +107,12 @@ class FeaturesMetrics {
         DateRange.all: _parseFeatureList(featRaw['d90']),
       },
       retention: retRaw.map(FeatureRetentionRow.fromMap).toList(),
+      retentionCurve: curveRaw
+          .map((p) => RetentionPoint(
+                day: (p['day'] as num?)?.toInt() ?? 0,
+                rate: (p['rate'] as num?)?.toDouble() ?? 0,
+              ))
+          .toList(),
       timeSeries: FeaturesTimeSeries.fromList(tsRaw),
     );
   }
@@ -219,48 +235,31 @@ class FeatureEventRow {
 
   FeatureCategory get category {
     if (const {
-      'expense_added',
-      'income_added',
-      'transaction_categorized',
-      'account_connected',
-      'feature_import_transactions_used',
-    }.contains(name))
-      return FeatureCategory.financial;
+      'expense_added', 'income_added', 'transaction_categorized',
+      'account_connected', 'feature_import_transactions_used',
+    }.contains(name)) { return FeatureCategory.financial; }
     if (const {
-      'budget_created',
-      'category_created',
-      'goal_created',
-      'report_viewed',
-    }.contains(name))
-      return FeatureCategory.budget;
-    if (const {'feature_voice_expense_used', 'voice_entry_used'}.contains(name))
+      'budget_created', 'category_created', 'goal_created', 'report_viewed',
+    }.contains(name)) { return FeatureCategory.budget; }
+    if (const {'feature_voice_expense_used', 'voice_entry_used'}.contains(name)) {
       return FeatureCategory.voice;
-    if (name == 'widget_entry_used') return FeatureCategory.widget;
+    }
+    if (name == 'widget_entry_used') { return FeatureCategory.widget; }
     if (const {
-      'subscription_tracked',
-      'subscription_restored',
-      'app_store_subscription_renew',
-      'app_store_subscription_convert',
-    }.contains(name))
-      return FeatureCategory.subscription;
+      'subscription_tracked', 'subscription_restored',
+      'app_store_subscription_renew', 'app_store_subscription_convert',
+    }.contains(name)) { return FeatureCategory.subscription; }
     if (const {
-      'paywall_viewed',
-      'trial_started',
-      'purchase',
-      'purchase_cancelled',
-      'plan_selected',
-      'in_app_purchase',
-    }.contains(name))
-      return FeatureCategory.conversion;
-    if (const {'sign_up', 'login'}.contains(name)) return FeatureCategory.auth;
+      'paywall_viewed', 'trial_started', 'purchase',
+      'purchase_cancelled', 'plan_selected', 'in_app_purchase',
+    }.contains(name)) { return FeatureCategory.conversion; }
+    if (const {'sign_up', 'login'}.contains(name)) { return FeatureCategory.auth; }
     if (const {
-      'tutorial_begin',
-      'tutorial_complete',
-      'onboarding_step',
-    }.contains(name))
-      return FeatureCategory.onboarding;
-    if (const {'notification_open', 'notification_foreground'}.contains(name))
+      'tutorial_begin', 'tutorial_complete', 'onboarding_step',
+    }.contains(name)) { return FeatureCategory.onboarding; }
+    if (const {'notification_open', 'notification_foreground'}.contains(name)) {
       return FeatureCategory.notification;
+    }
     return FeatureCategory.other;
   }
 }
