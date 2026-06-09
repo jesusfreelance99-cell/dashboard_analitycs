@@ -19,6 +19,7 @@ import 'overview_page_widget.dart';
 import 'placeholder_page_widget.dart';
 import 'sidebar_widget.dart';
 import 'users_page_widget.dart';
+import 'features_page_widget.dart';
 import 'funnel_page_widget.dart';
 
 class DashboardShell extends StatefulWidget {
@@ -198,11 +199,7 @@ class DashboardShellState extends State<DashboardShell> {
               'Esta sección la rediseñamos en el siguiente paso,\ncon el mismo sistema visual flat que la Vista general.',
         );
       case DashPage.features:
-        return const PlaceholderPage(
-          title: 'Uso de features',
-          description:
-              'Esta sección la rediseñamos en el siguiente paso,\ncon el mismo sistema visual flat que la Vista general.',
-        );
+        return FeaturesPage(range: range);
       case DashPage.retention:
         return const PlaceholderPage(
           title: 'Retención',
