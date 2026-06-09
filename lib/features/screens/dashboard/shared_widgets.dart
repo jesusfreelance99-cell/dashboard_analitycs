@@ -1096,6 +1096,7 @@ class MiniSegment extends StatelessWidget {
 
 class PhonePreview extends StatelessWidget {
   const PhonePreview({
+    super.key,
     required this.title,
     required this.message,
     required this.sendMode,
