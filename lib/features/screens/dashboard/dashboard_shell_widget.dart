@@ -4,6 +4,7 @@ import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/app_constants.dart';
 import 'package:dashboard_analitycs/core/providers/theme_provider.dart';
 import 'package:dashboard_analitycs/core/routes/app_routes.dart';
+import 'package:dashboard_analitycs/core/services/dash_user_service.dart';
 import 'package:dashboard_analitycs/core/services/google_auth_service.dart';
 import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
@@ -113,6 +114,7 @@ class DashboardShellState extends State<DashboardShell> {
                           onLogout: () async {
                             final router = GoRouter.of(context);
                             try {
+                              DashUserService.refresh();
                               await GoogleAuthService.signOut();
                             } catch (_) {}
                             router.go(AppRoutes.login);
