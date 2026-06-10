@@ -75,10 +75,11 @@ function pickMetricValue(metrics: Array<Record<string, unknown>>, id: string): n
 }
 
 function resolveArray(payload: Record<string, unknown>): unknown[] {
-  // RevenueCat can nest the array under 'values', 'data', or 'items'
+  // RevenueCat v2 charts can nest the array under multiple keys
   if (Array.isArray(payload.values)) return payload.values;
   if (Array.isArray(payload.data)) return payload.data;
   if (Array.isArray(payload.items)) return payload.items;
+  if (Array.isArray(payload.periods)) return payload.periods;
   return [];
 }
 
@@ -99,25 +100,69 @@ function extractChartValues(payload: Record<string, unknown>): number[] {
 type RevenuePoint = { date: string; revenue: number };
 
 function extractRevenueTimeSeries(payload: Record<string, unknown>): RevenuePoint[] {
+  console.log('extractRevenueTimeSeries — payload keys:', Object.keys(payload).join(', '));
+
   const entries = resolveArray(payload);
+  console.log(`extractRevenueTimeSeries — ${entries.length} entries via resolveArray`);
+
   const result: RevenuePoint[] = [];
 
-  console.log(`extractRevenueTimeSeries: found ${entries.length} entries in payload`);
-
   for (const entry of entries) {
+    // 2D array format: [["2024-05-31", 7.99, ...], ...]
+    if (Array.isArray(entry)) {
+      const dateVal = entry.find(
+        (v): v is string => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v),
+      );
+      const revVal = entry.find(
+        (v): v is number => typeof v === 'number' && v > 0,
+      );
+      if (dateVal) {
+        result.push({ date: dateVal.slice(0, 10), revenue: revVal ?? 0 });
+      }
+      continue;
+    }
+
     const record = asRecord(entry);
     if (!record) continue;
 
+    // Period-with-nested-values: {period: "…", totals/values: [{id, value}]}
+    if (typeof record.period === 'string') {
+      const date = record.period.slice(0, 10);
+      const metricArray = Array.isArray(record.totals)
+        ? (record.totals as Array<Record<string, unknown>>)
+        : Array.isArray(record.values)
+          ? (record.values as Array<Record<string, unknown>>)
+          : null;
+
+      if (metricArray) {
+        const revenueItem = metricArray.find(
+          (m) =>
+            m.id === 'revenue' ||
+            m.id === 'total_revenue' ||
+            m.id === 'gross_revenue' ||
+            m.id === 'net_revenue',
+        );
+        const revenue = revenueItem ? pickNumber(revenueItem.value) : 0;
+        if (date) result.push({ date, revenue });
+        continue;
+      }
+
+      // Flat period: {period, value/revenue}
+      const revenue =
+        pickNumber(record.value) || pickNumber(record.revenue) || pickNumber(record.y);
+      result.push({ date, revenue });
+      continue;
+    }
+
+    // Simple flat object: {date, value} / {date, revenue}
     const revenue =
       typeof record.value === 'number' ? record.value
       : typeof record.y === 'number' ? record.y
       : typeof record.revenue === 'number' ? record.revenue
       : 0;
 
-    // RevenueCat v2 charts pueden usar 'period', 'date', 'x', o 't' para la fecha
     const date =
-      typeof record.period === 'string' ? record.period.slice(0, 10)
-      : typeof record.date === 'string' ? record.date.slice(0, 10)
+      typeof record.date === 'string' ? record.date.slice(0, 10)
       : typeof record.x === 'string' ? record.x.slice(0, 10)
       : typeof record.t === 'string' ? record.t.slice(0, 10)
       : '';
@@ -127,7 +172,9 @@ function extractRevenueTimeSeries(payload: Record<string, unknown>): RevenuePoin
     }
   }
 
-  // Fallback: si la API no devolvió puntos pero hay un total en summary, devolvemos un punto sintético
+  console.log(`extractRevenueTimeSeries — parsed ${result.length} points`);
+
+  // Fallback: summary total → punto sintético
   if (result.length === 0) {
     const summary = asRecord(payload.summary);
     if (summary) {
@@ -463,7 +510,7 @@ export async function fetchAndStoreRevenueCatMetrics(
       { key: 'd7',  startDate: daysAgo(7),  endDate, periodLabel: 'últimos 7 días' },
       { key: 'd30', startDate: daysAgo(30), endDate, periodLabel: 'últimos 30 días' },
       { key: 'd90', startDate: daysAgo(90), endDate, periodLabel: 'últimos 90 días' },
-      { key: 'all', startDate: catalog.allStartDate ?? undefined, endDate, periodLabel: 'todo el tiempo' },
+      { key: 'all', startDate: catalog.allStartDate ?? daysAgo(365), endDate, periodLabel: 'todo el tiempo' },
     ];
 
     // Secuencial con 1.5 s de pausa entre rangos para evitar 429

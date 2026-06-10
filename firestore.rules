@@ -130,6 +130,11 @@ service cloud.firestore {
       allow create: if isDashboardUser();
       allow read, delete: if false;
     }
+    // Refresh requests de Retención (GA4) — solo crear desde el cliente
+    match /dashboard_metrics/retention/refresh_requests/{docId} {
+      allow create: if isDashboardUser();
+      allow read, delete: if false;
+    }
     // ── Catch-all: denegar todo lo demás ──────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

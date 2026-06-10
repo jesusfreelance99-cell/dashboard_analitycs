@@ -21,6 +21,7 @@ import 'sidebar_widget.dart';
 import 'users_page_widget.dart';
 import 'features_page_widget.dart';
 import 'funnel_page_widget.dart';
+import 'retention_page_widget.dart';
 
 class DashboardShell extends StatefulWidget {
   const DashboardShell({super.key});
@@ -131,7 +132,9 @@ class DashboardShellState extends State<DashboardShell> {
                             subtitle: currentPageMeta.subtitle,
                           ),
                           if (selectedPage != DashPage.notifications &&
-                              selectedPage != DashPage.overview)
+                              selectedPage != DashPage.overview &&
+                              selectedPage != DashPage.features &&
+                              selectedPage != DashPage.retention)
                             DateToolbar(
                               range: dashboard.range,
                               isCompact: isCompact,
@@ -201,11 +204,7 @@ class DashboardShellState extends State<DashboardShell> {
       case DashPage.features:
         return FeaturesPage(range: range);
       case DashPage.retention:
-        return const PlaceholderPage(
-          title: 'Retención',
-          description:
-              'Esta sección la rediseñamos en el siguiente paso,\ncon el mismo sistema visual flat que la Vista general.',
-        );
+        return const RetentionPage();
     }
   }
 }
