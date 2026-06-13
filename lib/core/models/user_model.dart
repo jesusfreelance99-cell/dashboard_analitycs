@@ -27,9 +27,33 @@ class UserModel {
 
   factory UserModel.fromFirestore(String docId, Map<String, dynamic> data) {
     final userInfo = data['user_info'];
-    final ui = userInfo is Map ? userInfo as Map<String, dynamic> : <String, dynamic>{};
+    final ui =
+        userInfo is Map ? userInfo as Map<String, dynamic> : <String, dynamic>{};
     final address = data['address'];
-    final addr = address is Map ? address as Map<String, dynamic> : <String, dynamic>{};
+    final addr =
+        address is Map ? address as Map<String, dynamic> : <String, dynamic>{};
+    final deviceInfo = data['device_info'];
+    final di = deviceInfo is Map
+        ? deviceInfo as Map<String, dynamic>
+        : <String, dynamic>{};
+
+    String country = (addr['country'] as String? ?? '').trim();
+
+    if (country.isEmpty) {
+      // Fallback 1: locale (ej. "es_CO" → "CO" → "Colombia")
+      final locale = (di['language'] as String? ?? '').trim();
+      if (locale.contains('_')) {
+        final isoCode = locale.split('_').last.toUpperCase();
+        country = _isoToCountry[isoCode] ?? '';
+      }
+    }
+
+    if (country.isEmpty) {
+      // Fallback 2: currency (ej. "COP" → "Colombia")
+      final currency = (ui['type_currency'] as String? ?? '').toUpperCase();
+      country = _currencyToCountry[currency] ?? '';
+    }
+
     return UserModel(
       id: docId,
       fullName: ui['full_name'] as String? ?? '',
@@ -40,7 +64,7 @@ class UserModel {
       plan: ui['plan'] as String? ?? '',
       createdAt: ui['created_at'] as String? ?? '',
       syncedAt: DateTime.now().toIso8601String(),
-      country: addr['country'] as String? ?? '',
+      country: country,
       city: addr['city'] as String? ?? '',
     );
   }
@@ -76,6 +100,41 @@ class UserModel {
       city: map['city'] as String? ?? '',
     );
   }
+
+  // ISO code → country name
+  static const Map<String, String> _isoToCountry = {
+    'CO': 'Colombia',   'MX': 'México',         'US': 'Estados Unidos',
+    'ES': 'España',     'AR': 'Argentina',       'VE': 'Venezuela',
+    'PE': 'Perú',       'CL': 'Chile',           'EC': 'Ecuador',
+    'BR': 'Brasil',     'PA': 'Panamá',          'GT': 'Guatemala',
+    'CR': 'Costa Rica', 'DO': 'Rep. Dominicana', 'BO': 'Bolivia',
+    'HN': 'Honduras',   'NI': 'Nicaragua',       'SV': 'El Salvador',
+    'PY': 'Paraguay',   'UY': 'Uruguay',         'CU': 'Cuba',
+    'PR': 'Puerto Rico','CA': 'Canadá',          'PT': 'Portugal',
+    'FR': 'Francia',    'DE': 'Alemania',        'GB': 'Reino Unido',
+    'IT': 'Italia',     'IE': 'Irlanda',         'NL': 'Holanda',
+    'BE': 'Bélgica',    'CH': 'Suiza',           'SE': 'Suecia',
+    'NO': 'Noruega',    'AU': 'Australia',       'JP': 'Japón',
+    'CN': 'China',      'KR': 'Corea del Sur',   'IN': 'India',
+  };
+
+  // Currency code → country name (solo monedas no ambiguas)
+  static const Map<String, String> _currencyToCountry = {
+    'COP': 'Colombia',          'MXN': 'México',
+    'ARS': 'Argentina',         'PEN': 'Perú',
+    'CLP': 'Chile',             'BRL': 'Brasil',
+    'CRC': 'Costa Rica',        'GTQ': 'Guatemala',
+    'HNL': 'Honduras',          'NIO': 'Nicaragua',
+    'DOP': 'Rep. Dominicana',   'BOB': 'Bolivia',
+    'PYG': 'Paraguay',          'UYU': 'Uruguay',
+    'VES': 'Venezuela',         'CUP': 'Cuba',
+    'CAD': 'Canadá',            'GBP': 'Reino Unido',
+    'AUD': 'Australia',         'JPY': 'Japón',
+    'KRW': 'Corea del Sur',     'CNY': 'China',
+    'SEK': 'Suecia',            'NOK': 'Noruega',
+    'CHF': 'Suiza',             'INR': 'India',
+    // USD y EUR son ambiguos — no se usan como fallback
+  };
 
   @override
   String toString() => 'UserModel(id: $id, fullName: $fullName, email: $email)';
