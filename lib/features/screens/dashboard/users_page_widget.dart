@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:country_flags/country_flags.dart';
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
@@ -5,6 +7,7 @@ import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/core/models/user_model.dart';
 import 'package:dashboard_analitycs/core/services/country_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/user_sync_service.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';

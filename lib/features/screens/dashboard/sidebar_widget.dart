@@ -33,10 +33,6 @@ class DashboardSidebar extends StatelessWidget {
   Widget build(BuildContext context) {
     final sections = <SidebarSectionData>[
       SidebarSectionData(
-        title: 'principal',
-        items: const [DashPage.notifications],
-      ),
-      SidebarSectionData(
         title: 'menú',
         items: const [
           DashPage.overview,
@@ -47,6 +43,7 @@ class DashboardSidebar extends StatelessWidget {
           DashPage.users,
         ],
       ),
+      SidebarSectionData(title: 'panel', items: const [DashPage.notifications]),
     ];
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
