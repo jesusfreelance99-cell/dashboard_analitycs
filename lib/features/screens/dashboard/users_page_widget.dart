@@ -223,74 +223,28 @@ class _UsersPageState extends State<UsersPage> {
         // ── PAÍSES ───────────────────────────────────────────────────────────
         const SectionHeader(label: 'DISTRIBUCIÓN GEOGRÁFICA', source: ''),
         const SizedBox(height: 14),
-        Panel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: PanelHeader(
-                      title: 'Registros por país',
-                      trailing: '',
-                    ),
-                  ),
-                  _ContinentChips(
-                    selected: _continentFilter,
-                    onChanged: (v) => setState(() => _continentFilter = v),
-                  ),
-                ],
+        Builder(
+          builder: (context) {
+            if (_loading) {
+              return Panel(child: const _CountryShimmerList());
+            }
+
+            final countMap = <String, int>{};
+            for (final u in _dateFiltered) {
+              final name = u.country.trim();
+              countMap[name] = (countMap[name] ?? 0) + 1;
+            }
+            final all = CountryMetricsService.fromCounts(countMap);
+
+            return Panel(
+              child: _GeoDonutPanel(
+                allEntries: all,
+                filter: _continentFilter,
+                onFilterChanged: (v) =>
+                    setState(() => _continentFilter = v),
               ),
-              const SizedBox(height: 18),
-              Builder(
-                builder: (context) {
-                  if (_loading) return const _CountryShimmerList();
-
-                  final countMap = <String, int>{};
-                  for (final u in _dateFiltered) {
-                    final name = u.country.trim();
-                    countMap[name] = (countMap[name] ?? 0) + 1;
-                  }
-                  final all = CountryMetricsService.fromCounts(countMap);
-
-                  final entries = _continentFilter == 'Todos'
-                      ? all
-                      : all.where((e) {
-                          if (_continentFilter == 'Otros') {
-                            final c = CountryMetricsService.continentOf(e);
-                            return c != 'América' && c != 'Europa';
-                          }
-                          return CountryMetricsService.continentOf(e) ==
-                              _continentFilter;
-                        }).toList();
-
-                  if (entries.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Text(
-                          'Sin usuarios en este continente',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: context.dc.ink3,
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  return LayoutBuilder(
-                    builder: (_, constraints) {
-                      final wide = constraints.maxWidth > 700;
-                      return wide
-                          ? _CountryGrid(entries: entries)
-                          : _CountryList(entries: entries);
-                    },
-                  );
-                },
-              ),
-            ],
-          ),
+            );
+          },
         ),
         const SizedBox(height: 28),
 
