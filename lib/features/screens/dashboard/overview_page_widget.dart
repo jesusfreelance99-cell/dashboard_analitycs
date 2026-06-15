@@ -1,12 +1,13 @@
-import 'dart:math' as math;
-
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:dashboard_analitycs/core/models/appstore_metrics_model.dart';
+import 'package:dashboard_analitycs/core/models/funnel_metrics_model.dart';
+import 'package:dashboard_analitycs/core/models/retention_metrics_model.dart';
 import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
 import 'package:dashboard_analitycs/core/models/user_model.dart';
 import 'package:dashboard_analitycs/core/services/appstore_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/country_metrics_service.dart';
+import 'package:dashboard_analitycs/core/services/funnel_metrics_service.dart';
+import 'package:dashboard_analitycs/core/services/retention_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/user_metrics_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
@@ -31,22 +32,15 @@ class _Shimmer extends StatefulWidget {
   State<_Shimmer> createState() => _ShimmerState();
 }
 
-class _ShimmerState extends State<_Shimmer>
-    with SingleTickerProviderStateMixin {
+class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _anim;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-    _anim = Tween<double>(
-      begin: -2,
-      end: 2,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
+    _anim = Tween<double>(begin: -2, end: 2).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -66,11 +60,8 @@ class _ShimmerState extends State<_Shimmer>
             begin: Alignment(_anim.value - 1, 0),
             end: Alignment(_anim.value + 1, 0),
             colors: const [
-              AppColors.shimmerBase,
-              AppColors.shimmerLight,
-              AppColors.white,
-              AppColors.shimmerLight,
-              AppColors.shimmerBase,
+              AppColors.shimmerBase, AppColors.shimmerLight, AppColors.white,
+              AppColors.shimmerLight, AppColors.shimmerBase,
             ],
             stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
           ).createShader(bounds),
@@ -93,13 +84,20 @@ class _ShimBox extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      decoration: BoxDecoration(
-        color: AppColors.shimmerBase,
-        borderRadius: BorderRadius.circular(radius),
-      ),
+      decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(radius)),
     );
   }
 }
+
+Widget _shimGrid(int count) => GridView.builder(
+  shrinkWrap: true,
+  physics: const NeverScrollableScrollPhysics(),
+  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+    maxCrossAxisExtent: 300, mainAxisExtent: 110, crossAxisSpacing: 16, mainAxisSpacing: 16,
+  ),
+  itemCount: count,
+  itemBuilder: (_, idx) => Container(decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(18))),
+);
 
 class _AppStoreShimmer extends StatelessWidget {
   const _AppStoreShimmer();
@@ -110,105 +108,18 @@ class _AppStoreShimmer extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Greeting
-          const _ShimBox(width: 340, height: 48, radius: 12),
-          const SizedBox(height: 14),
-          const _ShimBox(width: 260, height: 22, radius: 8),
-          const SizedBox(height: 36),
-
-          // APP STORE section header
+          const SizedBox(height: 8),
           const _ShimBox(width: 180, height: 16, radius: 6),
           const SizedBox(height: 14),
-          // 4 metric cards
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 300,
-              mainAxisExtent: 110,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
-            itemCount: 4,
-            itemBuilder: (_, i) => Container(
-              decoration: BoxDecoration(
-                color: AppColors.shimmerBase,
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-          ),
+          _shimGrid(3),
           const SizedBox(height: 42),
-
-          // REVENUE header + 5 cards
-          const _ShimBox(width: 140, height: 16, radius: 6),
+          const _ShimBox(width: 200, height: 16, radius: 6),
           const SizedBox(height: 14),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 300,
-              mainAxisExtent: 110,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
-            itemCount: 5,
-            itemBuilder: (_, i) => Container(
-              decoration: BoxDecoration(
-                color: AppColors.shimmerBase,
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-          ),
+          _shimGrid(4),
           const SizedBox(height: 42),
-
-          // USUARIOS header + 4 cards
-          const _ShimBox(width: 120, height: 16, radius: 6),
-          const SizedBox(height: 14),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 300,
-              mainAxisExtent: 110,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
-            itemCount: 4,
-            itemBuilder: (_, i) => Container(
-              decoration: BoxDecoration(
-                color: AppColors.shimmerBase,
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-          ),
-          const SizedBox(height: 42),
-
-          // TENDENCIAS — 2 panels
           const _ShimBox(width: 160, height: 16, radius: 6),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  height: 320,
-                  decoration: BoxDecoration(
-                    color: AppColors.shimmerBase,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Container(
-                  height: 320,
-                  decoration: BoxDecoration(
-                    color: AppColors.shimmerBase,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                ),
-              ),
-            ],
-          ),
+          _shimGrid(4),
           const SizedBox(height: 48),
         ],
       ),
@@ -231,17 +142,27 @@ class OverviewPage extends StatelessWidget {
     return StreamBuilder<AppStoreMetrics?>(
       stream: AppStoreMetricsService.stream(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const _AppStoreShimmer();
-        }
+        if (snap.connectionState == ConnectionState.waiting) return const _AppStoreShimmer();
         return StreamBuilder<RevenueCatMetrics?>(
           stream: RevenueCatMetricsService.stream(),
           builder: (context, revenueSnap) {
-            return _OverviewContent(
-              range: range,
-              isCompact: isCompact,
-              appStore: snap.data,
-              revenueCat: revenueSnap.data,
+            return StreamBuilder<FunnelMetrics?>(
+              stream: FunnelMetricsService.stream(),
+              builder: (context, funnelSnap) {
+                return StreamBuilder<RetentionMetrics?>(
+                  stream: RetentionMetricsService.stream(),
+                  builder: (context, retSnap) {
+                    return _OverviewContent(
+                      range: range,
+                      isCompact: isCompact,
+                      appStore: snap.data,
+                      revenueCat: revenueSnap.data,
+                      funnel: funnelSnap.data,
+                      retention: retSnap.data,
+                    );
+                  },
+                );
+              },
             );
           },
         );
@@ -254,45 +175,140 @@ class OverviewPage extends StatelessWidget {
 // CONTENIDO REAL
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _OverviewContent extends StatelessWidget {
+class _OverviewContent extends StatefulWidget {
   const _OverviewContent({
     required this.range,
     required this.isCompact,
     required this.appStore,
     required this.revenueCat,
+    required this.funnel,
+    required this.retention,
   });
 
   final DateRange range;
   final bool isCompact;
   final AppStoreMetrics? appStore;
   final RevenueCatMetrics? revenueCat;
+  final FunnelMetrics? funnel;
+  final RetentionMetrics? retention;
+
+  @override
+  State<_OverviewContent> createState() => _OverviewContentState();
+}
+
+class _OverviewContentState extends State<_OverviewContent> {
+  String _platform = 'all';
+
+  int _eventUniques(List<FunnelEvent> events, String name) =>
+      events.where((e) => e.name == name).fold(0, (s, e) => s + e.uniqueUsers);
+
+  String _retLabel(int day) {
+    final curve = widget.retention?.retentionCurve ?? [];
+    if (curve.isEmpty) return '—';
+    final pt = curve.where((p) => p.day <= day).lastOrNull;
+    if (pt == null) return '—';
+    return '${(pt.rate * 100).toStringAsFixed(0)}%';
+  }
 
   @override
   Widget build(BuildContext context) {
-    final data = overviewRangeData(range);
-    final as = appStore;
-    final rc = revenueCat;
+    final as = widget.appStore;
+    final rc = widget.revenueCat;
+    final funnel = widget.funnel;
     final rcOverview = rc?.overview;
+    final rcRange = rc?.range(widget.range);
+
+    final funnelRange = funnel?.range(widget.range);
+    final funnelEvents = funnelRange?.events ?? [];
+
+    // Descargas únicas = total - repetidas
+    final uniqueDownloads = as != null
+        ? (as.downloadsLastMonth - as.redownloads).clamp(0, 999999)
+        : 0;
+    final uniqueDownloadsStr = uniqueDownloads > 0 ? '$uniqueDownloads' : '—';
+
+    // Install-to-purchase
+    final activeSubs = rcOverview?.activeSubscriptions ?? 0;
+    final installToPurchase = uniqueDownloads > 0 && activeSubs > 0
+        ? '${(activeSubs / uniqueDownloads * 100).toStringAsFixed(1)}%'
+        : '—';
+    final itpHelper = uniqueDownloads > 0 && activeSubs > 0
+        ? '$activeSubs de $uniqueDownloads descargas'
+        : 'descargas únicas · suscripciones';
+
+    // Usuarios iOS / Android desde funnel devices
+    final devices = funnel?.devices ?? [];
+    final iosCount = devices
+        .where((d) => d.os.toLowerCase().contains('ios') ||
+            d.os.toLowerCase().contains('iphone') ||
+            d.os.toLowerCase().contains('ipad'))
+        .fold(0, (s, d) => s + d.count);
+    final androidCount = devices
+        .where((d) => d.os.toLowerCase().contains('android'))
+        .fold(0, (s, d) => s + d.count);
+
+    // Retención
+    final retD3 = _retLabel(3);
+    final retW1 = _retLabel(7);
+
+    // Funnel steps
+    final funnelBase = as?.downloadsLastMonth ?? 0;
+    final funnelOpen = _eventUniques(funnelEvents, 'first_open') > 0
+        ? _eventUniques(funnelEvents, 'first_open')
+        : _eventUniques(funnelEvents, 'session_start');
+    final funnelSignup = _eventUniques(funnelEvents, 'sign_up') > 0
+        ? _eventUniques(funnelEvents, 'sign_up')
+        : _eventUniques(funnelEvents, 'registration_completed');
+    final funnelLogin = _eventUniques(funnelEvents, 'login') > 0
+        ? _eventUniques(funnelEvents, 'login')
+        : funnelSignup;
+    final funnelPaywall = funnelRange?.uniquePaywall ?? 0;
+    final funnelTrial = funnelRange?.uniqueTrial ?? rcOverview?.activeTrials ?? 0;
+    final funnelSub = _eventUniques(funnelEvents, 'subscription_purchased') > 0
+        ? _eventUniques(funnelEvents, 'subscription_purchased')
+        : activeSubs;
+
+    final funnelSteps = [
+      _FunnelStep('Descarga',   funnelBase,    AppColors.chartBlue),
+      _FunnelStep('App abierta', funnelOpen,    AppColors.chartGreen),
+      _FunnelStep('Onboarding', funnelSignup,  const Color(0xFF8B80E8)),
+      _FunnelStep('Login',      funnelLogin,   AppColors.pink),
+      _FunnelStep('Paywall',    funnelPaywall, AppColors.chartAmber),
+      _FunnelStep('Trial',      funnelTrial,   AppColors.danger),
+      _FunnelStep('Suscripción', funnelSub,    AppColors.success),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 8),
 
-        // ── APP STORE CONNECT ──────────────────────────────────────────────
+        // ── PLATFORM TOGGLE ──────────────────────────────────────────────
+        _PlatformToggle(
+          selected: _platform,
+          onSelect: (p) => setState(() => _platform = p),
+        ),
+        const SizedBox(height: 20),
+
+        // ── TIENDA Y DESCARGAS ───────────────────────────────────────────
         Row(
           children: [
             Expanded(
               child: SectionHeader(
-                label: 'APP STORE CONNECT',
-                source: as == null ? 'iOS' : 'iOS · ${as.periodLabel}',
+                label: 'TIENDA Y DESCARGAS',
+                source: as == null
+                    ? 'App Store'
+                    : _platform == 'ios'
+                        ? 'iOS · ${as.periodLabel}'
+                        : _platform == 'android'
+                            ? 'Android'
+                            : 'App Store · ${as.periodLabel}',
               ),
             ),
             const _AppStoreRefreshButton(),
           ],
         ),
         const SizedBox(height: 14),
-        // 'partial' solo muestra shimmer si aún no hay ningún dato base
         if (as == null)
           const _AppStoreCardsShimmer()
         else
@@ -301,86 +317,190 @@ class _OverviewContent extends StatelessWidget {
             children: [
               MetricCard(
                 label: 'Impresiones',
-                value: as.impressionsStr,
+                value: _platform == 'android' ? '—' : as.impressionsStr,
+                helperText: 'actualizado hoy',
               ),
               MetricCard(
-                label: 'Descargas',
-                value: as.downloadsStr,
-                helperText: as.periodLabel.isNotEmpty ? as.periodLabel : null,
-              ),
-              MetricCard(
-                label: 'Descargas repetidas',
-                value: as.redownloadsStr,
-                helperText: as.periodLabel.isNotEmpty ? as.periodLabel : null,
-              ),
-              MetricCard(
-                label: 'Tasa de conversión',
-                value: as.conversionStr,
+                label: 'Descargas únicas',
+                value: _platform == 'android' ? '0' : uniqueDownloadsStr,
+                helperText: 'descargas totales − repetidas',
               ),
               MetricCard(
                 label: 'Rating',
-                value: as.ratingStr,
-                valueSuffix: as.rating > 0
-                    ? const Icon(
-                        Icons.star_rounded,
-                        color: AppColors.starAmber,
-                        size: 26,
-                      )
+                value: _platform == 'android' ? '—' : as.ratingStr,
+                valueSuffix: (_platform != 'android' && as.rating > 0)
+                    ? const Icon(Icons.star_rounded, color: AppColors.starAmber, size: 26)
                     : null,
-                badgeText: as.totalReviews > 0
-                    ? '${as.totalReviews} reseñas'
-                    : 'Sin reseñas aún',
+                badgeText: _platform == 'android'
+                    ? 'app aún no publicada'
+                    : (as.totalReviews > 0 ? '${as.totalReviews} reseñas' : 'Sin reseñas aún'),
                 badgeType: BadgeType.neutral,
               ),
             ],
           ),
         const SizedBox(height: 42),
 
-        // ── REVENUE ───────────────────────────────────────────────────────
+        // ── INGRESOS Y SUSCRIPCIONES ─────────────────────────────────────
         Row(
           children: [
             Expanded(
               child: SectionHeader(
-                label: 'REVENUE',
+                label: 'INGRESOS Y SUSCRIPCIONES',
                 source: rc == null
                     ? 'RevenueCat'
                     : rc.updatedAtLabel.isEmpty
-                    ? rc.source
-                    : '${rc.source} · ${rc.updatedAtLabel}',
+                        ? rc.source
+                        : '${rc.source} · ${rc.updatedAtLabel}',
               ),
             ),
             const _RevenueCatRefreshButton(),
           ],
         ),
-        const SizedBox(height: 14),
+
+        _SubgroupLabel('Pruebas gratuitas'),
         ResponsiveGrid(
-          minTileWidth: 250,
+          minTileWidth: 220,
           children: [
             MetricCard(
-              label: 'Pruebas gratuitas',
-              value: rcOverview?.activeTrialsLabel ?? '0',
-              helperText: 'total acumulado',
+              label: 'Pruebas gratuitas totales',
+              value: rc?.range(DateRange.all).activeTrialsLabel ?? '0',
+              helperText: 'acumulado',
             ),
             MetricCard(
-              label: 'Suscripciones activas',
+              label: 'En proceso',
+              value: rcOverview?.activeTrialsLabel ?? '0',
+              helperText: 'activas ahora',
+            ),
+            MetricCard(
+              label: 'Canceladas',
+              value: '—',
+              accent: true,
+              helperText: 'acumulado',
+            ),
+            MetricCard(
+              label: '% canceladas',
+              value: '—',
+              accent: true,
+              helperText: 'canceladas / total',
+            ),
+          ],
+        ),
+
+        _SubgroupLabel('Suscripciones'),
+        ResponsiveGrid(
+          minTileWidth: 220,
+          children: [
+            MetricCard(
+              label: 'Suscripciones activadas',
               value: rcOverview?.activeSubscriptionsLabel ?? '0',
               helperText: 'total acumulado',
             ),
             MetricCard(
-              label: 'Ingresos recurrentes',
-              value: rcOverview?.mrrLabel ?? '-',
-              accent: true,
-              helperText: (rcOverview != null && rcOverview.hasMrrBreakdown)
-                  ? '${rcOverview.monthlySubscriptions} mensual · ${rcOverview.annualSubscriptions} anual'
-                  : 'mensuales · MRR',
+              label: 'Mensuales',
+              value: (rcOverview?.monthlySubscriptions ?? 0) > 0
+                  ? '${rcOverview!.monthlySubscriptions}'
+                  : '—',
+              helperText: 'activas',
             ),
             MetricCard(
-              label: 'Ingresos',
-              value: rcOverview?.revenue28dLabel ?? data.revenue,
-              helperText: 'últimos 28 días',
+              label: 'Anuales',
+              value: (rcOverview?.annualSubscriptions ?? 0) > 0
+                  ? '${rcOverview!.annualSubscriptions}'
+                  : '—',
+              helperText: 'activas',
             ),
           ],
         ),
+
+        _SubgroupLabel('Ingresos'),
+        ResponsiveGrid(
+          minTileWidth: 220,
+          children: [
+            MetricCard(
+              label: 'MRR',
+              value: rcOverview?.mrrLabel ?? '—',
+              accent: true,
+              helperText: (rcOverview != null && rcOverview.hasMrrBreakdown)
+                  ? '${rcOverview.monthlySubscriptions}×\$4.99 + ${rcOverview.annualSubscriptions}×\$1.67'
+                  : 'ingresos recurrentes mensuales',
+            ),
+            MetricCard(
+              label: 'Install-to-purchase',
+              value: installToPurchase,
+              helperText: itpHelper,
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 14),
+        FutureBuilder<UserCounts>(
+          future: UserMetricsService.future,
+          builder: (context, snap) {
+            final u = snap.data ?? UserCounts.empty;
+            final pagoYTrial =
+                (rcOverview?.activeSubscriptions ?? 0) + (rcOverview?.activeTrials ?? 0);
+            final soloGratuito = (u.total - pagoYTrial).clamp(0, 999999);
+            return ResponsiveGrid(
+              minTileWidth: 220,
+              children: [
+                MetricCard(
+                  label: 'Usuarios activos totales',
+                  value: u.total > 0 ? '${u.total}' : '—',
+                  helperText: 'últimos 28 días',
+                ),
+                MetricCard(
+                  label: 'Usuarios de pago (+trial)',
+                  value: pagoYTrial > 0 ? '$pagoYTrial' : '—',
+                  helperText: 'suscripción o prueba activa',
+                ),
+                MetricCard(
+                  label: 'Plan gratuito activos',
+                  value: u.total > 0 ? '$soloGratuito' : '—',
+                  helperText: 'sin trial ni compra',
+                ),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 42),
+
+        // ── RETENCIÓN Y CANCELACIONES ────────────────────────────────────
+        const SectionHeader(label: 'RETENCIÓN Y CANCELACIONES', source: 'Firebase · RevenueCat'),
+        const SizedBox(height: 14),
+        ResponsiveGrid(
+          minTileWidth: 220,
+          children: [
+            MetricCard(
+              label: 'Cancelaciones',
+              value: '—',
+              accent: true,
+              helperText: 'planes pagos cancelados',
+            ),
+            MetricCard(
+              label: '% Churn',
+              value: rcRange?.churnLabel ?? '—',
+              accent: true,
+              helperText: 'cancelados / activos',
+            ),
+            MetricCard(
+              label: 'Day 3 retention',
+              value: retD3,
+              helperText: 'activos 3 días después',
+            ),
+            MetricCard(
+              label: 'Week 1 retention',
+              value: retW1,
+              accent: retW1 == '—' ? false : true,
+              helperText: 'activos 7 días después',
+            ),
+          ],
+        ),
+        const SizedBox(height: 42),
+
+        // ── EMBUDO DE CONVERSIÓN ─────────────────────────────────────────
+        const SectionHeader(label: 'EMBUDO DE CONVERSIÓN', source: 'Firebase · RevenueCat'),
+        const SizedBox(height: 14),
+        _OverviewFunnel(steps: funnelSteps),
         const SizedBox(height: 42),
 
         // ── USUARIOS ─────────────────────────────────────────────────────
@@ -390,139 +510,289 @@ class _OverviewContent extends StatelessWidget {
           future: UserMetricsService.future,
           builder: (context, snap) {
             final u = snap.data ?? UserCounts.empty;
-            return ResponsiveGrid(
-              minTileWidth: 250,
+            return Column(
               children: [
-                MetricCard(
-                  label: 'Registrados',
-                  value: u.total > 0 ? '${u.total}' : '—',
-                  badgeText: u.newToday > 0 ? '↑ ${u.newToday} hoy' : null,
-                  badgeType: BadgeType.positive,
-                  helperText: 'total',
+                ResponsiveGrid(
+                  minTileWidth: 220,
+                  children: [
+                    MetricCard(
+                      label: 'Registrados únicos',
+                      value: u.total > 0 ? '${u.total}' : '—',
+                      badgeText: u.newToday > 0 ? '↑ ${u.newToday} hoy' : null,
+                      badgeType: BadgeType.positive,
+                      helperText: 'total',
+                    ),
+                    MetricCard(
+                      label: 'Usuarios iOS',
+                      value: iosCount > 0 ? '$iosCount' : (u.total > 0 ? '${u.total}' : '—'),
+                      helperText: 'solo iOS disponible',
+                    ),
+                    MetricCard(
+                      label: 'Usuarios Android',
+                      value: androidCount > 0 ? '$androidCount' : '0',
+                      helperText: 'pendiente de lanzamiento',
+                    ),
+                  ],
                 ),
-                MetricCard(
-                  label: 'Plan Pro',
-                  value: rcOverview != null
-                      ? rcOverview.activeSubscriptionsLabel
-                      : '${u.pro}',
-                  accent: true,
-                  valueSuffix: const FaIcon(
-                    FontAwesomeIcons.crown,
-                    color: AppColors.goldDark,
-                    size: 24,
+                const SizedBox(height: 18),
+                Panel(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      PanelHeader(title: 'Pro vs Free', trailing: '${u.total} usuarios'),
+                      const SizedBox(height: 28),
+                      PlanDistributionBar(proportion: u.proProportion),
+                      const SizedBox(height: 28),
+                      PlanRow(
+                        icon: const FaIcon(FontAwesomeIcons.crown, size: 24),
+                        iconBackground: AppColors.goldLight,
+                        iconColor: AppColors.goldDark,
+                        title: 'Plan Pro',
+                        subtitle: 'de pago',
+                        value: '${u.pro}',
+                        percentage: u.proPercent,
+                      ),
+                      const SizedBox(height: 26),
+                      PlanRow(
+                        icon: const Icon(FluentIcons.gift_20_regular, size: 24),
+                        iconBackground: AppColors.fieldBg,
+                        iconColor: AppColors.ink3,
+                        title: 'Plan Gratuito',
+                        value: '${u.free}',
+                        percentage: u.freePercent,
+                      ),
+                    ],
                   ),
-                  helperText: 'suscripciones activas',
-                  badgeText: '${u.proPercent} del total',
-                  badgeType: BadgeType.neutral,
-                ),
-                MetricCard(
-                  label: 'Plan Gratuito',
-                  value: '${u.free}',
-                  badgeText: '${u.freePercent} del total',
-                  badgeType: BadgeType.neutral,
-                ),
-                MetricCard(
-                  label: 'Activos',
-                  value: '${u.active}',
-                  badgeText: '↑ ${u.activePercent}',
-                  badgeType: BadgeType.positive,
                 ),
               ],
             );
           },
         ),
-        const SizedBox(height: 34),
+        const SizedBox(height: 42),
 
-        // ── TENDENCIAS ───────────────────────────────────────────────────
-        const SectionHeader(label: 'TENDENCIAS', source: ''),
+        // ── DISTRIBUCIÓN GEOGRÁFICA ──────────────────────────────────────
+        const SectionHeader(label: 'DISTRIBUCIÓN GEOGRÁFICA', source: 'Firebase'),
         const SizedBox(height: 14),
-        ResponsiveSplit(
-          left: _DownloadsTrendCard(appStore: as),
-          right: _RevenueTrendCard(revenueCat: rc),
-        ),
-        const SizedBox(height: 40),
-
-        // ── DISTRIBUCIÓN ─────────────────────────────────────────────────
-        const SectionHeader(label: 'DISTRIBUCIÓN', source: ''),
-        const SizedBox(height: 14),
-        FutureBuilder<UserCounts>(
-          future: UserMetricsService.future,
-          builder: (context, snap) {
-            final u = snap.data ?? UserCounts.empty;
-            return ResponsiveSplit(
-              left: FutureBuilder<List<CountryEntry>>(
-                future: CountryMetricsService.future,
-                builder: (context, countrySnap) {
-                  final entries = countrySnap.data;
-                  return Panel(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        PanelHeader(
-                          title: 'Registros por país',
-                          trailing: entries == null
-                              ? 'Top 4'
-                              : 'Top ${entries.length}',
-                        ),
-                        const SizedBox(height: 18),
-                        if (entries == null) ...[
-                          _CountryShimmer(),
-                        ] else if (entries.isEmpty) ...[
-                          Expanded(
-                            child: const EmptyTablesComponent(
-                              title: 'Sin datos de país',
-                              description: 'Aún no hay registros de ubicación.',
-                            ),
-                          ),
-                        ] else ...[
-                          for (int i = 0; i < entries.length; i++) ...[
-                            _CountryEntryRow(entry: entries[i]),
-                            if (i < entries.length - 1)
-                              const SizedBox(height: 18),
-                          ],
-                        ],
-                      ],
-                    ),
-                  );
-                },
-              ),
-              right: Panel(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    PanelHeader(
-                      title: 'Distribución por plan',
-                      trailing: '${u.total} usuarios',
-                    ),
-                    const SizedBox(height: 28),
-                    PlanDistributionBar(proportion: u.proProportion),
-                    const SizedBox(height: 28),
-                    PlanRow(
-                      icon: const FaIcon(FontAwesomeIcons.crown, size: 24),
-                      iconBackground: AppColors.goldLight,
-                      iconColor: AppColors.goldDark,
-                      title: 'Plan Pro',
-                      subtitle: 'de pago',
-                      value: '${u.pro}',
-                      percentage: u.proPercent,
-                    ),
-                    const SizedBox(height: 26),
-                    PlanRow(
-                      icon: const Icon(FluentIcons.gift_20_regular, size: 24),
-                      iconBackground: AppColors.fieldBg,
-                      iconColor: AppColors.ink3,
-                      title: 'Plan Gratuito',
-                      value: '${u.free}',
-                      percentage: u.freePercent,
-                    ),
-                  ],
-                ),
+        FutureBuilder<List<CountryEntry>>(
+          future: CountryMetricsService.future,
+          builder: (context, countrySnap) {
+            final entries = countrySnap.data;
+            return Panel(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  PanelHeader(
+                    title: 'Registros por país',
+                    trailing: entries == null ? 'Top 4' : 'Top ${entries.length}',
+                  ),
+                  const SizedBox(height: 18),
+                  if (entries == null)
+                    _CountryShimmer()
+                  else if (entries.isEmpty)
+                    const Expanded(
+                      child: EmptyTablesComponent(
+                        title: 'Sin datos de país',
+                        description: 'Aún no hay registros de ubicación.',
+                      ),
+                    )
+                  else
+                    for (int i = 0; i < entries.length; i++) ...[
+                      _CountryEntryRow(entry: entries[i]),
+                      if (i < entries.length - 1) const SizedBox(height: 18),
+                    ],
+                ],
               ),
             );
           },
         ),
         const SizedBox(height: 48),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLATFORM TOGGLE
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PlatformToggle extends StatelessWidget {
+  const _PlatformToggle({required this.selected, required this.onSelect});
+  final String selected;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    const options = [('all', 'Ambas tiendas'), ('ios', 'iOS'), ('android', 'Android')];
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.fieldBg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.line2),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (final (key, label) in options)
+            _PlatformBtn(label: label, selected: selected == key, onTap: () => onSelect(key)),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlatformBtn extends StatelessWidget {
+  const _PlatformBtn({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.pink : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: selected ? AppColors.white : AppColors.ink2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUBGROUP LABEL
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SubgroupLabel extends StatelessWidget {
+  const _SubgroupLabel(this.label);
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 22, bottom: 14),
+      child: Row(
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.5,
+              color: AppColors.ink3,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(child: Divider(thickness: 1, color: AppColors.line)),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MINI CONVERSION FUNNEL
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FunnelStep {
+  final String label;
+  final int count;
+  final Color color;
+  const _FunnelStep(this.label, this.count, this.color);
+}
+
+class _OverviewFunnel extends StatelessWidget {
+  const _OverviewFunnel({required this.steps});
+  final List<_FunnelStep> steps;
+
+  @override
+  Widget build(BuildContext context) {
+    final base = steps.isEmpty ? 1 : (steps[0].count > 0 ? steps[0].count : 1);
+    const maxH = 90.0;
+
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const PanelHeader(title: 'Flujo de conversión', trailing: 'Firebase · RevenueCat'),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: maxH,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (int i = 0; i < steps.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 10),
+                  Expanded(
+                    child: Container(
+                      height: (steps[i].count / base * maxH).clamp(4.0, maxH),
+                      decoration: BoxDecoration(
+                        color: steps[i].count > 0
+                            ? steps[i].color
+                            : AppColors.shimmerBase,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              for (int i = 0; i < steps.length; i++) ...[
+                if (i > 0) const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Text(
+                        steps[i].count > 0 ? '${steps[i].count}' : '—',
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.ink,
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        steps[i].count > 0
+                            ? '${(steps[i].count / base * 100).toStringAsFixed(0)}%'
+                            : '—',
+                        style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        steps[i].label,
+                        style: const TextStyle(fontSize: 12, color: AppColors.ink2),
+                        textAlign: TextAlign.center,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -540,20 +810,17 @@ class _AppStoreCardsShimmer extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final count = ((constraints.maxWidth) / 250).floor().clamp(1, 5);
-          final gap = 18.0;
+          const gap = 18.0;
           final tileWidth = (constraints.maxWidth - gap * (count - 1)) / count;
           return Wrap(
             spacing: gap,
             runSpacing: gap,
             children: List.generate(
-              5,
+              3,
               (_) => Container(
                 width: tileWidth,
                 height: 160,
-                decoration: BoxDecoration(
-                  color: AppColors.shimmerBase,
-                  borderRadius: BorderRadius.circular(28),
-                ),
+                decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(28)),
               ),
             ),
           );
@@ -587,22 +854,18 @@ class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
           .collection('refresh_triggers')
           .add({'created_at': FieldValue.serverTimestamp()});
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Actualización en curso (~60s)'),
-            backgroundColor: AppColors.ink,
-            duration: Duration(seconds: 4),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Actualización en curso (~60s)'),
+          backgroundColor: AppColors.ink,
+          duration: Duration(seconds: 4),
+        ));
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al solicitar actualización'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error al solicitar actualización'),
+          backgroundColor: AppColors.danger,
+        ));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -620,18 +883,10 @@ class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
           padding: const EdgeInsets.all(6),
           child: _loading
               ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.pink,
-                  ),
+                  width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.pink),
                 )
-              : const Icon(
-                  FluentIcons.arrow_sync_20_regular,
-                  size: 18,
-                  color: AppColors.pink,
-                ),
+              : const Icon(FluentIcons.arrow_sync_20_regular, size: 18, color: AppColors.pink),
         ),
       ),
     );
@@ -646,8 +901,7 @@ class _RevenueCatRefreshButton extends StatefulWidget {
   const _RevenueCatRefreshButton();
 
   @override
-  State<_RevenueCatRefreshButton> createState() =>
-      _RevenueCatRefreshButtonState();
+  State<_RevenueCatRefreshButton> createState() => _RevenueCatRefreshButtonState();
 }
 
 class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
@@ -659,22 +913,18 @@ class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
     try {
       await RevenueCatMetricsService.requestRefresh();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Actualización de RevenueCat en curso'),
-            backgroundColor: AppColors.ink,
-            duration: Duration(seconds: 4),
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Actualización de RevenueCat en curso'),
+          backgroundColor: AppColors.ink,
+          duration: Duration(seconds: 4),
+        ));
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Error al solicitar actualización de RevenueCat'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error al solicitar actualización de RevenueCat'),
+          backgroundColor: AppColors.danger,
+        ));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -692,18 +942,10 @@ class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
           padding: const EdgeInsets.all(6),
           child: _loading
               ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.success,
-                  ),
+                  width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.success),
                 )
-              : const Icon(
-                  FluentIcons.arrow_sync_20_regular,
-                  size: 18,
-                  color: AppColors.success,
-                ),
+              : const Icon(FluentIcons.arrow_sync_20_regular, size: 18, color: AppColors.success),
         ),
       ),
     );
@@ -711,110 +953,8 @@ class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// WIDGETS INTERNOS (sin cambios)
+// PLAN DISTRIBUTION BAR
 // ─────────────────────────────────────────────────────────────────────────────
-
-class TrendMetricPanel extends StatelessWidget {
-  const TrendMetricPanel({
-    super.key,
-    required this.title,
-    required this.value,
-    required this.delta,
-    required this.deltaType,
-    required this.barColor,
-    required this.bars,
-  });
-
-  final String title;
-  final String value;
-  final String delta;
-  final BadgeType deltaType;
-  final Color barColor;
-  final List<double> bars;
-
-  @override
-  Widget build(BuildContext context) {
-    const labels = ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4', 'Hoy'];
-    return Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        color: AppColors.ink2,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 44,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -1.8,
-                        color: AppColors.ink,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              DashBadge(text: delta, type: deltaType),
-            ],
-          ),
-          const SizedBox(height: 26),
-          SizedBox(
-            height: 220,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (int i = 0; i < bars.length; i++) ...[
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        Container(
-                          height: bars[i],
-                          decoration: BoxDecoration(
-                            color: barColor,
-                            borderRadius: BorderRadius.circular(14),
-                            boxShadow: [
-                              BoxShadow(
-                                color: barColor.withValues(alpha: 0.18),
-                                blurRadius: 12,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 18),
-                        Text(
-                          labels[i],
-                          style: const TextStyle(
-                            fontSize: 15,
-                            color: AppColors.ink3,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (i != bars.length - 1) const SizedBox(width: 18),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class PlanDistributionBar extends StatelessWidget {
   const PlanDistributionBar({super.key, required this.proportion});
@@ -825,27 +965,19 @@ class PlanDistributionBar extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     return Container(
       height: 32,
-      decoration: BoxDecoration(
-        color: AppColors.fieldBg,
-        borderRadius: BorderRadius.circular(18),
-      ),
+      decoration: BoxDecoration(color: AppColors.fieldBg, borderRadius: BorderRadius.circular(18)),
       child: Stack(
         children: [
           Container(
             width: size.width * (1 - proportion),
-            decoration: BoxDecoration(
-              color: AppColors.shimmerBase,
-              borderRadius: BorderRadius.circular(18),
-            ),
+            decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(18)),
           ),
           FractionallySizedBox(
             widthFactor: proportion.clamp(0.0, 1.0),
             alignment: Alignment.centerLeft,
             child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.goldGradStart, AppColors.goldGradEnd],
-                ),
+                gradient: const LinearGradient(colors: [AppColors.goldGradStart, AppColors.goldGradEnd]),
                 borderRadius: BorderRadius.circular(18),
               ),
             ),
@@ -855,6 +987,10 @@ class PlanDistributionBar extends StatelessWidget {
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAN ROW
+// ─────────────────────────────────────────────────────────────────────────────
 
 class PlanRow extends StatelessWidget {
   const PlanRow({
@@ -883,15 +1019,9 @@ class PlanRow extends StatelessWidget {
         Container(
           width: 54,
           height: 54,
-          decoration: BoxDecoration(
-            color: iconBackground,
-            borderRadius: BorderRadius.circular(16),
-          ),
+          decoration: BoxDecoration(color: iconBackground, borderRadius: BorderRadius.circular(16)),
           alignment: Alignment.center,
-          child: IconTheme(
-            data: IconThemeData(color: iconColor, size: 26),
-            child: icon,
-          ),
+          child: IconTheme(data: IconThemeData(color: iconColor, size: 26), child: icon),
         ),
         const SizedBox(width: 20),
         Expanded(
@@ -900,11 +1030,7 @@ class PlanRow extends StatelessWidget {
               children: [
                 TextSpan(
                   text: title,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.ink,
-                  ),
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: AppColors.ink),
                 ),
                 if (subtitle != null)
                   TextSpan(
@@ -920,21 +1046,13 @@ class PlanRow extends StatelessWidget {
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-              color: AppColors.ink,
-            ),
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.ink),
           ),
         ),
         const SizedBox(width: 22),
         SizedBox(
           width: 82,
-          child: Text(
-            percentage,
-            textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 20, color: AppColors.ink2),
-          ),
+          child: Text(percentage, textAlign: TextAlign.right, style: const TextStyle(fontSize: 20, color: AppColors.ink2)),
         ),
       ],
     );
@@ -942,986 +1060,23 @@ class PlanRow extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TENDENCIAS — GRÁFICA DE DESCARGAS INTERACTIVA (fl_chart)
+// COUNTRY ENTRY ROW
 // ─────────────────────────────────────────────────────────────────────────────
-
-enum _TrendRange { d7, d30, d90, ytd, all }
-
-extension _TrendRangeX on _TrendRange {
-  String get label => switch (this) {
-    _TrendRange.d7 => 'Últimos 7 días',
-    _TrendRange.d30 => 'Últimos 30 días',
-    _TrendRange.d90 => 'Últimos 90 días',
-    _TrendRange.ytd => 'Inicio de año',
-    _TrendRange.all => 'Todo',
-  };
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-class _BarPoint {
-  const _BarPoint(this.label, this.downloads);
-  final String label;
-  final int downloads;
-}
-
-List<_BarPoint> _aggregateDownloads(
-  List<AppStoreDailyPoint> series,
-  _TrendRange range,
-) {
-  const months = [
-    'Ene',
-    'Feb',
-    'Mar',
-    'Abr',
-    'May',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dic',
-  ];
-  final now = DateTime.now();
-
-  DateTime? since;
-  switch (range) {
-    case _TrendRange.d7:
-      since = now.subtract(const Duration(days: 7));
-    case _TrendRange.d30:
-      since = now.subtract(const Duration(days: 30));
-    case _TrendRange.d90:
-      since = now.subtract(const Duration(days: 90));
-    case _TrendRange.ytd:
-      since = DateTime(now.year);
-    case _TrendRange.all:
-      since = null;
-  }
-
-  final effectiveSince = since;
-  final filtered = series.where((p) {
-    if (effectiveSince == null) return true;
-    try {
-      return !DateTime.parse(p.date).isBefore(effectiveSince);
-    } catch (_) {
-      return false;
-    }
-  }).toList();
-
-  if (filtered.isEmpty) return [];
-
-  // d7: barras diarias individuales
-  if (range == _TrendRange.d7) {
-    return filtered.map((p) {
-      final d = DateTime.tryParse(p.date);
-      final label = d != null ? '${d.day} ${months[d.month - 1]}' : p.date;
-      return _BarPoint(label, p.downloads);
-    }).toList();
-  }
-
-  // Resto: agrupar por mes calendario
-  final monthMap = <String, int>{};
-  for (final p in filtered) {
-    final d = DateTime.tryParse(p.date);
-    if (d == null) continue;
-    final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
-    monthMap[key] = (monthMap[key] ?? 0) + p.downloads;
-  }
-  final keys = monthMap.keys.toList()..sort();
-  return keys.map((k) {
-    final m = int.tryParse(k.split('-')[1]);
-    return _BarPoint(m != null ? months[m - 1] : k, monthMap[k]!);
-  }).toList();
-}
-
-(String, bool)? _computeDelta(List<_BarPoint> points) {
-  if (points.length < 2) return null;
-  final half = points.length ~/ 2;
-  final first = points.sublist(0, half).fold(0, (s, p) => s + p.downloads);
-  final second = points.sublist(half).fold(0, (s, p) => s + p.downloads);
-  if (first == 0) return null;
-  final pct = ((second - first) / first * 100).round();
-  return (pct >= 0 ? '↑ $pct%' : '↓ ${pct.abs()}%', pct >= 0);
-}
-
-double _niceInterval(double maxVal, int steps) {
-  if (maxVal <= 0) return 10;
-  final raw = maxVal / steps;
-  final exp = (math.log(raw) / math.ln10).floor();
-  final power = math.pow(10, exp).toDouble();
-  for (final f in [1.0, 2.0, 5.0, 10.0]) {
-    if (f * power >= raw) return f * power;
-  }
-  return power * 10;
-}
-
-String _fmtNum(int n) {
-  if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-  if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
-  return '$n';
-}
-
-// ── Widget principal ──────────────────────────────────────────────────────────
-
-class _DownloadsTrendCard extends StatefulWidget {
-  const _DownloadsTrendCard({required this.appStore});
-  final AppStoreMetrics? appStore;
-
-  @override
-  State<_DownloadsTrendCard> createState() => _DownloadsTrendCardState();
-}
-
-class _DownloadsTrendCardState extends State<_DownloadsTrendCard> {
-  _TrendRange _range = _TrendRange.all;
-  int? _touchedIndex;
-  OverlayEntry? _overlay;
-  final _pickerKey = GlobalKey();
-
-  void _togglePicker() {
-    if (_overlay != null) {
-      _closeOverlay();
-      return;
-    }
-    final box = _pickerKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final pos = box.localToGlobal(Offset.zero);
-    final sz = box.size;
-
-    _overlay = OverlayEntry(
-      builder: (ctx) => Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: _closeOverlay,
-            ),
-          ),
-          Positioned(
-            left: pos.dx,
-            top: pos.dy + sz.height + 6,
-            child: _RangeMenu(
-              selected: _range,
-              onSelect: (r) {
-                setState(() {
-                  _range = r;
-                  _touchedIndex = null;
-                });
-                _closeOverlay();
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-    Overlay.of(context).insert(_overlay!);
-  }
-
-  void _closeOverlay() {
-    _overlay?.remove();
-    _overlay = null;
-  }
-
-  @override
-  void dispose() {
-    _closeOverlay();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final series = widget.appStore?.timeSeries ?? [];
-    final points = _aggregateDownloads(series, _range);
-    final total = points.fold(0, (s, p) => s + p.downloads);
-    final display = total > 0
-        ? _fmtNum(total)
-        : (widget.appStore?.downloadsStr ?? '—');
-    final delta = _computeDelta(points);
-
-    return Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Cabecera ─────────────────────────────────────────
-          Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: AppColors.pink,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Descargas',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.ink2,
-                  ),
-                ),
-              ),
-              GestureDetector(
-                key: _pickerKey,
-                onTap: _togglePicker,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.fieldBg,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.line2),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _range.label,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.ink,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 16,
-                        color: AppColors.ink3,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          // ── Valor + delta ────────────────────────────────────
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                display,
-                style: const TextStyle(
-                  fontSize: 38,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -1.6,
-                  height: 1,
-                  color: AppColors.ink,
-                ),
-              ),
-              if (delta != null) ...[
-                const SizedBox(width: 12),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: DashBadge(
-                    text: delta.$1,
-                    type: delta.$2 ? BadgeType.positive : BadgeType.negative,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 24),
-          // ── Gráfica ──────────────────────────────────────────
-          SizedBox(
-            height: 210,
-            child: points.isEmpty
-                ? const EmptyTablesComponent(title: 'Sin datos disponibles aún')
-                : _buildChart(points),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChart(List<_BarPoint> points) {
-    final maxVal = points.map((p) => p.downloads).fold(0, math.max).toDouble();
-    final interval = _niceInterval(maxVal, 4);
-    final chartMax = interval * 5;
-    final barW = points.length <= 7
-        ? 28.0
-        : points.length <= 12
-        ? 18.0
-        : 12.0;
-
-    return BarChart(
-      BarChartData(
-        maxY: chartMax,
-        barGroups: [
-          for (int i = 0; i < points.length; i++)
-            BarChartGroupData(
-              x: i,
-              barRods: [
-                BarChartRodData(
-                  toY: points[i].downloads.toDouble(),
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: _touchedIndex == i
-                        ? [AppColors.pinkDark, AppColors.pink]
-                        : [AppColors.pink, AppColors.pinkLight],
-                  ),
-                  width: barW,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(8),
-                  ),
-                ),
-              ],
-            ),
-        ],
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval: interval,
-          getDrawingHorizontalLine: (_) =>
-              FlLine(color: AppColors.line, strokeWidth: 1),
-        ),
-        borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 46,
-              interval: interval,
-              getTitlesWidget: (value, meta) {
-                if (value == meta.max) return const SizedBox.shrink();
-                return SideTitleWidget(
-                  meta: meta,
-                  child: Text(
-                    _fmtNum(value.toInt()),
-                    style: const TextStyle(fontSize: 11, color: AppColors.ink3),
-                  ),
-                );
-              },
-            ),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              getTitlesWidget: (value, meta) {
-                final i = value.toInt();
-                if (i < 0 || i >= points.length) return const SizedBox.shrink();
-                final step = points.length > 12
-                    ? 3
-                    : points.length > 7
-                    ? 2
-                    : 1;
-                if (i % step != 0) return const SizedBox.shrink();
-                return SideTitleWidget(
-                  meta: meta,
-                  child: Text(
-                    points[i].label,
-                    style: const TextStyle(fontSize: 11, color: AppColors.ink3),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        barTouchData: BarTouchData(
-          handleBuiltInTouches: true,
-          touchCallback: (event, response) {
-            setState(() {
-              _touchedIndex = response?.spot?.touchedBarGroupIndex;
-            });
-          },
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => AppColors.ink,
-            tooltipBorderRadius: BorderRadius.circular(10),
-            tooltipPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
-            getTooltipItem: (group, _, rod, _) => BarTooltipItem(
-              '${points[group.x].label}\n',
-              const TextStyle(
-                color: AppColors.white,
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
-              ),
-              children: [
-                TextSpan(
-                  text: _fmtNum(rod.toY.toInt()),
-                  style: const TextStyle(
-                    color: AppColors.pinkLight,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// GRÁFICA DE REVENUE INTERACTIVA (fl_chart)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _RevenueBarPoint {
-  const _RevenueBarPoint(this.label, this.revenue);
-  final String label;
-  final double revenue;
-}
-
-DateRange _trendRangeToDateRange(_TrendRange r) => switch (r) {
-  _TrendRange.d7 => DateRange.d7,
-  _TrendRange.d30 => DateRange.d30,
-  _TrendRange.d90 => DateRange.d90,
-  _TrendRange.ytd => DateRange.all,
-  _TrendRange.all => DateRange.all,
-};
-
-List<_RevenueBarPoint> _aggregateRevenue(List<RevenueCatDailyPoint> series) {
-  const months = [
-    'Ene',
-    'Feb',
-    'Mar',
-    'Abr',
-    'May',
-    'Jun',
-    'Jul',
-    'Ago',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dic',
-  ];
-  if (series.isEmpty) return [];
-
-  final monthMap = <String, double>{};
-  for (final p in series) {
-    final d = DateTime.tryParse(p.date);
-    if (d == null) continue;
-    final key = '${d.year}-${d.month.toString().padLeft(2, '0')}';
-    monthMap[key] = (monthMap[key] ?? 0) + p.revenue;
-  }
-  final keys = monthMap.keys.toList()..sort();
-  return keys.map((k) {
-    final m = int.tryParse(k.split('-')[1]);
-    return _RevenueBarPoint(m != null ? months[m - 1] : k, monthMap[k]!);
-  }).toList();
-}
-
-(String, bool)? _computeRevenueDelta(List<_RevenueBarPoint> points) {
-  if (points.length < 2) return null;
-  final half = points.length ~/ 2;
-  final first = points.sublist(0, half).fold(0.0, (s, p) => s + p.revenue);
-  final second = points.sublist(half).fold(0.0, (s, p) => s + p.revenue);
-  if (first == 0) return null;
-  final pct = ((second - first) / first * 100).round();
-  return (pct >= 0 ? '↑ $pct%' : '↓ ${pct.abs()}%', pct >= 0);
-}
-
-String _fmtRevenue(double v) {
-  if (v >= 1000000) return '\$${(v / 1000000).toStringAsFixed(1)}M';
-  if (v >= 1000) return '\$${(v / 1000).toStringAsFixed(1)}K';
-  return '\$${v.toStringAsFixed(0)}';
-}
-
-class _RevenueTrendCard extends StatefulWidget {
-  const _RevenueTrendCard({required this.revenueCat});
-  final RevenueCatMetrics? revenueCat;
-
-  @override
-  State<_RevenueTrendCard> createState() => _RevenueTrendCardState();
-}
-
-class _RevenueTrendCardState extends State<_RevenueTrendCard> {
-  static const _ranges = [
-    _TrendRange.d7,
-    _TrendRange.d30,
-    _TrendRange.d90,
-    _TrendRange.all,
-  ];
-
-  _TrendRange _range = _TrendRange.all;
-  int? _touchedIndex;
-  OverlayEntry? _overlay;
-  final _pickerKey = GlobalKey();
-
-  void _togglePicker() {
-    if (_overlay != null) {
-      _closeOverlay();
-      return;
-    }
-    final box = _pickerKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final pos = box.localToGlobal(Offset.zero);
-    final sz = box.size;
-
-    _overlay = OverlayEntry(
-      builder: (_) => Stack(
-        children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: _closeOverlay,
-            ),
-          ),
-          Positioned(
-            left: pos.dx,
-            top: pos.dy + sz.height + 6,
-            child: _RevenueRangeMenu(
-              ranges: _ranges,
-              selected: _range,
-              onSelect: (r) {
-                setState(() {
-                  _range = r;
-                  _touchedIndex = null;
-                });
-                _closeOverlay();
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-    Overlay.of(context).insert(_overlay!);
-  }
-
-  void _closeOverlay() {
-    _overlay?.remove();
-    _overlay = null;
-  }
-
-  @override
-  void dispose() {
-    _closeOverlay();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final rc = widget.revenueCat;
-    final dateRange = _trendRangeToDateRange(_range);
-    final rangeData = rc?.range(dateRange);
-    final series = rangeData?.timeSeries ?? [];
-    // Si timeSeries está vacía pero hay revenue total, crear un punto sintético
-    final effectiveSeries = series.isNotEmpty
-        ? series
-        : (rangeData != null && rangeData.revenue > 0
-            ? [RevenueCatDailyPoint(date: DateTime.now().toIso8601String().substring(0, 10), revenue: rangeData.revenue)]
-            : <RevenueCatDailyPoint>[]);
-    final points = _aggregateRevenue(effectiveSeries);
-    final total = points.fold(0.0, (s, p) => s + p.revenue);
-    final display = total > 0
-        ? _fmtRevenue(total)
-        : (rangeData?.revenueLabel ?? '—');
-    final delta = _computeRevenueDelta(points);
-
-    return Panel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: AppColors.chartGreen,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Revenue',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.ink2,
-                  ),
-                ),
-              ),
-              GestureDetector(
-                key: _pickerKey,
-                onTap: _togglePicker,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.fieldBg,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.line2),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _range.label,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.ink,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        size: 16,
-                        color: AppColors.ink3,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                display,
-                style: const TextStyle(
-                  fontSize: 38,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -1.6,
-                  height: 1,
-                  color: AppColors.ink,
-                ),
-              ),
-              if (delta != null) ...[
-                const SizedBox(width: 12),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 3),
-                  child: DashBadge(
-                    text: delta.$1,
-                    type: delta.$2 ? BadgeType.positive : BadgeType.negative,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 210,
-            child: points.isEmpty
-                ? const EmptyTablesComponent(title: 'Sin datos disponibles aún')
-                : _buildRevenueChart(points),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRevenueChart(List<_RevenueBarPoint> points) {
-    final maxVal = points
-        .map((p) => p.revenue)
-        .fold(0.0, (a, b) => a > b ? a : b);
-    final interval = _niceInterval(maxVal, 4);
-    final chartMax = interval * 5;
-    final barW = points.length <= 7
-        ? 28.0
-        : points.length <= 12
-        ? 18.0
-        : 12.0;
-
-    return BarChart(
-      BarChartData(
-        maxY: chartMax,
-        barGroups: [
-          for (int i = 0; i < points.length; i++)
-            BarChartGroupData(
-              x: i,
-              barRods: [
-                BarChartRodData(
-                  toY: points[i].revenue,
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: _touchedIndex == i
-                        ? [AppColors.success, AppColors.chartGreen]
-                        : [AppColors.chartGreen, AppColors.liveGreen],
-                  ),
-                  width: barW,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(8),
-                  ),
-                ),
-              ],
-            ),
-        ],
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval: interval,
-          getDrawingHorizontalLine: (_) =>
-              FlLine(color: AppColors.line, strokeWidth: 1),
-        ),
-        borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 52,
-              interval: interval,
-              getTitlesWidget: (value, meta) {
-                if (value == meta.max) return const SizedBox.shrink();
-                return SideTitleWidget(
-                  meta: meta,
-                  child: Text(
-                    _fmtRevenue(value),
-                    style: const TextStyle(fontSize: 11, color: AppColors.ink3),
-                  ),
-                );
-              },
-            ),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              getTitlesWidget: (value, meta) {
-                final i = value.toInt();
-                if (i < 0 || i >= points.length) {
-                  return const SizedBox.shrink();
-                }
-                final step = points.length > 12
-                    ? 3
-                    : points.length > 7
-                    ? 2
-                    : 1;
-                if (i % step != 0) return const SizedBox.shrink();
-                return SideTitleWidget(
-                  meta: meta,
-                  child: Text(
-                    points[i].label,
-                    style: const TextStyle(fontSize: 11, color: AppColors.ink3),
-                  ),
-                );
-              },
-            ),
-          ),
-        ),
-        barTouchData: BarTouchData(
-          handleBuiltInTouches: true,
-          touchCallback: (event, response) {
-            setState(() {
-              _touchedIndex = response?.spot?.touchedBarGroupIndex;
-            });
-          },
-          touchTooltipData: BarTouchTooltipData(
-            getTooltipColor: (_) => AppColors.ink,
-            tooltipBorderRadius: BorderRadius.circular(10),
-            tooltipPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 8,
-            ),
-            getTooltipItem: (group, _, rod, _) => BarTooltipItem(
-              '${points[group.x].label}\n',
-              const TextStyle(
-                color: AppColors.white,
-                fontWeight: FontWeight.w500,
-                fontSize: 12,
-              ),
-              children: [
-                TextSpan(
-                  text: _fmtRevenue(rod.toY),
-                  style: const TextStyle(
-                    color: AppColors.liveGreen,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RevenueRangeMenu extends StatelessWidget {
-  const _RevenueRangeMenu({
-    required this.ranges,
-    required this.selected,
-    required this.onSelect,
-  });
-  final List<_TrendRange> ranges;
-  final _TrendRange selected;
-  final void Function(_TrendRange) onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 12,
-      borderRadius: BorderRadius.circular(14),
-      color: AppColors.white,
-      child: Container(
-        width: 220,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.line2),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: ranges
-              .map(
-                (r) => InkWell(
-                  onTap: () => onSelect(r),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 11,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            r.label,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: r == selected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                              color: r == selected
-                                  ? AppColors.chartGreen
-                                  : AppColors.ink,
-                            ),
-                          ),
-                        ),
-                        if (r == selected)
-                          const Icon(
-                            Icons.check_rounded,
-                            size: 16,
-                            color: AppColors.chartGreen,
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Menú de rangos (descargas) ────────────────────────────────────────────────
-
-class _RangeMenu extends StatelessWidget {
-  const _RangeMenu({required this.selected, required this.onSelect});
-  final _TrendRange selected;
-  final void Function(_TrendRange) onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      elevation: 12,
-      borderRadius: BorderRadius.circular(14),
-      color: AppColors.white,
-      child: Container(
-        width: 220,
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.line2),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: _TrendRange.values
-              .map(
-                (r) => InkWell(
-                  onTap: () => onSelect(r),
-                  borderRadius: BorderRadius.circular(10),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 11,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            r.label,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: r == selected
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                              color: r == selected
-                                  ? AppColors.pink
-                                  : AppColors.ink,
-                            ),
-                          ),
-                        ),
-                        if (r == selected)
-                          const Icon(
-                            Icons.check_rounded,
-                            size: 16,
-                            color: AppColors.pink,
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Widgets de distribución por país ─────────────────────────────────────────
 
 class _CountryEntryRow extends StatelessWidget {
   const _CountryEntryRow({required this.entry});
-
   final CountryEntry entry;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        SizedBox(
-          width: 46,
-          child: Text(
-            entry.flag,
-            style: const TextStyle(fontSize: 26, height: 1),
-          ),
-        ),
+        SizedBox(width: 46, child: Text(entry.flag, style: const TextStyle(fontSize: 26, height: 1))),
         const SizedBox(width: 18),
         Expanded(
           child: Text(
             entry.name,
-            style: const TextStyle(
-              fontSize: 22,
-              height: 1.15,
-              fontWeight: FontWeight.w500,
-              color: AppColors.ink,
-            ),
+            style: const TextStyle(fontSize: 22, height: 1.15, fontWeight: FontWeight.w500, color: AppColors.ink),
           ),
         ),
         const SizedBox(width: 18),
@@ -1943,21 +1098,13 @@ class _CountryEntryRow extends StatelessWidget {
           child: Text(
             '${entry.count}',
             textAlign: TextAlign.right,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w700,
-              color: AppColors.ink,
-            ),
+            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.ink),
           ),
         ),
         const SizedBox(width: 18),
         SizedBox(
           width: 56,
-          child: Text(
-            entry.percent,
-            textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 17, color: AppColors.ink2),
-          ),
+          child: Text(entry.percent, textAlign: TextAlign.right, style: const TextStyle(fontSize: 17, color: AppColors.ink2)),
         ),
       ],
     );
@@ -1976,42 +1123,13 @@ class _CountryShimmer extends StatelessWidget {
           padding: EdgeInsets.only(bottom: i < 3 ? 18 : 0),
           child: Row(
             children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.shimmerBase,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
+              Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(8))),
               const SizedBox(width: 10),
-              Expanded(
-                child: Container(
-                  height: 18,
-                  decoration: BoxDecoration(
-                    color: AppColors.shimmerBase,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-              ),
+              Expanded(child: Container(height: 18, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6)))),
               const SizedBox(width: 18),
-              Container(
-                width: 200,
-                height: 14,
-                decoration: BoxDecoration(
-                  color: AppColors.shimmerBase,
-                  borderRadius: BorderRadius.circular(999),
-                ),
-              ),
+              Container(width: 200, height: 14, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(999))),
               const SizedBox(width: 18),
-              Container(
-                width: 42,
-                height: 18,
-                decoration: BoxDecoration(
-                  color: AppColors.shimmerBase,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-              ),
+              Container(width: 42, height: 18, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6))),
             ],
           ),
         ),

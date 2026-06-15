@@ -132,7 +132,6 @@ class DashboardShellState extends State<DashboardShell> {
                             subtitle: currentPageMeta.subtitle,
                           ),
                           if (selectedPage != DashPage.notifications &&
-                              selectedPage != DashPage.overview &&
                               selectedPage != DashPage.features &&
                               selectedPage != DashPage.retention)
                             DateToolbar(
@@ -185,7 +184,7 @@ class DashboardShellState extends State<DashboardShell> {
   }) {
     switch (page) {
       case DashPage.overview:
-        return OverviewPage(range: DateRange.all, isCompact: isCompact);
+        return OverviewPage(range: range, isCompact: isCompact);
       case DashPage.notifications:
         return NotificationsPage(
           titleController: _titleController,
