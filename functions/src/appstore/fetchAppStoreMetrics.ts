@@ -75,9 +75,12 @@ async function fetchMonthlyDownloads(token: string, reportDate: string): Promise
 }
 
 async function fetchTotalDownloads(token: string): Promise<number> {
-  const months = Array.from({ length: 12 }, (_, i) => monthStr(-(i + 1)));
+  // Suma los 12 meses: mes actual (i=0) + 11 meses anteriores
+  const months = Array.from({ length: 12 }, (_, i) => monthStr(-i));
   const results = await Promise.allSettled(months.map(m => fetchMonthlyDownloads(token, m)));
-  return results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0);
+  const total = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? r.value : 0), 0);
+  console.log(`📦 Descargas (Sales Reports, 12 meses): ${total}`);
+  return total;
 }
 
 // ── Parser de TSV con detección de columnas por nombre ───────────────────────
@@ -106,9 +109,9 @@ async function parseTsv(
   const col = (kw: string) => headers.findIndex(h => h.includes(kw));
 
   const impIdx = col('impression');
-  const pvIdx  = col('page view') >= 0 ? col('page view') : col('pageview');
-  const rdIdx  = col('redownload');
-  const auIdx  = col('app unit') >= 0 ? col('app unit') : col('appunit');
+  const pvIdx = col('page view') >= 0 ? col('page view') : col('pageview');
+  const rdIdx = col('redownload');
+  const auIdx = col('app unit') >= 0 ? col('app unit') : col('appunit');
 
   console.log(`Column indices → imp:${impIdx} pv:${pvIdx} rd:${rdIdx} au:${auIdx}`);
 
@@ -118,9 +121,9 @@ async function parseTsv(
     const c = line.split('\t');
     const n = (idx: number) => (idx >= 0 ? parseFloat(c[idx] ?? '0') || 0 : 0);
     impressions += n(impIdx);
-    pageViews   += n(pvIdx);
+    pageViews += n(pvIdx);
     redownloads += n(rdIdx);
-    appUnits    += n(auIdx);
+    appUnits += n(auIdx);
   }
 
   return { impressions, pageViews, redownloads, appUnits };
@@ -138,16 +141,32 @@ type DailyPoint = {
 // ── Analytics desde Analytics Reports API (ONGOING — reutiliza requestId) ────
 // analyticsRequestId se guarda en el mismo documento dashboard_metrics/appstore
 
-async function getOrCreateOngoingRequestId(token: string): Promise<string | null> {
-  const docRef = appstoreDocPath();
-  const snap = await docRef.get();
-  const saved = snap.data()?.analyticsRequestId as string | undefined;
+async function getOrCreateOngoingRequest(token: string): Promise<string | null> {
+  // 1. Listar requests existentes a través del endpoint del app (forma correcta en Apple API)
+  const listRes = await appleGet(
+    `https://api.appstoreconnect.apple.com/v1/apps/${APP_ID}/analyticsReportRequests` +
+    `?limit=10`,
+    token
+  );
 
-  if (saved) {
-    console.log(`Reusando analyticsRequestId: ${saved}`);
-    return saved;
+  if (listRes.ok) {
+    const { data } = await listRes.json() as {
+      data: Array<{ id: string; attributes: { accessType: string } }>;
+    };
+    const existing = data.find(r => r.attributes.accessType === 'ONGOING');
+    if (existing) {
+      console.log(`Recuperado ONGOING request existente de Apple: ${existing.id}`);
+      await appstoreDocPath().set(
+        { analyticsRequestId: existing.id, analytics_error: admin.firestore.FieldValue.delete() },
+        { merge: true }
+      );
+      return existing.id;
+    }
+  } else {
+    console.warn(`List requests ${listRes.status}: ${await listRes.text()}`);
   }
 
+  // 2. No existe ninguno → crear uno nuevo
   console.log('Creando nuevo ONGOING analytics request...');
   const createRes = await fetch(
     'https://api.appstoreconnect.apple.com/v1/analyticsReportRequests',
@@ -165,70 +184,128 @@ async function getOrCreateOngoingRequestId(token: string): Promise<string | null
   );
 
   if (!createRes.ok) {
-    const body = await createRes.text();
-    console.warn(`Analytics create ${createRes.status}: ${body}`);
+    const errBody = await createRes.text();
+    console.warn(`Analytics create ${createRes.status}: ${errBody}`);
+    await appstoreDocPath().set(
+      { analytics_error: `HTTP ${createRes.status}: ${errBody}`, analytics_error_at: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
     return null;
   }
 
   const { data: { id } } = await createRes.json() as { data: { id: string } };
   console.log(`Nuevo requestId creado: ${id}`);
-  // Guardamos el ID en el mismo documento del appstore (merge para no sobreescribir métricas)
-  await docRef.set({ analyticsRequestId: id }, { merge: true });
+  await appstoreDocPath().set(
+    { analyticsRequestId: id, analytics_error: admin.firestore.FieldValue.delete() },
+    { merge: true }
+  );
   return id;
+}
+
+async function getReportInstanceCount(reportId: string, token: string): Promise<number> {
+  const res = await appleGet(
+    `https://api.appstoreconnect.apple.com/v1/analyticsReports/${reportId}/instances` +
+    `?filter[granularity]=DAILY&limit=1`,
+    token
+  );
+  if (!res.ok) return 0;
+  const body = await res.json() as { data: unknown[] };
+  return body.data?.length ?? 0;
+}
+
+async function findAcquisitionReportId(requestId: string, token: string): Promise<string | null> {
+  const rRes = await appleGet(
+    `https://api.appstoreconnect.apple.com/v1/analyticsReportRequests/${requestId}/reports?limit=50`,
+    token
+  );
+
+  if (!rRes.ok) {
+    console.warn(`Reports list → ${rRes.status}: ${await rRes.text()}`);
+    return null;
+  }
+
+  const body = await rRes.json() as {
+    data: Array<{ id: string; attributes: Record<string, unknown> }>;
+  };
+
+  if (!body.data || body.data.length === 0) {
+    console.log(`Sin reportes para request ${requestId}`);
+    return null;
+  }
+
+  // Loguear cada reporte en línea propia para no truncar
+  for (const r of body.data) {
+    const name = String(r.attributes['name'] ?? r.attributes['reportType'] ?? '?');
+    const cat  = String(r.attributes['category'] ?? '?');
+    console.log(`REPORT id=${r.id} name="${name}" category="${cat}"`);
+  }
+
+  // 1. Buscar por nombre o categoría que contenga "acquisition"
+  const byName = body.data.find(r => {
+    const name = String(r.attributes['name'] ?? r.attributes['reportType'] ?? '').toLowerCase();
+    const cat  = String(r.attributes['category'] ?? '').toLowerCase();
+    return name.includes('acquisition') || cat.includes('acquisition');
+  });
+
+  if (byName) {
+    console.log(`✅ Adquisición por nombre/categoría: ${byName.id}`);
+    return byName.id;
+  }
+
+  // 2. Fallback: primer reporte que tenga instancias DAILY disponibles
+  console.log('Sin match por nombre — buscando reporte con instancias DAILY...');
+  for (const r of body.data) {
+    const count = await getReportInstanceCount(r.id, token);
+    const name  = String(r.attributes['name'] ?? r.id);
+    console.log(`  "${name}" → ${count} instancias`);
+    if (count > 0) {
+      console.log(`✅ Usando reporte con instancias: "${name}" (${r.id})`);
+      return r.id;
+    }
+  }
+
+  console.warn('Ningún reporte tiene instancias DAILY disponibles.');
+  return null;
 }
 
 async function fetchAnalytics(
   token: string
 ): Promise<{ impressions: number; redownloads: number; conversion: number; timeSeries: DailyPoint[] }> {
-  const requestId = await getOrCreateOngoingRequestId(token);
-  if (!requestId) return { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
+  const empty = { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
+  const docRef = appstoreDocPath();
+  const snap = await docRef.get();
+  const savedId = snap.data()?.analyticsRequestId as string | undefined;
 
-  // APP_STORE_ACQUISITION: impresiones, descargas, page views, redownloads
-  const reportTypes = ['APP_STORE_ACQUISITION', 'APP_STORE_ENGAGEMENT'];
   let reportId: string | null = null;
 
-  // Espera hasta 120 s. Para ONGOING los reportes deben estar listos de inmediato.
-  for (let attempt = 0; attempt < 12 && !reportId; attempt++) {
-    if (attempt > 0) await new Promise(r => setTimeout(r, 10000));
+  if (savedId) {
+    // ── Caso A: tenemos un ID guardado — consultar sin esperar demasiado ──
+    console.log(`Reusando analyticsRequestId: ${savedId}`);
+    reportId = await findAcquisitionReportId(savedId, token);
 
-    for (const reportType of reportTypes) {
-      const rRes = await appleGet(
-        `https://api.appstoreconnect.apple.com/v1/analyticsReportRequests/${requestId}/reports` +
-        `?filter[reportType]=${reportType}`,
-        token
-      );
-      if (!rRes.ok) {
-        console.warn(`Reports list ${reportType} → ${rRes.status}: ${await rRes.text()}`);
-        continue;
-      }
-      const { data } = await rRes.json() as {
-        data: Array<{ id: string; attributes: { processingState: string; reportType: string } }>;
-      };
+    if (!reportId) {
+      console.warn(`ID ${savedId} sin reportes. Verificando en Apple...`);
+      await docRef.update({ analyticsRequestId: admin.firestore.FieldValue.delete() });
 
-      if (data.length === 0) {
-        console.log(`Attempt ${attempt + 1} [${reportType}]: sin reportes aún`);
-        continue;
-      }
+      const newId = await getOrCreateOngoingRequest(token);
+      if (!newId) return empty;
 
-      const states = data.map(r => `${r.attributes.reportType}:${r.attributes.processingState}`).join(', ');
-      console.log(`Attempt ${attempt + 1} [${reportType}]: ${data.length} reportes → ${states}`);
-
-      // Apple usa 'READY' para reportes disponibles en modo ONGOING
-      const ready = data.find(
-        r => r.attributes.processingState === 'READY' ||
-             r.attributes.processingState === 'COMPLETE'
-      );
-      if (ready) {
-        reportId = ready.id;
-        console.log(`Report disponible: ${reportId} (${ready.attributes.reportType} / ${ready.attributes.processingState})`);
-        break;
+      reportId = await findAcquisitionReportId(newId, token);
+      if (!reportId) {
+        console.warn('Reportes aún no disponibles. Se reintentan en el próximo ciclo.');
+        return empty;
       }
     }
-  }
+  } else {
+    // ── Caso B: sin ID guardado — recuperar de Apple o crear nuevo ─────────
+    const newId = await getOrCreateOngoingRequest(token);
+    if (!newId) return empty;
 
-  if (!reportId) {
-    console.warn('No hay reportes disponibles. Si es el primer run, Apple puede tardar hasta 24h en generar el primer reporte ONGOING.');
-    return { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
+    reportId = await findAcquisitionReportId(newId, token);
+    if (!reportId) {
+      console.warn('Request listo. Reportes disponibles en ~24h.');
+      return empty;
+    }
   }
 
   // Obtener instancias DAILY (paginadas, máx 200)
@@ -278,10 +355,10 @@ async function fetchAnalytics(
     for (const r of results) {
       if (r.status === 'fulfilled' && r.value) {
         const { date, impressions: imp, pageViews: pv, redownloads: rd, appUnits: au } = r.value;
-        impressions  += imp;
-        pageViews    += pv;
-        redownloads  += rd;
-        appUnits     += au;
+        impressions += imp;
+        pageViews += pv;
+        redownloads += rd;
+        appUnits += au;
         if (date) {
           timeSeries.push({ date, downloads: au, impressions: imp, redownloads: rd });
         }

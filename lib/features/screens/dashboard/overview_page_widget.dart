@@ -364,7 +364,8 @@ class _OverviewContent extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 14),
-        if (as != null && as.status == 'partial')
+        // 'partial' solo muestra shimmer si aún no hay ningún dato base
+        if (as == null)
           const _AppStoreCardsShimmer()
         else
           ResponsiveGrid(
@@ -372,37 +373,33 @@ class _OverviewContent extends StatelessWidget {
             children: [
               MetricCard(
                 label: 'Impresiones',
-                value: as?.impressionsStr ?? '—',
+                value: as.impressionsStr,
               ),
               MetricCard(
                 label: 'Descargas',
-                value: as?.downloadsStr ?? '—',
-                helperText: as != null && as.periodLabel.isNotEmpty
-                    ? as.periodLabel
-                    : null,
+                value: as.downloadsStr,
+                helperText: as.periodLabel.isNotEmpty ? as.periodLabel : null,
               ),
               MetricCard(
                 label: 'Descargas repetidas',
-                value: as?.redownloadsStr ?? '—',
-                helperText: as != null && as.periodLabel.isNotEmpty
-                    ? as.periodLabel
-                    : null,
+                value: as.redownloadsStr,
+                helperText: as.periodLabel.isNotEmpty ? as.periodLabel : null,
               ),
               MetricCard(
                 label: 'Tasa de conversión',
-                value: as?.conversionStr ?? '—',
+                value: as.conversionStr,
               ),
               MetricCard(
                 label: 'Rating',
-                value: as?.ratingStr ?? '—',
-                valueSuffix: as?.rating != null && as!.rating > 0
+                value: as.ratingStr,
+                valueSuffix: as.rating > 0
                     ? const Icon(
                         Icons.star_rounded,
                         color: AppColors.starAmber,
                         size: 26,
                       )
                     : null,
-                badgeText: as != null && as.totalReviews > 0
+                badgeText: as.totalReviews > 0
                     ? '${as.totalReviews} reseñas'
                     : 'Sin reseñas aún',
                 badgeType: BadgeType.neutral,
