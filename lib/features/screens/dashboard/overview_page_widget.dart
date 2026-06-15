@@ -8,6 +8,8 @@ import 'package:dashboard_analitycs/core/services/appstore_metrics_service.dart'
 import 'package:dashboard_analitycs/core/services/country_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/funnel_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/retention_metrics_service.dart';
+import 'package:dashboard_analitycs/core/models/playstore_metrics_model.dart';
+import 'package:dashboard_analitycs/core/services/playstore_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/user_metrics_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
@@ -152,13 +154,19 @@ class OverviewPage extends StatelessWidget {
                 return StreamBuilder<RetentionMetrics?>(
                   stream: RetentionMetricsService.stream(),
                   builder: (context, retSnap) {
-                    return _OverviewContent(
-                      range: range,
-                      isCompact: isCompact,
-                      appStore: snap.data,
-                      revenueCat: revenueSnap.data,
-                      funnel: funnelSnap.data,
-                      retention: retSnap.data,
+                    return StreamBuilder<PlayStoreMetrics?>(
+                      stream: PlayStoreMetricsService.stream(),
+                      builder: (context, playSnap) {
+                        return _OverviewContent(
+                          range: range,
+                          isCompact: isCompact,
+                          appStore: snap.data,
+                          revenueCat: revenueSnap.data,
+                          funnel: funnelSnap.data,
+                          retention: retSnap.data,
+                          playStore: playSnap.data,
+                        );
+                      },
                     );
                   },
                 );
@@ -183,6 +191,7 @@ class _OverviewContent extends StatefulWidget {
     required this.revenueCat,
     required this.funnel,
     required this.retention,
+    required this.playStore,
   });
 
   final DateRange range;
@@ -191,6 +200,7 @@ class _OverviewContent extends StatefulWidget {
   final RevenueCatMetrics? revenueCat;
   final FunnelMetrics? funnel;
   final RetentionMetrics? retention;
+  final PlayStoreMetrics? playStore;
 
   @override
   State<_OverviewContent> createState() => _OverviewContentState();
@@ -208,6 +218,37 @@ class _OverviewContentState extends State<_OverviewContent> {
     final pt = curve.where((p) => p.day <= day).lastOrNull;
     if (pt == null) return '—';
     return '${(pt.rate * 100).toStringAsFixed(0)}%';
+  }
+
+  Widget _buildAndroidStoreCards() {
+    final ps = widget.playStore;
+    if (ps == null) return const _AppStoreCardsShimmer();
+    return ResponsiveGrid(
+      minTileWidth: 250,
+      children: [
+        MetricCard(
+          label: 'Impresiones',
+          value: ps.storeVisitorsStr,
+          helperText: 'visitas a la ficha en Play Store',
+        ),
+        MetricCard(
+          label: 'Instalaciones estimadas',
+          value: ps.estimatedInstallsStr,
+          helperText: ps.conversionRate > 0
+              ? 'conversión ${ps.conversionStr}'
+              : 'visitas × tasa de conversión',
+        ),
+        MetricCard(
+          label: 'Rating',
+          value: ps.ratingStr,
+          valueSuffix: ps.rating > 0
+              ? const Icon(Icons.star_rounded, color: AppColors.starAmber, size: 26)
+              : null,
+          badgeText: ps.totalReviews > 0 ? '${ps.totalReviews} reseñas' : 'Sin reseñas aún',
+          badgeType: BadgeType.neutral,
+        ),
+      ],
+    );
   }
 
   @override
@@ -296,20 +337,25 @@ class _OverviewContentState extends State<_OverviewContent> {
             Expanded(
               child: SectionHeader(
                 label: 'TIENDA Y DESCARGAS',
-                source: as == null
-                    ? 'App Store'
-                    : _platform == 'ios'
-                        ? 'iOS · ${as.periodLabel}'
-                        : _platform == 'android'
-                            ? 'Android'
-                            : 'App Store · ${as.periodLabel}',
+                source: _platform == 'android'
+                    ? (widget.playStore != null
+                        ? 'Play Store · ${widget.playStore!.updatedAtLabel}'
+                        : 'Play Store')
+                    : (as != null
+                        ? 'App Store · ${as.periodLabel}'
+                        : 'App Store'),
               ),
             ),
-            const _AppStoreRefreshButton(),
+            if (_platform == 'android')
+              const _PlayStoreRefreshButton()
+            else
+              const _AppStoreRefreshButton(),
           ],
         ),
         const SizedBox(height: 14),
-        if (as == null)
+        if (_platform == 'android')
+          _buildAndroidStoreCards()
+        else if (as == null)
           const _AppStoreCardsShimmer()
         else
           ResponsiveGrid(
@@ -317,23 +363,21 @@ class _OverviewContentState extends State<_OverviewContent> {
             children: [
               MetricCard(
                 label: 'Impresiones',
-                value: _platform == 'android' ? '—' : as.impressionsStr,
-                helperText: 'actualizado hoy',
+                value: as.impressionsStr,
+                helperText: 'visitas a la ficha en App Store',
               ),
               MetricCard(
                 label: 'Descargas únicas',
-                value: _platform == 'android' ? '0' : uniqueDownloadsStr,
+                value: uniqueDownloadsStr,
                 helperText: 'descargas totales − repetidas',
               ),
               MetricCard(
                 label: 'Rating',
-                value: _platform == 'android' ? '—' : as.ratingStr,
-                valueSuffix: (_platform != 'android' && as.rating > 0)
+                value: as.ratingStr,
+                valueSuffix: as.rating > 0
                     ? const Icon(Icons.star_rounded, color: AppColors.starAmber, size: 26)
                     : null,
-                badgeText: _platform == 'android'
-                    ? 'app aún no publicada'
-                    : (as.totalReviews > 0 ? '${as.totalReviews} reseñas' : 'Sin reseñas aún'),
+                badgeText: as.totalReviews > 0 ? '${as.totalReviews} reseñas' : 'Sin reseñas aún',
                 badgeType: BadgeType.neutral,
               ),
             ],
@@ -946,6 +990,65 @@ class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
                   child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.success),
                 )
               : const Icon(FluentIcons.arrow_sync_20_regular, size: 18, color: AppColors.success),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REFRESH BUTTON — Play Store
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PlayStoreRefreshButton extends StatefulWidget {
+  const _PlayStoreRefreshButton();
+
+  @override
+  State<_PlayStoreRefreshButton> createState() => _PlayStoreRefreshButtonState();
+}
+
+class _PlayStoreRefreshButtonState extends State<_PlayStoreRefreshButton> {
+  bool _loading = false;
+
+  Future<void> _refresh() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      await PlayStoreMetricsService.requestRefresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Actualización de Play Store en curso (~60s)'),
+          backgroundColor: AppColors.ink,
+          duration: Duration(seconds: 4),
+        ));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error al solicitar actualización de Play Store'),
+          backgroundColor: AppColors.danger,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Actualizar métricas Play Store',
+      child: InkWell(
+        onTap: _refresh,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: _loading
+              ? const SizedBox(
+                  width: 18, height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.chartGreen),
+                )
+              : const Icon(FluentIcons.arrow_sync_20_regular, size: 18, color: AppColors.chartGreen),
         ),
       ),
     );

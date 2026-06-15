@@ -8,9 +8,11 @@ admin.initializeApp();
 
 setGlobalOptions({ region: 'us-central1' });
 
-const applePrivateKey = defineSecret('APPLE_PRIVATE_KEY');
-const revenueCatApiKey = defineSecret('REVENUECAT_SECRET_API_KEY');
-const revenueCatProjectId = defineString('REVENUECAT_PROJECT_ID');
+const applePrivateKey        = defineSecret('APPLE_PRIVATE_KEY');
+const revenueCatApiKey       = defineSecret('REVENUECAT_SECRET_API_KEY');
+const revenueCatProjectId    = defineString('REVENUECAT_PROJECT_ID');
+const playstoreServiceAccount = defineSecret('PLAYSTORE_SERVICE_ACCOUNT');
+const androidPackageName     = defineString('ANDROID_PACKAGE_NAME', { default: 'com.trevo.expenses' });
 
 export { processNotificationQueue } from './notifications/sendPushNotification';
 
@@ -79,6 +81,45 @@ export const refreshRevenueCatMetricsRequest = onDocumentCreated(
       await fetchAndStoreRevenueCatMetrics(
         revenueCatApiKey.value(),
         revenueCatProjectId.value(),
+      );
+    } finally {
+      if (ref) await ref.delete();
+    }
+  }
+);
+
+// ── Actualización diaria de métricas Play Store (7:30 AM UTC) ───────────────
+export const updatePlayStoreMetrics = onSchedule(
+  {
+    schedule: '30 7 * * *',
+    timeoutSeconds: 300,
+    memory: '512MiB',
+    secrets: [playstoreServiceAccount],
+  },
+  async () => {
+    const { fetchAndStorePlayStoreMetrics } = await import('./playstore/fetchPlayStoreMetrics');
+    await fetchAndStorePlayStoreMetrics(
+      playstoreServiceAccount.value(),
+      androidPackageName.value(),
+    );
+  }
+);
+
+// ── Refresco manual Play Store desde el dashboard ────────────────────────────
+export const refreshPlayStoreMetrics = onDocumentCreated(
+  {
+    document: 'dashboard_metrics/playstore/refresh_triggers/{docId}',
+    timeoutSeconds: 300,
+    memory: '512MiB',
+    secrets: [playstoreServiceAccount],
+  },
+  async (event) => {
+    const ref = event.data?.ref;
+    try {
+      const { fetchAndStorePlayStoreMetrics } = await import('./playstore/fetchPlayStoreMetrics');
+      await fetchAndStorePlayStoreMetrics(
+        playstoreServiceAccount.value(),
+        androidPackageName.value(),
       );
     } finally {
       if (ref) await ref.delete();
