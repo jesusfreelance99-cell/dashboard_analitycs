@@ -92,11 +92,13 @@ class _FunnelContent extends StatelessWidget {
     final appOpened = appOpenedE?.count ?? 0;
     final appOpenedUniq = appOpenedE?.uniqueUsers ?? 0;
 
-    // Paso 3 — Onboarding completado
-    // tutorial_complete = finalizó el onboarding; fallback a tutorial_begin o onboarding_step
-    final onbE = _findEvent(events, [
-      'tutorial_complete', 'tutorial_begin', 'onboarding_step',
-    ]);
+    // Card resumen — "Iniciaron onboarding" usa tutorial_begin (quien empezó)
+    final onbBeginE = _findEvent(events, ['tutorial_begin', 'onboarding_step']);
+    final onbBegin = onbBeginE?.count ?? 0;
+    final onbBeginUniq = onbBeginE?.uniqueUsers ?? 0;
+
+    // Paso del embudo — "Onboarding completado" usa tutorial_complete (quien terminó)
+    final onbE = _findEvent(events, ['tutorial_complete', 'tutorial_begin', 'onboarding_step']);
     final onboarding = onbE?.count ?? 0;
     final onboardingUniq = onbE?.uniqueUsers ?? 0;
 
@@ -203,8 +205,8 @@ class _FunnelContent extends StatelessWidget {
             ),
             MetricCard(
               label: 'Iniciaron onboarding',
-              value: onboarding > 0 ? '$onboarding' : '—',
-              helperText: onboardingUniq > 0 ? '$onboardingUniq únicos' : 'onboarding_step_completed',
+              value: onbBegin > 0 ? '$onbBegin' : '—',
+              helperText: onbBeginUniq > 0 ? '$onbBeginUniq únicos · tutorial_begin' : 'tutorial_begin',
             ),
             MetricCard(
               label: 'Llegaron a la paywall',
