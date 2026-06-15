@@ -340,6 +340,10 @@ async function fetchCatalogSnapshot(
   };
 }
 
+// Precios Trevo (USD) para MRR manual
+const TREVO_MONTHLY_PRICE = 4.99;
+const TREVO_ANNUAL_PRICE  = 19.99;
+
 async function fetchOverviewMetrics(
   apiKey: string,
   projectId: string,
@@ -354,16 +358,55 @@ async function fetchOverviewMetrics(
     ? (payload.metrics as Array<Record<string, unknown>>)
     : [];
 
+  // Log de todos los IDs disponibles para diagnosticar el split mensual/anual
+  const availableIds = metrics.map((m) => `${m.id}=${m.value}`).join(' | ');
+  console.log('RevenueCat overview metrics:', availableIds);
+
   const lastUpdatedMetric = metrics.find(
     (metric) => metric.last_updated_at_iso8601 != null,
   );
 
+  const activeSubscriptions =
+    pickMetricValue(metrics, 'active_subscriptions') ||
+    pickMetricValue(metrics, 'active_subscribers');
+
+  // Intentar obtener split mensual / anual (si RevenueCat los expone)
+  const monthlySubscriptions =
+    pickMetricValue(metrics, 'monthly_subscriptions') ||
+    pickMetricValue(metrics, 'active_monthly_subscriptions') ||
+    pickMetricValue(metrics, 'monthly_active_subscriptions');
+
+  const annualSubscriptions =
+    pickMetricValue(metrics, 'annual_subscriptions') ||
+    pickMetricValue(metrics, 'annual_active_subscriptions') ||
+    pickMetricValue(metrics, 'active_annual_subscriptions');
+
+  // MRR calculado manualmente si tenemos el split (precios USD antes de comisión Apple)
+  const computedMrr =
+    monthlySubscriptions > 0 || annualSubscriptions > 0
+      ? parseFloat(
+          (
+            monthlySubscriptions * TREVO_MONTHLY_PRICE +
+            annualSubscriptions * (TREVO_ANNUAL_PRICE / 12)
+          ).toFixed(2),
+        )
+      : 0;
+
+  if (computedMrr > 0) {
+    console.log(
+      `MRR manual: mensual=${monthlySubscriptions}×${TREVO_MONTHLY_PRICE}` +
+      ` + anual=${annualSubscriptions}×${(TREVO_ANNUAL_PRICE / 12).toFixed(2)}` +
+      ` = $${computedMrr}`,
+    );
+  }
+
   return {
     active_trials: pickMetricValue(metrics, 'active_trials'),
-    active_subscriptions:
-      pickMetricValue(metrics, 'active_subscriptions') ||
-      pickMetricValue(metrics, 'active_subscribers'),
+    active_subscriptions: activeSubscriptions,
+    monthly_subscriptions: monthlySubscriptions,
+    annual_subscriptions: annualSubscriptions,
     mrr: pickMetricValue(metrics, 'mrr'),
+    computed_mrr: computedMrr,
     revenue_28d: pickMetricValue(metrics, 'revenue'),
     new_customers_28d: pickMetricValue(metrics, 'new_customers'),
     active_customers_28d: pickMetricValue(metrics, 'active_users'),

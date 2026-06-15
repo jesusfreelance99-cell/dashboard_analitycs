@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
-import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:dashboard_analitycs/core/models/appstore_metrics_model.dart';
 import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
@@ -12,8 +11,6 @@ import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dar
 import 'package:dashboard_analitycs/core/services/user_metrics_service.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:dashboard_analitycs/core/services/dash_user_service.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -270,13 +267,6 @@ class _OverviewContent extends StatelessWidget {
   final AppStoreMetrics? appStore;
   final RevenueCatMetrics? revenueCat;
 
-  static String _saludo() {
-    final h = DateTime.now().hour;
-    if (h < 12) return 'Buenos días';
-    if (h < 19) return 'Buenas tardes';
-    return 'Buenas noches';
-  }
-
   @override
   Widget build(BuildContext context) {
     final data = overviewRangeData(range);
@@ -287,69 +277,7 @@ class _OverviewContent extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FutureBuilder<DashUserData?>(
-          future: DashUserService.get(),
-          builder: (context, snap) {
-            final nombre = snap.data?.firstName ??
-                FirebaseAuth.instance.currentUser?.displayName?.split(' ').first ??
-                'Admin';
-            return Text(
-              '${_saludo()}, $nombre 👋',
-              style: TextStyle(
-                fontSize: 44,
-                height: 1.03,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -2,
-                color: context.dc.ink,
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Esto es lo que está pasando en Trevo hoy.',
-                style: TextStyle(fontSize: 18, color: context.dc.ink2),
-              ),
-            ),
-            if (as != null && as.status == 'partial')
-              Tooltip(
-                message: 'Datos de Analytics en proceso',
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.warningBg,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        FluentIcons.clock_20_regular,
-                        size: 14,
-                        color: AppColors.warningText,
-                      ),
-                      SizedBox(width: 5),
-                      Text(
-                        'Actualizando',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.warningText,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 36),
+        const SizedBox(height: 8),
 
         // ── APP STORE CONNECT ──────────────────────────────────────────────
         Row(
@@ -442,21 +370,13 @@ class _OverviewContent extends StatelessWidget {
               label: 'Ingresos recurrentes',
               value: rcOverview?.mrrLabel ?? '-',
               accent: true,
-              helperText: 'mensuales · MRR',
+              helperText: (rcOverview != null && rcOverview.hasMrrBreakdown)
+                  ? '${rcOverview.monthlySubscriptions} mensual · ${rcOverview.annualSubscriptions} anual'
+                  : 'mensuales · MRR',
             ),
             MetricCard(
               label: 'Ingresos',
               value: rcOverview?.revenue28dLabel ?? data.revenue,
-              helperText: 'últimos 28 días',
-            ),
-            MetricCard(
-              label: 'Nuevos clientes',
-              value: rcOverview?.newCustomers28dLabel ?? '0',
-              helperText: 'últimos 28 días',
-            ),
-            MetricCard(
-              label: 'Clientes activos',
-              value: rcOverview?.activeCustomers28dLabel ?? '0',
               helperText: 'últimos 28 días',
             ),
           ],
@@ -482,13 +402,16 @@ class _OverviewContent extends StatelessWidget {
                 ),
                 MetricCard(
                   label: 'Plan Pro',
-                  value: '${u.pro}',
+                  value: rcOverview != null
+                      ? rcOverview.activeSubscriptionsLabel
+                      : '${u.pro}',
                   accent: true,
                   valueSuffix: const FaIcon(
                     FontAwesomeIcons.crown,
                     color: AppColors.goldDark,
                     size: 24,
                   ),
+                  helperText: 'suscripciones activas',
                   badgeText: '${u.proPercent} del total',
                   badgeType: BadgeType.neutral,
                 ),

@@ -53,16 +53,22 @@ class RevenueCatMetrics {
 class RevenueCatOverviewMetrics {
   const RevenueCatOverviewMetrics({
     this.mrr = 0,
+    this.computedMrr = 0,
     this.activeTrials = 0,
     this.activeSubscriptions = 0,
+    this.monthlySubscriptions = 0,
+    this.annualSubscriptions = 0,
     this.revenue28d = 0,
     this.newCustomers28d = 0,
     this.activeCustomers28d = 0,
   });
 
   final double mrr;
+  final double computedMrr;
   final int activeTrials;
   final int activeSubscriptions;
+  final int monthlySubscriptions;
+  final int annualSubscriptions;
   final double revenue28d;
   final int newCustomers28d;
   final int activeCustomers28d;
@@ -70,15 +76,21 @@ class RevenueCatOverviewMetrics {
   factory RevenueCatOverviewMetrics.fromMap(Map<String, dynamic> map) {
     return RevenueCatOverviewMetrics(
       mrr: (map['mrr'] as num?)?.toDouble() ?? 0,
+      computedMrr: (map['computed_mrr'] as num?)?.toDouble() ?? 0,
       activeTrials: (map['active_trials'] as num?)?.toInt() ?? 0,
       activeSubscriptions: (map['active_subscriptions'] as num?)?.toInt() ?? 0,
+      monthlySubscriptions: (map['monthly_subscriptions'] as num?)?.toInt() ?? 0,
+      annualSubscriptions: (map['annual_subscriptions'] as num?)?.toInt() ?? 0,
       revenue28d: (map['revenue_28d'] as num?)?.toDouble() ?? 0,
       newCustomers28d: (map['new_customers_28d'] as num?)?.toInt() ?? 0,
       activeCustomers28d: (map['active_customers_28d'] as num?)?.toInt() ?? 0,
     );
   }
 
+  bool get hasMrrBreakdown => monthlySubscriptions > 0 || annualSubscriptions > 0;
+
   String get mrrLabel => RevenueCatRangeMetrics.formatCurrency(mrr);
+  String get computedMrrLabel => RevenueCatRangeMetrics.formatCurrency(computedMrr);
   String get activeTrialsLabel =>
       RevenueCatRangeMetrics.formatInteger(activeTrials);
   String get activeSubscriptionsLabel =>
