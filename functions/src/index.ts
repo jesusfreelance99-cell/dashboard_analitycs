@@ -12,7 +12,8 @@ const applePrivateKey        = defineSecret('APPLE_PRIVATE_KEY');
 const revenueCatApiKey       = defineSecret('REVENUECAT_SECRET_API_KEY');
 const revenueCatProjectId    = defineString('REVENUECAT_PROJECT_ID');
 const playstoreServiceAccount = defineSecret('PLAYSTORE_SERVICE_ACCOUNT');
-const androidPackageName     = defineString('ANDROID_PACKAGE_NAME', { default: 'com.trevo.expenses' });
+const androidPackageName      = defineString('ANDROID_PACKAGE_NAME', { default: 'com.trevo.expenses' });
+const analyticsPropertyId     = defineString('ANALYTICS_PROPERTY_ID', { default: '' });
 
 export { processNotificationQueue } from './notifications/sendPushNotification';
 
@@ -102,6 +103,53 @@ export const updatePlayStoreMetrics = onSchedule(
       playstoreServiceAccount.value(),
       androidPackageName.value(),
     );
+  }
+);
+
+// ── Actualización diaria de métricas de embudo Firebase Analytics (7:45 AM UTC) ─
+export const updateFunnelMetrics = onSchedule(
+  {
+    schedule: '45 7 * * *',
+    timeoutSeconds: 300,
+    memory: '512MiB',
+    secrets: [playstoreServiceAccount],
+  },
+  async () => {
+    if (!analyticsPropertyId.value()) {
+      console.warn('ANALYTICS_PROPERTY_ID not set — skipping funnel metrics');
+      return;
+    }
+    const { fetchAndStoreFunnelMetrics } = await import('./funnel/fetchFunnelMetrics');
+    await fetchAndStoreFunnelMetrics(
+      playstoreServiceAccount.value(),
+      analyticsPropertyId.value(),
+    );
+  }
+);
+
+// ── Refresco manual del embudo desde el dashboard ────────────────────────────
+export const refreshFunnelMetrics = onDocumentCreated(
+  {
+    document: 'dashboard_metrics/funnel/refresh_requests/{docId}',
+    timeoutSeconds: 300,
+    memory: '512MiB',
+    secrets: [playstoreServiceAccount],
+  },
+  async (event) => {
+    const ref = event.data?.ref;
+    try {
+      if (!analyticsPropertyId.value()) {
+        console.warn('ANALYTICS_PROPERTY_ID not set');
+        return;
+      }
+      const { fetchAndStoreFunnelMetrics } = await import('./funnel/fetchFunnelMetrics');
+      await fetchAndStoreFunnelMetrics(
+        playstoreServiceAccount.value(),
+        analyticsPropertyId.value(),
+      );
+    } finally {
+      if (ref) await ref.delete();
+    }
   }
 );
 

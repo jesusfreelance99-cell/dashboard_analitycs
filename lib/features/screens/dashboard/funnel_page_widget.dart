@@ -87,56 +87,48 @@ class _FunnelContent extends StatelessWidget {
     // Descargas — App Store Connect
     final downloads = appStore?.downloadsLastMonth ?? 0;
 
-    // Paso 2 — App abierta
-    final appOpenedE = _findEvent(events, [
-      'first_open', 'Primera apertura', 'app_opened', 'app_open',
-    ]);
+    // Paso 2 — App abierta (first_open = primera vez que el usuario abre la app)
+    final appOpenedE = _findEvent(events, ['first_open', 'app_open']);
     final appOpened = appOpenedE?.count ?? 0;
     final appOpenedUniq = appOpenedE?.uniqueUsers ?? 0;
 
-    // Paso 3 — Onboarding
+    // Paso 3 — Onboarding completado
+    // tutorial_complete = finalizó el onboarding; fallback a tutorial_begin o onboarding_step
     final onbE = _findEvent(events, [
-      'onboarding_step_completed', 'Onboarding Step', 'onboarding_completed',
-      'onboarding_step', 'onb_completed',
+      'tutorial_complete', 'tutorial_begin', 'onboarding_step',
     ]);
     final onboarding = onbE?.count ?? 0;
     final onboardingUniq = onbE?.uniqueUsers ?? 0;
 
-    // Paso 4 — Login
-    final loginE = _findEvent(events, [
-      'login_completed', 'Sesión iniciada', 'login', 'Inicio de sesión',
-      'sesion_iniciada', 'sign_up', 'sign_in',
-    ]);
+    // Paso 4 — Registro / Login
+    // sign_up = nuevo usuario registrado; login = inicio de sesión existente
+    final loginE = _findEvent(events, ['sign_up', 'login']);
     final login = loginE?.count ?? 0;
     final loginUniq = loginE?.uniqueUsers ?? 0;
 
     // Paso 5 — Paywall
     final paywallCount = fRange?.uniquePaywall ?? 0;
-    final paywallE = _findEvent(events, [
-      'paywall_viewed', 'Vio el paywall', 'paywall_view',
-    ]);
-    final paywall = paywallCount > 0 ? paywallCount : (paywallE?.count ?? 0);
+    final paywallE = _findEvent(events, ['paywall_viewed']);
+    final paywall = paywallE?.count ?? paywallCount;
     final paywallUniq = paywallE?.uniqueUsers ?? paywallCount;
 
     // Paso 6 — Trial
     final trialCount = fRange?.uniqueTrial ?? 0;
-    final trialE = _findEvent(events, [
-      'trial_started', 'Inició período de prueba', 'trial_start',
-      'free_trial_started', 'trial_period_started',
-    ]);
-    final trial = trialCount > 0 ? trialCount : (trialE?.count ?? 0);
+    final trialE = _findEvent(events, ['trial_started']);
+    final trial = trialE?.count ?? trialCount;
     final trialUniq = trialE?.uniqueUsers ?? trialCount;
 
     // Paso 7 — Suscripción comprada
+    // purchase = compra realizada (nuevo o renovación); app_store_subscription_convert = trial → pago
     final subE = _findEvent(events, [
-      'subscription_purchased', 'Purchase', 'subscription_started',
-      'purchased', 'in_app_purchase',
+      'purchase', 'app_store_subscription_convert', 'subscription_purchased', 'in_app_purchase',
     ]);
     final subscriptions = subE?.count ?? rcOverview?.activeSubscriptions ?? 0;
     final subscriptionsUniq = subE?.uniqueUsers ?? 0;
 
-    // Baseline para %s
-    final baseline = downloads > 0 ? downloads : (appOpened > 0 ? appOpened : 1);
+    // Baseline para %: usamos first_open como base real de usuarios que entraron
+    // Descargas se muestra aparte como dato de App Store (no sirve como baseline porque es solo iOS y "último mes")
+    final baseline = appOpened > 0 ? appOpened : (downloads > 0 ? downloads : 1);
 
     // % conversión del free trial
     final trialConvPct = trial > 0 && subscriptions > 0
@@ -150,43 +142,38 @@ class _FunnelContent extends StatelessWidget {
 
     final steps = [
       _FStep(
-        num: 1, eventCode: 'app_downloaded', label: 'Descarga de la app',
-        count: downloads, unique: null,
-        baseline: baseline, color: AppColors.chartBlue,
-        source: 'App Store Connect',
-      ),
-      _FStep(
-        num: 2, eventCode: 'first_open', label: 'App abierta',
+        num: 1, eventCode: 'first_open', label: 'Primera apertura de la app',
         count: appOpened, unique: appOpenedUniq > 0 ? appOpenedUniq : null,
-        baseline: baseline, color: AppColors.chartGreen,
+        baseline: baseline, color: AppColors.chartBlue,
         event: appOpenedE,
+        extraInfo: downloads > 0 ? '↓ $downloads descargas iOS' : null,
       ),
       _FStep(
-        num: 3, eventCode: 'onboarding_step_completed', label: 'Onboarding completado',
+        num: 2, eventCode: 'tutorial_complete', label: 'Onboarding completado',
         count: onboarding, unique: onboardingUniq > 0 ? onboardingUniq : null,
-        baseline: baseline, color: AppColors.chartPurple,
+        baseline: baseline, color: AppColors.chartGreen,
         event: onbE,
       ),
       _FStep(
-        num: 4, eventCode: 'login_completed', label: 'Inicio de sesión (Google / Apple)',
+        num: 3, eventCode: 'sign_up', label: 'Registro completado',
         count: login, unique: loginUniq > 0 ? loginUniq : null,
-        baseline: baseline, color: AppColors.pink,
+        baseline: baseline, color: AppColors.chartPurple,
         event: loginE,
       ),
       _FStep(
-        num: 5, eventCode: 'paywall_viewed', label: 'Paywall vista',
+        num: 4, eventCode: 'paywall_viewed', label: 'Paywall vista',
         count: paywall, unique: paywallUniq > 0 ? paywallUniq : null,
-        baseline: baseline, color: AppColors.chartAmber,
+        baseline: baseline, color: AppColors.pink,
         event: paywallE,
       ),
       _FStep(
-        num: 6, eventCode: 'trial_started', label: 'Free trial iniciado',
+        num: 5, eventCode: 'trial_started', label: 'Free trial iniciado',
         count: trial, unique: trialUniq > 0 ? trialUniq : null,
-        baseline: baseline, color: AppColors.danger,
+        baseline: baseline, color: AppColors.chartAmber,
         event: trialE,
       ),
       _FStep(
-        num: 7, eventCode: 'subscription_purchased', label: 'Suscripción comprada',
+        num: 6, eventCode: 'purchase', label: 'Suscripción comprada',
         count: subscriptions, unique: subscriptionsUniq > 0 ? subscriptionsUniq : null,
         baseline: baseline, color: AppColors.success,
         event: subE,
@@ -378,7 +365,7 @@ class _FStep {
     required this.baseline,
     required this.color,
     this.event,
-    this.source,
+    this.extraInfo,
   });
 
   final int num;
@@ -389,7 +376,7 @@ class _FStep {
   final int baseline;
   final Color color;
   final FunnelEvent? event;
-  final String? source;
+  final String? extraInfo;
 
   double get fraction => baseline > 0 && count > 0 ? (count / baseline).clamp(0.0, 1.0) : 0;
   String get pctStr => count > 0 ? '${(fraction * 100).toStringAsFixed(0)}%' : '—';
@@ -482,7 +469,7 @@ class _FunnelStepRow extends StatelessWidget {
                 SizedBox(
                   width: 90,
                   child: Text(
-                    step.unique != null ? '${step.unique} únicos' : (step.source ?? ''),
+                    step.unique != null ? '${step.unique} únicos' : (step.extraInfo ?? ''),
                     style: const TextStyle(fontSize: 12, color: AppColors.ink3),
                     textAlign: TextAlign.right,
                   ),
