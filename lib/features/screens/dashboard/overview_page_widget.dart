@@ -655,37 +655,61 @@ class _OverviewContentState extends State<_OverviewContent> {
                   ],
                 ),
                 const SizedBox(height: 18),
-                Panel(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      PanelHeader(
-                        title: 'Pro vs Free',
-                        trailing: '${u.total} usuarios',
+                Builder(
+                  builder: (context) {
+                    final rcPro = rcOverview?.activeSubscriptions ?? 0;
+                    final total = u.total;
+                    final proProp = total > 0 && rcPro > 0
+                        ? (rcPro / total).clamp(0.0, 1.0)
+                        : u.proProportion;
+                    final freeCount = total > 0
+                        ? (total - rcPro).clamp(0, 999999)
+                        : u.free;
+                    final proPercent = total > 0 && rcPro > 0
+                        ? '${(rcPro / total * 100).toStringAsFixed(0)}%'
+                        : u.proPercent;
+                    final freePercent = total > 0 && freeCount > 0
+                        ? '${(freeCount / total * 100).toStringAsFixed(0)}%'
+                        : u.freePercent;
+                    return Panel(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          PanelHeader(
+                            title: 'Pro vs Free',
+                            trailing: '$total usuarios',
+                          ),
+                          const SizedBox(height: 28),
+                          PlanDistributionBar(proportion: proProp),
+                          const SizedBox(height: 28),
+                          PlanRow(
+                            icon: const FaIcon(
+                              FontAwesomeIcons.crown,
+                              size: 24,
+                            ),
+                            iconBackground: AppColors.goldLight,
+                            iconColor: AppColors.goldDark,
+                            title: 'Plan Pro',
+                            subtitle: 'activos · RevenueCat',
+                            value: rcPro > 0 ? '$rcPro' : '${u.pro}',
+                            percentage: proPercent,
+                          ),
+                          const SizedBox(height: 26),
+                          PlanRow(
+                            icon: const Icon(
+                              FluentIcons.gift_20_regular,
+                              size: 24,
+                            ),
+                            iconBackground: AppColors.fieldBg,
+                            iconColor: AppColors.ink3,
+                            title: 'Plan Gratuito',
+                            value: '$freeCount',
+                            percentage: freePercent,
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 28),
-                      PlanDistributionBar(proportion: u.proProportion),
-                      const SizedBox(height: 28),
-                      PlanRow(
-                        icon: const FaIcon(FontAwesomeIcons.crown, size: 24),
-                        iconBackground: AppColors.goldLight,
-                        iconColor: AppColors.goldDark,
-                        title: 'Plan Pro',
-                        subtitle: 'de pago',
-                        value: '${u.pro}',
-                        percentage: u.proPercent,
-                      ),
-                      const SizedBox(height: 26),
-                      PlanRow(
-                        icon: const Icon(FluentIcons.gift_20_regular, size: 24),
-                        iconBackground: AppColors.fieldBg,
-                        iconColor: AppColors.ink3,
-                        title: 'Plan Gratuito',
-                        value: '${u.free}',
-                        percentage: u.freePercent,
-                      ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ],
             );

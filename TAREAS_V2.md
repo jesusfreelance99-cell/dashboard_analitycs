@@ -66,11 +66,7 @@
 
 ## TRANSVERSAL / BUGS A RESOLVER
 
-- [ ] **Unificar "suscripciones de pago activas"** — hay 3 números distintos para la misma métrica:
-  - 12 → RevenueCat overview `active_subscriptions`
-  - 34 → Embudo, "Conversión Pro" (Firebase, acumulado histórico)
-  - 41 → Vista General "Plan Pro" (Firebase, total con plan='pro')
-  - **Decisión**: usar RevenueCat como fuente de verdad en todas las pestañas
+- [x] **Unificar "suscripciones de pago activas"** — Panel "Pro vs Free" en Vista General ahora usa `rcOverview?.activeSubscriptions` (RevenueCat) como fuente de verdad; Free = total − rcPro; subtitle muestra "activos · RevenueCat"
 - [x] **Fix MRR**: ahora muestra `computed_mrr` (mensual×$4.99 + anual×$1.67) cuando hay desglose disponible, en vez del MRR de la API RevenueCat
 - [x] **"Nuevos clientes" y "Clientes activos"** de RevenueCat — ya no se muestran en ninguna pantalla
 - [ ] **Calcular cohortes de retención** (D1/D2/D7/D30) — actualmente no existe esta lógica, hay que crearla en una Cloud Function o en el servicio de retención

@@ -174,3 +174,50 @@ export const refreshPlayStoreMetrics = onDocumentCreated(
     }
   }
 );
+
+// ── Actualización diaria de métricas de retención GA4 (8:00 AM UTC) ─────────
+export const updateRetentionMetrics = onSchedule(
+  {
+    schedule: '0 8 * * *',
+    timeoutSeconds: 300,
+    memory: '512MiB',
+    secrets: [playstoreServiceAccount],
+  },
+  async () => {
+    if (!analyticsPropertyId.value()) {
+      console.warn('ANALYTICS_PROPERTY_ID not set — skipping retention metrics');
+      return;
+    }
+    const { fetchAndStoreRetentionMetrics } = await import('./retention/fetchRetentionMetrics');
+    await fetchAndStoreRetentionMetrics(
+      playstoreServiceAccount.value(),
+      analyticsPropertyId.value(),
+    );
+  }
+);
+
+// ── Refresco manual de retención desde el dashboard ──────────────────────────
+export const refreshRetentionMetrics = onDocumentCreated(
+  {
+    document: 'dashboard_metrics/retention/refresh_requests/{docId}',
+    timeoutSeconds: 300,
+    memory: '512MiB',
+    secrets: [playstoreServiceAccount],
+  },
+  async (event) => {
+    const ref = event.data?.ref;
+    try {
+      if (!analyticsPropertyId.value()) {
+        console.warn('ANALYTICS_PROPERTY_ID not set');
+        return;
+      }
+      const { fetchAndStoreRetentionMetrics } = await import('./retention/fetchRetentionMetrics');
+      await fetchAndStoreRetentionMetrics(
+        playstoreServiceAccount.value(),
+        analyticsPropertyId.value(),
+      );
+    } finally {
+      if (ref) await ref.delete();
+    }
+  }
+);
