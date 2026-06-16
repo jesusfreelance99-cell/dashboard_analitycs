@@ -16,6 +16,7 @@ const FUNNEL_EVENTS = [
   'login',
   'paywall_viewed',
   'trial_started',
+  'ecommerce_purchase',
   'purchase',
   'app_store_subscription_convert',
   'app_store_subscription_renew',

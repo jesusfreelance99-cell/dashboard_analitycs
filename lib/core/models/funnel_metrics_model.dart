@@ -132,6 +132,7 @@ class FunnelEvent {
       'subscription_purchased':     'Compró suscripción',
       'subscription_canceled':      'Canceló suscripción',
       'subscription_expired':       'Suscripción expirada',
+      'ecommerce_purchase':          'Suscripción comprada',
       'in_app_purchase':            'Compra realizada',
       // Autenticación
       'login':                      'Inicio de sesión',
@@ -168,7 +169,7 @@ class FunnelEvent {
   bool get isKeyEvent => const {
     'paywall_viewed',
     'trial_started',
-    'subscription_purchased',
+    'ecommerce_purchase',
   }.contains(name);
 }
 

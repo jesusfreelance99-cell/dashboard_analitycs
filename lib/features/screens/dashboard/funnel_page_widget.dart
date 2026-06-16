@@ -121,9 +121,9 @@ class _FunnelContent extends StatelessWidget {
     final trialUniq = trialE?.uniqueUsers ?? trialCount;
 
     // Paso 7 — Suscripción comprada
-    // purchase = compra realizada (nuevo o renovación); app_store_subscription_convert = trial → pago
+    // ecommerce_purchase = evento estándar Firebase que manda la app; purchase como fallback
     final subE = _findEvent(events, [
-      'purchase', 'app_store_subscription_convert', 'subscription_purchased', 'in_app_purchase',
+      'ecommerce_purchase', 'purchase', 'app_store_subscription_convert', 'in_app_purchase',
     ]);
     final subscriptions = subE?.count ?? rcOverview?.activeSubscriptions ?? 0;
     final subscriptionsUniq = subE?.uniqueUsers ?? 0;
@@ -176,7 +176,7 @@ class _FunnelContent extends StatelessWidget {
         event: trialE,
       ),
       _FStep(
-        num: 6, eventCode: 'purchase', label: 'Suscripción comprada',
+        num: 6, eventCode: 'ecommerce_purchase', label: 'Suscripción comprada',
         count: subscriptions, unique: subscriptionsUniq > 0 ? subscriptionsUniq : null,
         baseline: baseline, color: AppColors.success,
         event: subE,

@@ -69,14 +69,9 @@
 - [x] **Unificar "suscripciones de pago activas"** — Panel "Pro vs Free" en Vista General ahora usa `rcOverview?.activeSubscriptions` (RevenueCat) como fuente de verdad; Free = total − rcPro; subtitle muestra "activos · RevenueCat"
 - [x] **Fix MRR**: ahora muestra `computed_mrr` (mensual×$4.99 + anual×$1.67) cuando hay desglose disponible, en vez del MRR de la API RevenueCat
 - [x] **"Nuevos clientes" y "Clientes activos"** de RevenueCat — ya no se muestran en ninguna pantalla
-- [ ] **Calcular cohortes de retención** (D1/D2/D7/D30) — actualmente no existe esta lógica, hay que crearla en una Cloud Function o en el servicio de retención
-- [ ] **Deploy de las Cloud Functions de Play Store** (`updatePlayStoreMetrics` + `refreshPlayStoreMetrics`) — después de `firebase deploy --only functions`, habilitar las APIs en Google Cloud:
-  - Google Play Android Developer API
-  - Google Play Developer Reporting API
-- [ ] **Confirmar eventos Firebase del embudo** con Jesús:
-  - Paso 2 (App abierta): ¿`first_open` o `app_open`? Hay 2 eventos similares
-  - Paso 4 (Login): ¿`Sesión iniciada` (424/295) o `Inicio de sesión` (19/14)?
-  - Paso 3 (Onboarding): confirmar los `step_name` reales que manda la app para el sub-detalle
+- [x] **Calcular cohortes de retención** (D1/D2/D7/D30) — Cloud Function usa GA4 cohort API (D0-D30), Flutter `_CohortCards` interpola los rates en D1/D2/D7/D30 con benchmarks de industria
+- [x] **Deploy de Cloud Functions** — 11 funciones desplegadas; APIs Google Play habilitadas; secret `PLAYSTORE_SERVICE_ACCOUNT` corregido (tenía filename, ahora tiene JSON real); `updateRetentionMetrics` y `refreshRetentionMetrics` creadas por primera vez
+- [x] **Confirmar eventos Firebase del embudo** — eventos confirmados: `app_open` (adquisición), `tutorial_begin`/`tutorial_complete` (onboarding), `sign_up`/`login` (auth), `paywall_viewed`, `trial_started`, `ecommerce_purchase` (suscripción). Corregido en Cloud Function y Flutter: `'purchase'` → `'ecommerce_purchase'`
 
 ---
 
