@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:country_flags/country_flags.dart';
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
@@ -7,15 +6,55 @@ import 'package:dashboard_analitycs/core/models/user_model.dart';
 import 'package:dashboard_analitycs/core/services/country_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/user_sync_service.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'dashboard_provider.dart';
 import 'empty_tables_component.dart';
+import 'geo_donut_panel.dart';
 import 'models.dart';
 import 'shared_widgets.dart';
 import 'user_detail_panel.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PLAN SUMMARY — lightweight plan data for the list view
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PlanSummary {
+  final String planName;
+  final String typePlan;
+  final String status;
+  final DateTime? startDate;
+  final DateTime? endDate;
+
+  const _PlanSummary({
+    required this.planName,
+    required this.typePlan,
+    required this.status,
+    this.startDate,
+    this.endDate,
+  });
+
+  factory _PlanSummary.fromMap(Map<String, dynamic> d) => _PlanSummary(
+    planName: d['plan_name'] as String? ?? '',
+    typePlan: (d['type_plan'] as String? ?? '').toLowerCase(),
+    status: (d['status'] as String? ?? '').toLowerCase(),
+    startDate: _parseTs(d['start_date']),
+    endDate: _parseTs(d['end_date']),
+  );
+
+  bool get willNotRenew =>
+      status == 'cancelled' ||
+      status == 'will_not_renew' ||
+      status == 'revoked' ||
+      status == 'expired';
+}
+
+DateTime? _parseTs(dynamic val) {
+  if (val == null) return null;
+  if (val is Timestamp) return val.toDate();
+  if (val is String && val.isNotEmpty) return DateTime.tryParse(val);
+  return null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGE
@@ -39,9 +78,9 @@ class _UsersPageState extends State<UsersPage> {
   static const _pageSize = 20;
 
   List<UserModel> _allUsers = [];
+  Map<String, _PlanSummary?> _planData = {};
   bool _loading = true;
 
-  String _statusFilter = 'Todos';
   String _planFilter = 'Todos';
   String _continentFilter = 'Todos';
   int _page = 0;
@@ -77,13 +116,6 @@ class _UsersPageState extends State<UsersPage> {
                 u.email.toLowerCase().contains(q),
           )
           .toList();
-    }
-
-    switch (_statusFilter) {
-      case 'Activos':
-        list = list.where((u) => u.status).toList();
-      case 'Inactivos':
-        list = list.where((u) => !u.status).toList();
     }
 
     switch (_planFilter) {
@@ -142,10 +174,38 @@ class _UsersPageState extends State<UsersPage> {
             .toList();
       }
       if (mounted) setState(() => _allUsers = users);
+      _loadPlanData(users);
     } catch (_) {
       // lista vacía si falla
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _loadPlanData(List<UserModel> users) async {
+    try {
+      final results = await Future.wait(users.map(_fetchPlanForUser));
+      final map = Map<String, _PlanSummary?>.fromEntries(results);
+      if (mounted) setState(() => _planData = map);
+    } catch (_) {}
+  }
+
+  Future<MapEntry<String, _PlanSummary?>> _fetchPlanForUser(
+    UserModel user,
+  ) async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.id)
+          .collection('plan_user')
+          .limit(1)
+          .get();
+      final plan = snap.docs.isNotEmpty
+          ? _PlanSummary.fromMap(snap.docs.first.data())
+          : null;
+      return MapEntry(user.id, plan);
+    } catch (_) {
+      return MapEntry(user.id, null);
     }
   }
 
@@ -157,62 +217,80 @@ class _UsersPageState extends State<UsersPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 18),
-        Text(
-          'Usuarios',
-          style: TextStyle(
-            fontSize: 44,
-            height: 1.03,
-            fontWeight: FontWeight.w700,
-            letterSpacing: -2,
-            color: context.dc.ink,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Todos los usuarios registrados en Trevo.',
-          style: TextStyle(fontSize: 18, color: context.dc.ink2),
-        ),
-        const SizedBox(height: 28),
 
         // ── MÉTRICAS ─────────────────────────────────────────────────────────
-        Builder(
-          builder: (context) {
+        StreamBuilder<RevenueCatMetrics?>(
+          stream: RevenueCatMetricsService.stream(),
+          builder: (context, rcSnap) {
+            final rc = rcSnap.data;
             final u = _loading
                 ? UserCounts.empty
                 : UserCounts.fromUsers(_dateFiltered);
-            return ResponsiveGrid(
-              minTileWidth: 220,
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                MetricCard(
-                  label: 'Total registrados',
-                  value: _loading ? '—' : '${u.total}',
-                  badgeText: u.newToday > 0 ? '↑ ${u.newToday} hoy' : null,
-                  badgeType: BadgeType.positive,
-                  helperText: 'usuarios',
+                ResponsiveGrid(
+                  minTileWidth: 200,
+                  children: [
+                    MetricCard(
+                      label: 'Usuarios activos',
+                      value: _loading ? '—' : '${u.active}',
+                      badgeText: u.activePercent,
+                      badgeType: BadgeType.positive,
+                    ),
+                    MetricCard(
+                      label: 'Usuarios gratuitos',
+                      value: _loading ? '—' : '${u.free}',
+                      badgeText: '${u.freePercent} del total',
+                      badgeType: BadgeType.neutral,
+                    ),
+                  ],
                 ),
-                MetricCard(
-                  label: 'Plan Pro',
-                  value: _loading ? '—' : '${u.pro}',
-                  accent: true,
-                  valueSuffix: const FaIcon(
-                    FontAwesomeIcons.crown,
-                    color: AppColors.goldDark,
-                    size: 24,
-                  ),
-                  badgeText: '${u.proPercent} del total',
-                  badgeType: BadgeType.neutral,
+                const SizedBox(height: 16),
+                const _SubGroupLabel(label: 'FREE TRIAL'),
+                const SizedBox(height: 10),
+                ResponsiveGrid(
+                  minTileWidth: 200,
+                  children: [
+                    MetricCard(
+                      label: 'Free trial activo',
+                      value: rc != null ? '${rc.overview.activeTrials}' : '—',
+                      badgeText: 'RevenueCat',
+                      badgeType: BadgeType.neutral,
+                    ),
+                    MetricCard(
+                      label: 'Free trial cancelado',
+                      value: '—',
+                      badgeType: BadgeType.neutral,
+                    ),
+                  ],
                 ),
-                MetricCard(
-                  label: 'Plan Gratuito',
-                  value: _loading ? '—' : '${u.free}',
-                  badgeText: '${u.freePercent} del total',
-                  badgeType: BadgeType.neutral,
-                ),
-                MetricCard(
-                  label: 'Activos',
-                  value: _loading ? '—' : '${u.active}',
-                  badgeText: '↑ ${u.activePercent}',
-                  badgeType: BadgeType.positive,
+                const SizedBox(height: 16),
+                const _SubGroupLabel(label: 'PLAN ACTIVO'),
+                const SizedBox(height: 10),
+                ResponsiveGrid(
+                  minTileWidth: 200,
+                  children: [
+                    MetricCard(
+                      label: 'Mensual',
+                      value: rc != null
+                          ? '${rc.overview.monthlySubscriptions}'
+                          : '—',
+                      badgeType: BadgeType.neutral,
+                    ),
+                    MetricCard(
+                      label: 'Anual',
+                      value: rc != null
+                          ? '${rc.overview.annualSubscriptions}'
+                          : '—',
+                      badgeType: BadgeType.neutral,
+                    ),
+                    MetricCard(
+                      label: 'No renovarán',
+                      value: '—',
+                      badgeType: BadgeType.neutral,
+                    ),
+                  ],
                 ),
               ],
             );
@@ -237,7 +315,7 @@ class _UsersPageState extends State<UsersPage> {
             final all = CountryMetricsService.fromCounts(countMap);
 
             return Panel(
-              child: _GeoDonutPanel(
+              child: GeoDonutPanel(
                 allEntries: all,
                 filter: _continentFilter,
                 onFilterChanged: (v) => setState(() => _continentFilter = v),
@@ -256,12 +334,6 @@ class _UsersPageState extends State<UsersPage> {
           builder: (_, constraints) {
             final wide = constraints.maxWidth > 800;
             final total = _loading ? null : _dateFiltered.length;
-            final active = _loading
-                ? null
-                : _dateFiltered.where((u) => u.status).length;
-            final inactive = _loading
-                ? null
-                : _dateFiltered.where((u) => !u.status).length;
             final pro = _loading
                 ? null
                 : _dateFiltered.where((u) => u.plan == 'pro').length;
@@ -269,11 +341,6 @@ class _UsersPageState extends State<UsersPage> {
                 ? null
                 : _dateFiltered.where((u) => u.plan != 'pro').length;
 
-            final statusItems = [
-              (label: 'Todos', count: total),
-              (label: 'Activos', count: active),
-              (label: 'Inactivos', count: inactive),
-            ];
             final planItems = [
               (label: 'Todos', count: total),
               (label: 'Pro', count: pro),
@@ -286,18 +353,6 @@ class _UsersPageState extends State<UsersPage> {
                   Expanded(
                     flex: 5,
                     child: SearchField(controller: widget.searchController),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    flex: 3,
-                    child: _FilterBar(
-                      items: statusItems,
-                      selected: _statusFilter,
-                      onChanged: (v) => setState(() {
-                        _statusFilter = v;
-                        _page = 0;
-                      }),
-                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -318,15 +373,6 @@ class _UsersPageState extends State<UsersPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SearchField(controller: widget.searchController),
-                const SizedBox(height: 12),
-                _FilterBar(
-                  items: statusItems,
-                  selected: _statusFilter,
-                  onChanged: (v) => setState(() {
-                    _statusFilter = v;
-                    _page = 0;
-                  }),
-                ),
                 const SizedBox(height: 12),
                 _FilterBar(
                   items: planItems,
@@ -360,6 +406,7 @@ class _UsersPageState extends State<UsersPage> {
                           final user = _pageUsers[i];
                           return _UserRow(
                             user: user,
+                            plan: _planData[user.id],
                             wide: wide,
                             isLast: i == _pageUsers.length - 1,
                             onTap: () => showUserDetail(context, user),
@@ -392,6 +439,25 @@ class _UsersPageState extends State<UsersPage> {
 // ─────────────────────────────────────────────────────────────────────────────
 // FILTROS
 // ─────────────────────────────────────────────────────────────────────────────
+
+class _SubGroupLabel extends StatelessWidget {
+  const _SubGroupLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 1.2,
+        color: context.dc.ink3,
+      ),
+    );
+  }
+}
 
 class _FilterBar extends StatelessWidget {
   const _FilterBar({
@@ -481,593 +547,6 @@ String _compactNum(int n) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GEO DONUT PANEL
-// ─────────────────────────────────────────────────────────────────────────────
-
-const _continentOptions = ['Todos', 'América', 'Europa', 'Asia', 'Otros'];
-
-const _continentColors = {
-  'América': AppColors.chartBlue,
-  'Europa': AppColors.chartPurple,
-  'Asia': AppColors.chartGreen,
-  'Otros': AppColors.chartPink,
-};
-
-// 8-color palette cycling for individual country slices
-
-class _GeoDonutPanel extends StatefulWidget {
-  const _GeoDonutPanel({
-    required this.allEntries,
-    required this.filter,
-    required this.onFilterChanged,
-  });
-
-  final List<CountryEntry> allEntries;
-  final String filter;
-  final ValueChanged<String> onFilterChanged;
-
-  @override
-  State<_GeoDonutPanel> createState() => _GeoDonutPanelState();
-}
-
-class _GeoDonutPanelState extends State<_GeoDonutPanel> {
-  static const _pageSize = 5;
-  int _page = 0;
-  int? _touchedIndex;
-
-  @override
-  void didUpdateWidget(_GeoDonutPanel old) {
-    super.didUpdateWidget(old);
-    if (old.filter != widget.filter) {
-      setState(() {
-        _page = 0;
-        _touchedIndex = null;
-      });
-    }
-  }
-
-  List<CountryEntry> get _filtered {
-    if (widget.filter == 'Todos') return widget.allEntries;
-    return widget.allEntries.where((e) {
-      if (widget.filter == 'Otros') {
-        final c = CountryMetricsService.continentOf(e);
-        return c != 'América' && c != 'Europa' && c != 'Asia';
-      }
-      return CountryMetricsService.continentOf(e) == widget.filter;
-    }).toList();
-  }
-
-  int get _totalPages => ((_filtered.length / _pageSize).ceil()).clamp(1, 9999);
-
-  // Los 5 países de la página actual
-  List<CountryEntry> get _pageSlices {
-    final src = _filtered;
-    final start = _page * _pageSize;
-    if (start >= src.length) return [];
-    return src.sublist(start, (start + _pageSize).clamp(0, src.length));
-  }
-
-  Color _colorForSlice(int index, CountryEntry entry) {
-    if (entry.name == 'Otros') return AppColors.chartPink.withAlpha(120);
-    final continent = CountryMetricsService.continentOf(entry);
-    final base = _continentColors[continent] ?? AppColors.chartBlue;
-    const alphas = [255, 210, 175, 145, 120];
-    return base.withAlpha(alphas[index.clamp(0, alphas.length - 1)]);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final slices = _pageSlices;
-    final total = _filtered.fold(0, (s, e) => s + e.count);
-    final isEmpty = _filtered.isEmpty;
-
-    final continentTotals = <String, int>{};
-    for (final e in widget.allEntries) {
-      final c = CountryMetricsService.continentOf(e);
-      continentTotals[c] = (continentTotals[c] ?? 0) + e.count;
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // ── Header + filter chips ─────────────────────────────────────────
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final wide = constraints.maxWidth > 600;
-            if (wide) {
-              return Row(
-                children: [
-                  const Expanded(
-                    child: PanelHeader(
-                      title: 'Distribución geográfica',
-                      trailing: '',
-                    ),
-                  ),
-                  _ContinentFilter(
-                    selected: widget.filter,
-                    onChanged: widget.onFilterChanged,
-                    continentTotals: continentTotals,
-                    allTotal: widget.allEntries.fold(0, (s, e) => s + e.count),
-                  ),
-                ],
-              );
-            }
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const PanelHeader(
-                  title: 'Distribución geográfica',
-                  trailing: '',
-                ),
-                const SizedBox(height: 12),
-                _ContinentFilter(
-                  selected: widget.filter,
-                  onChanged: widget.onFilterChanged,
-                  continentTotals: continentTotals,
-                  allTotal: widget.allEntries.fold(0, (s, e) => s + e.count),
-                ),
-              ],
-            );
-          },
-        ),
-        const SizedBox(height: 20),
-        // ── Chart + ranking ───────────────────────────────────────────────
-        if (isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 32),
-            child: Center(
-              child: Text(
-                'Sin usuarios en este continente',
-                style: TextStyle(fontSize: 15, color: context.dc.ink3),
-              ),
-            ),
-          )
-        else
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth > 620;
-              final donut = _DonutChart(
-                slices: slices,
-                total: total,
-                touchedIndex: _touchedIndex,
-                colorFor: _colorForSlice,
-                onTouch: (i) => setState(() => _touchedIndex = i),
-              );
-              final ranking = _CountryRanking(
-                slices: slices,
-                total: total,
-                touchedIndex: _touchedIndex,
-                colorFor: _colorForSlice,
-              );
-
-              if (wide) {
-                return IntrinsicHeight(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(width: 260, height: 260, child: donut),
-                      const SizedBox(width: 28),
-                      Expanded(child: ranking),
-                    ],
-                  ),
-                );
-              }
-              return Column(
-                children: [
-                  SizedBox(height: 240, child: donut),
-                  const SizedBox(height: 20),
-                  ranking,
-                ],
-              );
-            },
-          ),
-        // ── Paginación ────────────────────────────────────────────────────
-        if (!isEmpty && _totalPages > 1) ...[
-          const SizedBox(height: 20),
-          _GeoPagination(
-            page: _page,
-            totalPages: _totalPages,
-            totalCount: _filtered.length,
-            pageSize: _pageSize,
-            onPrev: _page > 0
-                ? () => setState(() {
-                    _page--;
-                    _touchedIndex = null;
-                  })
-                : null,
-            onNext: _page < _totalPages - 1
-                ? () => setState(() {
-                    _page++;
-                    _touchedIndex = null;
-                  })
-                : null,
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DONUT CHART
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _DonutChart extends StatelessWidget {
-  const _DonutChart({
-    required this.slices,
-    required this.total,
-    required this.touchedIndex,
-    required this.colorFor,
-    required this.onTouch,
-  });
-
-  final List<CountryEntry> slices;
-  final int total;
-  final int? touchedIndex;
-  final Color Function(int, CountryEntry) colorFor;
-  final ValueChanged<int?> onTouch;
-
-  @override
-  Widget build(BuildContext context) {
-    final sections = <PieChartSectionData>[];
-    for (int i = 0; i < slices.length; i++) {
-      final e = slices[i];
-      final isTouched = touchedIndex == i;
-      final color = colorFor(i, e);
-      sections.add(
-        PieChartSectionData(
-          value: e.count.toDouble(),
-          color: color,
-          radius: isTouched ? 54 : 46,
-          title: '',
-          showTitle: false,
-        ),
-      );
-    }
-
-    return PieChart(
-      PieChartData(
-        sections: sections,
-        centerSpaceRadius: 72,
-        sectionsSpace: 2,
-        pieTouchData: PieTouchData(
-          touchCallback: (event, response) {
-            if (event is FlTapUpEvent || event is FlLongPressEnd) {
-              onTouch(null);
-              return;
-            }
-            final idx = response?.touchedSection?.touchedSectionIndex;
-            onTouch(idx);
-          },
-        ),
-      ),
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// COUNTRY RANKING LIST
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _CountryRanking extends StatelessWidget {
-  const _CountryRanking({
-    required this.slices,
-    required this.total,
-    required this.touchedIndex,
-    required this.colorFor,
-  });
-
-  final List<CountryEntry> slices;
-  final int total;
-  final int? touchedIndex;
-  final Color Function(int, CountryEntry) colorFor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (int i = 0; i < slices.length; i++) ...[
-          _RankRow(
-            rank: i + 1,
-            entry: slices[i],
-            total: total,
-            color: colorFor(i, slices[i]),
-            highlighted: touchedIndex == i,
-          ),
-          if (i < slices.length - 1)
-            Divider(height: 20, thickness: 1, color: context.dc.divider),
-        ],
-      ],
-    );
-  }
-}
-
-class _RankRow extends StatelessWidget {
-  const _RankRow({
-    required this.rank,
-    required this.entry,
-    required this.total,
-    required this.color,
-    required this.highlighted,
-  });
-
-  final int rank;
-  final CountryEntry entry;
-  final int total;
-  final Color color;
-  final bool highlighted;
-
-  @override
-  Widget build(BuildContext context) {
-    final fraction = total > 0 ? entry.count / total : 0.0;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: highlighted ? color.withAlpha(14) : Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 22,
-            child: Text(
-              '$rank',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-                color: context.dc.ink3,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 8),
-          _FlagWidget(isoCode: entry.isoCode, size: 22),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              entry.name,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: highlighted ? FontWeight.w700 : FontWeight.w500,
-                color: context.dc.ink,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 80,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: fraction,
-                minHeight: 6,
-                backgroundColor: context.dc.divider,
-                valueColor: AlwaysStoppedAnimation(color),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 30,
-            child: Text(
-              '${entry.count}',
-              textAlign: TextAlign.right,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: context.dc.ink,
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 44,
-            child: Text(
-              entry.percent,
-              textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 12, color: context.dc.ink2),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONTINENT FILTER CHIPS
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ContinentFilter extends StatelessWidget {
-  const _ContinentFilter({
-    required this.selected,
-    required this.onChanged,
-    required this.continentTotals,
-    required this.allTotal,
-  });
-
-  final String selected;
-  final ValueChanged<String> onChanged;
-  final Map<String, int> continentTotals;
-  final int allTotal;
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: _continentOptions.map((opt) {
-        final active = opt == selected;
-        final color = opt == 'Todos'
-            ? context.dc.ink
-            : (_continentColors[opt] ?? AppColors.chartAmber);
-        return GestureDetector(
-          onTap: () => onChanged(opt),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 140),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: active
-                  ? (opt == 'Todos' ? context.dc.ink : color.withAlpha(22))
-                  : context.dc.elevated,
-              borderRadius: BorderRadius.circular(20),
-              border: active && opt != 'Todos'
-                  ? Border.all(color: color.withAlpha(80), width: 1.5)
-                  : Border.all(color: Colors.transparent, width: 1.5),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (opt != 'Todos') ...[
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: active ? color : color.withAlpha(140),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                ],
-                Text(
-                  opt,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-                    color: active
-                        ? (opt == 'Todos' ? context.dc.bg : color)
-                        : context.dc.ink2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// FLAG WIDGET
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ── Geographic pagination control ────────────────────────────────────────────
-class _GeoPagination extends StatelessWidget {
-  const _GeoPagination({
-    required this.page,
-    required this.totalPages,
-    required this.totalCount,
-    required this.pageSize,
-    required this.onPrev,
-    required this.onNext,
-  });
-
-  final int page;
-  final int totalPages;
-  final int totalCount;
-  final int pageSize;
-  final VoidCallback? onPrev;
-  final VoidCallback? onNext;
-
-  @override
-  Widget build(BuildContext context) {
-    final start = page * pageSize + 1;
-    final end = (start + pageSize - 1).clamp(1, totalCount);
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        _NavBtn(icon: Icons.chevron_left_rounded, onTap: onPrev),
-        const SizedBox(width: 12),
-        Text(
-          '$start–$end de $totalCount',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: context.dc.ink2,
-          ),
-        ),
-        const SizedBox(width: 12),
-        _NavBtn(icon: Icons.chevron_right_rounded, onTap: onNext),
-      ],
-    );
-  }
-}
-
-class _NavBtn extends StatelessWidget {
-  const _NavBtn({required this.icon, required this.onTap});
-
-  final IconData icon;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onTap != null;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: enabled
-              ? context.dc.elevated
-              : context.dc.elevated.withAlpha(80),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: enabled ? context.dc.ink : context.dc.ink3,
-        ),
-      ),
-    );
-  }
-}
-
-class _FlagWidget extends StatelessWidget {
-  const _FlagWidget({required this.isoCode, required this.size});
-
-  final String isoCode;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    if (isoCode.isEmpty) {
-      return SizedBox(
-        width: size,
-        height: size * 0.75,
-        child: Icon(
-          FluentIcons.globe_20_regular,
-          size: size * 0.8,
-          color: context.dc.ink3,
-        ),
-      );
-    }
-    return CountryFlag.fromCountryCode(
-      isoCode,
-      theme: ImageTheme(
-        width: size,
-        height: size * 0.75,
-        shape: const RoundedRectangle(4),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // TABLA DE USUARIOS
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1080,12 +559,14 @@ class _TableHeader extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: const [
-          SizedBox(width: 52),
-          Expanded(flex: 4, child: _HeaderCell('Usuario')),
-          Expanded(flex: 2, child: _HeaderCell('País')),
-          SizedBox(width: 90, child: _HeaderCell('Plan', center: true)),
-          SizedBox(width: 100, child: _HeaderCell('Estado', center: true)),
-          SizedBox(width: 100, child: _HeaderCell('Registro', center: true)),
+          SizedBox(width: 48, child: _HeaderCell('País', center: true)),
+          Expanded(flex: 3, child: _HeaderCell('Correo')),
+          SizedBox(width: 84, child: _HeaderCell('Producto', center: true)),
+          SizedBox(width: 84, child: _HeaderCell('Comprado', center: true)),
+          SizedBox(width: 84, child: _HeaderCell('Expira', center: true)),
+          SizedBox(width: 64, child: _HeaderCell('Revenue', center: true)),
+          SizedBox(width: 110, child: _HeaderCell('Tipo', center: true)),
+          Expanded(flex: 2, child: _HeaderCell('Renovación')),
         ],
       ),
     );
@@ -1116,12 +597,14 @@ class _HeaderCell extends StatelessWidget {
 class _UserRow extends StatelessWidget {
   const _UserRow({
     required this.user,
+    required this.plan,
     required this.wide,
     required this.isLast,
     required this.onTap,
   });
 
   final UserModel user;
+  final _PlanSummary? plan;
   final bool wide;
   final bool isLast;
   final VoidCallback onTap;
@@ -1133,7 +616,9 @@ class _UserRow extends StatelessWidget {
         InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
-          child: wide ? _WideRow(user: user) : _NarrowCard(user: user),
+          child: wide
+              ? _WideRow(user: user, plan: plan)
+              : _NarrowCard(user: user, plan: plan),
         ),
       ],
     );
@@ -1141,64 +626,92 @@ class _UserRow extends StatelessWidget {
 }
 
 class _WideRow extends StatelessWidget {
-  const _WideRow({required this.user});
+  const _WideRow({required this.user, required this.plan});
 
   final UserModel user;
+  final _PlanSummary? plan;
 
   @override
   Widget build(BuildContext context) {
+    final isTrial = plan != null && plan!.typePlan.contains('trial');
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          _UserAvatar(user: user),
-          const SizedBox(width: 12),
-          Expanded(
-            flex: 4,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user.fullName.isNotEmpty ? user.fullName : '—',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: context.dc.ink,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  user.email,
-                  style: TextStyle(fontSize: 13, color: context.dc.ink2),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+          SizedBox(
+            width: 48,
+            child: Center(
+              child: FlagWidget(
+                isoCode: CountryMetricsService.isoFor(user.country),
+                size: 26,
+              ),
             ),
           ),
           Expanded(
-            flex: 2,
+            flex: 3,
             child: Text(
-              user.country.isNotEmpty ? user.country : '—',
-              style: TextStyle(fontSize: 14, color: context.dc.ink2),
+              user.email.isNotEmpty ? user.email : '—',
+              style: TextStyle(fontSize: 13, color: context.dc.ink),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           SizedBox(
-            width: 90,
-            child: Center(child: _PlanBadge(plan: user.plan)),
-          ),
-          SizedBox(
-            width: 90,
-            child: Center(child: _StatusDot(active: user.status)),
-          ),
-          SizedBox(
-            width: 100,
+            width: 84,
             child: Center(
               child: Text(
-                _fmtDate(user.createdAt),
-                style: const TextStyle(fontSize: 13, color: AppColors.ink2),
+                plan != null && plan!.planName.isNotEmpty
+                    ? plan!.planName
+                    : (user.plan == 'pro' ? 'Pro' : 'Free'),
+                style: TextStyle(fontSize: 13, color: context.dc.ink2),
               ),
             ),
+          ),
+          SizedBox(
+            width: 84,
+            child: Center(
+              child: Text(
+                _relativeFrom(plan?.startDate),
+                style: TextStyle(fontSize: 12, color: context.dc.ink2),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 84,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _relativeTo(plan?.endDate),
+                    style: TextStyle(fontSize: 12, color: context.dc.ink2),
+                  ),
+                  if (isTrial)
+                    Text(
+                      '(prueba)',
+                      style: TextStyle(fontSize: 10, color: context.dc.ink3),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 64,
+            child: Center(
+              child: Text(
+                '—',
+                style: TextStyle(fontSize: 13, color: context.dc.ink3),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 110,
+            child: Center(child: _TypePill(plan: plan, userPlan: user.plan)),
+          ),
+          Expanded(
+            flex: 2,
+            child: (plan?.willNotRenew ?? false)
+                ? const _RenovacionPill()
+                : const SizedBox(),
           ),
         ],
       ),
@@ -1207,56 +720,49 @@ class _WideRow extends StatelessWidget {
 }
 
 class _NarrowCard extends StatelessWidget {
-  const _NarrowCard({required this.user});
+  const _NarrowCard({required this.user, required this.plan});
 
   final UserModel user;
+  final _PlanSummary? plan;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 14),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _UserAvatar(user: user),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  user.fullName.isNotEmpty ? user.fullName : '—',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: context.dc.ink,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  user.email,
-                  style: TextStyle(fontSize: 13, color: context.dc.ink2),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    if (user.country.isNotEmpty)
-                      Text(
-                        user.country,
-                        style: TextStyle(fontSize: 13, color: context.dc.ink2),
-                      ),
-                    _PlanBadge(plan: user.plan),
-                    _StatusDot(active: user.status),
-                    Text(
-                      _fmtDate(user.createdAt),
-                      style: TextStyle(fontSize: 12, color: context.dc.ink3),
-                    ),
-                  ],
-                ),
-              ],
+          Text(
+            user.email.isNotEmpty ? user.email : '—',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: context.dc.ink,
             ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              FlagWidget(
+                isoCode: CountryMetricsService.isoFor(user.country),
+                size: 22,
+              ),
+              _TypePill(plan: plan, userPlan: user.plan),
+              if (plan?.willNotRenew ?? false) const _RenovacionPill(),
+              if (plan?.startDate != null)
+                Text(
+                  _relativeFrom(plan!.startDate),
+                  style: TextStyle(fontSize: 12, color: context.dc.ink3),
+                ),
+              if (plan?.endDate != null)
+                Text(
+                  _relativeTo(plan!.endDate),
+                  style: TextStyle(fontSize: 12, color: context.dc.ink3),
+                ),
+            ],
           ),
         ],
       ),
@@ -1264,129 +770,129 @@ class _NarrowCard extends StatelessWidget {
   }
 }
 
-String _fmtDate(String iso) {
-  final d = DateTime.tryParse(iso);
-  if (d == null) return '—';
-  const months = [
-    'ene',
-    'feb',
-    'mar',
-    'abr',
-    'may',
-    'jun',
-    'jul',
-    'ago',
-    'sep',
-    'oct',
-    'nov',
-    'dic',
-  ];
-  return '${d.day} ${months[d.month - 1]} ${d.year}';
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTES PEQUEÑOS
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _UserAvatar extends StatelessWidget {
-  const _UserAvatar({required this.user});
-
-  final UserModel user;
-
-  String get _initials {
-    final parts = user.fullName.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    if (parts.length == 1) return parts.first[0].toUpperCase();
-    return (parts.first[0] + parts.last[0]).toUpperCase();
+String _relativeFrom(DateTime? dt) {
+  if (dt == null) return '—';
+  final diff = DateTime.now().difference(dt);
+  if (diff.inDays > 365) {
+    final y = (diff.inDays / 365).floor();
+    return 'hace $y año${y == 1 ? '' : 's'}';
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 40,
-      decoration: BoxDecoration(
-        color: context.dc.elevated,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      alignment: Alignment.center,
-      child: Text(
-        _initials,
-        style: TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: context.dc.ink2,
-        ),
-      ),
-    );
+  if (diff.inDays > 30) {
+    final m = (diff.inDays / 30).floor();
+    return 'hace $m mes${m == 1 ? '' : 'es'}';
   }
+  if (diff.inDays > 0) return 'hace ${diff.inDays} día${diff.inDays == 1 ? '' : 's'}';
+  if (diff.inHours > 0) return 'hace ${diff.inHours} hora${diff.inHours == 1 ? '' : 's'}';
+  if (diff.inMinutes > 0) return 'hace ${diff.inMinutes} min';
+  return 'ahora';
 }
 
-class _PlanBadge extends StatelessWidget {
-  const _PlanBadge({required this.plan});
+String _relativeTo(DateTime? dt) {
+  if (dt == null) return '—';
+  final diff = dt.difference(DateTime.now());
+  if (diff.isNegative) return 'Vencido';
+  if (diff.inDays > 365) {
+    final y = (diff.inDays / 365).floor();
+    return 'en $y año${y == 1 ? '' : 's'}';
+  }
+  if (diff.inDays > 30) {
+    final m = (diff.inDays / 30).floor();
+    return 'en $m mes${m == 1 ? '' : 'es'}';
+  }
+  if (diff.inDays > 0) return 'en ${diff.inDays} día${diff.inDays == 1 ? '' : 's'}';
+  if (diff.inHours > 0) return 'en ${diff.inHours} hora${diff.inHours == 1 ? '' : 's'}';
+  return 'hoy';
+}
 
-  final String plan;
+class _TypePill extends StatelessWidget {
+  const _TypePill({required this.plan, required this.userPlan});
+
+  final _PlanSummary? plan;
+  final String userPlan;
 
   @override
   Widget build(BuildContext context) {
-    final isPro = plan == 'pro';
-    if (isPro) {
-      return Container(
-        width: 32,
-        height: 26,
-        decoration: BoxDecoration(
-          color: AppColors.goldLight,
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Center(
-          child: FaIcon(
-            FontAwesomeIcons.crown,
-            size: 13,
-            color: AppColors.goldDark,
-          ),
-        ),
+    if (plan == null || plan!.typePlan.isEmpty) {
+      if (userPlan == 'pro') {
+        return _pill(context, 'NEW SUB', AppColors.goldLight, AppColors.goldDark);
+      }
+      return _pill(context, 'FREE', context.dc.elevated, context.dc.ink2);
+    }
+
+    final tp = plan!.typePlan;
+    final cancelled = plan!.status.contains('cancel') ||
+        plan!.status.contains('revok') ||
+        tp.contains('cancel');
+
+    if (tp.contains('trial')) {
+      if (cancelled) {
+        return _pill(
+          context,
+          'TRIAL CANCELADO',
+          AppColors.danger.withValues(alpha: 0.12),
+          AppColors.danger,
+        );
+      }
+      return _pill(
+        context,
+        'TRIAL',
+        AppColors.chartBlue.withValues(alpha: 0.12),
+        AppColors.chartBlue,
       );
     }
+    if (tp.contains('new')) {
+      return _pill(context, 'NEW SUB', AppColors.goldLight, AppColors.goldDark);
+    }
+    if (tp.contains('renew')) {
+      return _pill(context, 'RENOVACIÓN', AppColors.goldLight, AppColors.goldDark);
+    }
+    if (userPlan == 'pro') {
+      return _pill(context, 'NEW SUB', AppColors.goldLight, AppColors.goldDark);
+    }
+    return _pill(context, 'FREE', context.dc.elevated, context.dc.ink2);
+  }
+
+  Widget _pill(BuildContext context, String text, Color bg, Color fg) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: context.dc.elevated,
+        color: bg,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        'Free',
+        text,
+        textAlign: TextAlign.center,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: 10,
           fontWeight: FontWeight.w700,
-          color: context.dc.ink2,
+          color: fg,
         ),
       ),
     );
   }
 }
 
-class _StatusDot extends StatelessWidget {
-  const _StatusDot({required this.active});
-
-  final bool active;
+class _RenovacionPill extends StatelessWidget {
+  const _RenovacionPill();
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: active
-            ? AppColors.success.withValues(alpha: 0.12)
-            : AppColors.danger.withValues(alpha: 0.12),
+        color: AppColors.danger.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        active ? 'Activo' : 'Inactivo',
-        textAlign: TextAlign.center,
+        'CANCELÓ FUTURAS SUSCRIPCIONES',
         style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: active ? AppColors.success : AppColors.danger,
+          fontSize: 10,
+          fontWeight: FontWeight.w700,
+          color: AppColors.danger,
         ),
       ),
     );

@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import 'empty_tables_component.dart';
+import 'geo_donut_panel.dart';
 import 'models.dart';
 import 'shared_widgets.dart';
 
@@ -34,15 +35,22 @@ class _Shimmer extends StatefulWidget {
   State<_Shimmer> createState() => _ShimmerState();
 }
 
-class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin {
+class _ShimmerState extends State<_Shimmer>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
   late final Animation<double> _anim;
 
   @override
   void initState() {
     super.initState();
-    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1400))..repeat();
-    _anim = Tween<double>(begin: -2, end: 2).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+    _anim = Tween<double>(
+      begin: -2,
+      end: 2,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -62,8 +70,11 @@ class _ShimmerState extends State<_Shimmer> with SingleTickerProviderStateMixin 
             begin: Alignment(_anim.value - 1, 0),
             end: Alignment(_anim.value + 1, 0),
             colors: const [
-              AppColors.shimmerBase, AppColors.shimmerLight, AppColors.white,
-              AppColors.shimmerLight, AppColors.shimmerBase,
+              AppColors.shimmerBase,
+              AppColors.shimmerLight,
+              AppColors.white,
+              AppColors.shimmerLight,
+              AppColors.shimmerBase,
             ],
             stops: const [0.0, 0.25, 0.5, 0.75, 1.0],
           ).createShader(bounds),
@@ -86,7 +97,10 @@ class _ShimBox extends StatelessWidget {
     return Container(
       width: width,
       height: height,
-      decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(radius)),
+      decoration: BoxDecoration(
+        color: AppColors.shimmerBase,
+        borderRadius: BorderRadius.circular(radius),
+      ),
     );
   }
 }
@@ -95,10 +109,18 @@ Widget _shimGrid(int count) => GridView.builder(
   shrinkWrap: true,
   physics: const NeverScrollableScrollPhysics(),
   gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-    maxCrossAxisExtent: 300, mainAxisExtent: 110, crossAxisSpacing: 16, mainAxisSpacing: 16,
+    maxCrossAxisExtent: 300,
+    mainAxisExtent: 110,
+    crossAxisSpacing: 16,
+    mainAxisSpacing: 16,
   ),
   itemCount: count,
-  itemBuilder: (_, idx) => Container(decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(18))),
+  itemBuilder: (_, idx) => Container(
+    decoration: BoxDecoration(
+      color: AppColors.shimmerBase,
+      borderRadius: BorderRadius.circular(18),
+    ),
+  ),
 );
 
 class _AppStoreShimmer extends StatelessWidget {
@@ -144,7 +166,8 @@ class OverviewPage extends StatelessWidget {
     return StreamBuilder<AppStoreMetrics?>(
       stream: AppStoreMetricsService.stream(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) return const _AppStoreShimmer();
+        if (snap.connectionState == ConnectionState.waiting)
+          return const _AppStoreShimmer();
         return StreamBuilder<RevenueCatMetrics?>(
           stream: RevenueCatMetricsService.stream(),
           builder: (context, revenueSnap) {
@@ -208,6 +231,32 @@ class _OverviewContent extends StatefulWidget {
 
 class _OverviewContentState extends State<_OverviewContent> {
   String _platform = 'all';
+  String _continentFilter = 'Todos';
+  Future<List<CountryEntry>>? _countryFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _countryFuture = _loadCountries();
+  }
+
+  Future<List<CountryEntry>> _loadCountries() async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .limit(10000)
+          .get();
+      final countMap = <String, int>{};
+      for (final doc in snap.docs) {
+        final u = UserModel.fromFirestore(doc.id, doc.data());
+        final name = u.country.trim();
+        countMap[name] = (countMap[name] ?? 0) + 1;
+      }
+      return CountryMetricsService.fromCounts(countMap);
+    } catch (_) {
+      return [];
+    }
+  }
 
   int _eventUniques(List<FunnelEvent> events, String name) =>
       events.where((e) => e.name == name).fold(0, (s, e) => s + e.uniqueUsers);
@@ -242,9 +291,15 @@ class _OverviewContentState extends State<_OverviewContent> {
           label: 'Rating',
           value: ps.ratingStr,
           valueSuffix: ps.rating > 0
-              ? const Icon(Icons.star_rounded, color: AppColors.starAmber, size: 26)
+              ? const Icon(
+                  Icons.star_rounded,
+                  color: AppColors.starAmber,
+                  size: 26,
+                )
               : null,
-          badgeText: ps.totalReviews > 0 ? '${ps.totalReviews} reseñas' : 'Sin reseñas aún',
+          badgeText: ps.totalReviews > 0
+              ? '${ps.totalReviews} reseñas'
+              : 'Sin reseñas aún',
           badgeType: BadgeType.neutral,
         ),
       ],
@@ -280,9 +335,12 @@ class _OverviewContentState extends State<_OverviewContent> {
     // Usuarios iOS / Android desde funnel devices
     final devices = funnel?.devices ?? [];
     final iosCount = devices
-        .where((d) => d.os.toLowerCase().contains('ios') ||
-            d.os.toLowerCase().contains('iphone') ||
-            d.os.toLowerCase().contains('ipad'))
+        .where(
+          (d) =>
+              d.os.toLowerCase().contains('ios') ||
+              d.os.toLowerCase().contains('iphone') ||
+              d.os.toLowerCase().contains('ipad'),
+        )
         .fold(0, (s, d) => s + d.count);
     final androidCount = devices
         .where((d) => d.os.toLowerCase().contains('android'))
@@ -304,19 +362,20 @@ class _OverviewContentState extends State<_OverviewContent> {
         ? _eventUniques(funnelEvents, 'login')
         : funnelSignup;
     final funnelPaywall = funnelRange?.uniquePaywall ?? 0;
-    final funnelTrial = funnelRange?.uniqueTrial ?? rcOverview?.activeTrials ?? 0;
+    final funnelTrial =
+        funnelRange?.uniqueTrial ?? rcOverview?.activeTrials ?? 0;
     final funnelSub = _eventUniques(funnelEvents, 'subscription_purchased') > 0
         ? _eventUniques(funnelEvents, 'subscription_purchased')
         : activeSubs;
 
     final funnelSteps = [
-      _FunnelStep('Descarga',   funnelBase,    AppColors.chartBlue),
-      _FunnelStep('App abierta', funnelOpen,    AppColors.chartGreen),
-      _FunnelStep('Onboarding', funnelSignup,  const Color(0xFF8B80E8)),
-      _FunnelStep('Login',      funnelLogin,   AppColors.pink),
-      _FunnelStep('Paywall',    funnelPaywall, AppColors.chartAmber),
-      _FunnelStep('Trial',      funnelTrial,   AppColors.danger),
-      _FunnelStep('Suscripción', funnelSub,    AppColors.success),
+      _FunnelStep('Descarga', funnelBase, AppColors.chartBlue),
+      _FunnelStep('App abierta', funnelOpen, AppColors.chartGreen),
+      _FunnelStep('Onboarding', funnelSignup, const Color(0xFF8B80E8)),
+      _FunnelStep('Login', funnelLogin, AppColors.pink),
+      _FunnelStep('Paywall', funnelPaywall, AppColors.chartAmber),
+      _FunnelStep('Trial', funnelTrial, AppColors.danger),
+      _FunnelStep('Suscripción', funnelSub, AppColors.success),
     ];
 
     return Column(
@@ -339,11 +398,11 @@ class _OverviewContentState extends State<_OverviewContent> {
                 label: 'TIENDA Y DESCARGAS',
                 source: _platform == 'android'
                     ? (widget.playStore != null
-                        ? 'Play Store · ${widget.playStore!.updatedAtLabel}'
-                        : 'Play Store')
+                          ? 'Play Store · ${widget.playStore!.updatedAtLabel}'
+                          : 'Play Store')
                     : (as != null
-                        ? 'App Store · ${as.periodLabel}'
-                        : 'App Store'),
+                          ? 'App Store · ${as.periodLabel}'
+                          : 'App Store'),
               ),
             ),
             if (_platform == 'android')
@@ -375,9 +434,15 @@ class _OverviewContentState extends State<_OverviewContent> {
                 label: 'Rating',
                 value: as.ratingStr,
                 valueSuffix: as.rating > 0
-                    ? const Icon(Icons.star_rounded, color: AppColors.starAmber, size: 26)
+                    ? const Icon(
+                        Icons.star_rounded,
+                        color: AppColors.starAmber,
+                        size: 26,
+                      )
                     : null,
-                badgeText: as.totalReviews > 0 ? '${as.totalReviews} reseñas' : 'Sin reseñas aún',
+                badgeText: as.totalReviews > 0
+                    ? '${as.totalReviews} reseñas'
+                    : 'Sin reseñas aún',
                 badgeType: BadgeType.neutral,
               ),
             ],
@@ -393,8 +458,8 @@ class _OverviewContentState extends State<_OverviewContent> {
                 source: rc == null
                     ? 'RevenueCat'
                     : rc.updatedAtLabel.isEmpty
-                        ? rc.source
-                        : '${rc.source} · ${rc.updatedAtLabel}',
+                    ? rc.source
+                    : '${rc.source} · ${rc.updatedAtLabel}',
               ),
             ),
             const _RevenueCatRefreshButton(),
@@ -482,7 +547,8 @@ class _OverviewContentState extends State<_OverviewContent> {
           builder: (context, snap) {
             final u = snap.data ?? UserCounts.empty;
             final pagoYTrial =
-                (rcOverview?.activeSubscriptions ?? 0) + (rcOverview?.activeTrials ?? 0);
+                (rcOverview?.activeSubscriptions ?? 0) +
+                (rcOverview?.activeTrials ?? 0);
             final soloGratuito = (u.total - pagoYTrial).clamp(0, 999999);
             return ResponsiveGrid(
               minTileWidth: 220,
@@ -509,7 +575,10 @@ class _OverviewContentState extends State<_OverviewContent> {
         const SizedBox(height: 42),
 
         // ── RETENCIÓN Y CANCELACIONES ────────────────────────────────────
-        const SectionHeader(label: 'RETENCIÓN Y CANCELACIONES', source: 'Firebase · RevenueCat'),
+        const SectionHeader(
+          label: 'RETENCIÓN Y CANCELACIONES',
+          source: 'Firebase · RevenueCat',
+        ),
         const SizedBox(height: 14),
         ResponsiveGrid(
           minTileWidth: 220,
@@ -542,7 +611,10 @@ class _OverviewContentState extends State<_OverviewContent> {
         const SizedBox(height: 42),
 
         // ── EMBUDO DE CONVERSIÓN ─────────────────────────────────────────
-        const SectionHeader(label: 'EMBUDO DE CONVERSIÓN', source: 'Firebase · RevenueCat'),
+        const SectionHeader(
+          label: 'EMBUDO DE CONVERSIÓN',
+          source: 'Firebase · RevenueCat',
+        ),
         const SizedBox(height: 14),
         _OverviewFunnel(steps: funnelSteps),
         const SizedBox(height: 42),
@@ -568,7 +640,9 @@ class _OverviewContentState extends State<_OverviewContent> {
                     ),
                     MetricCard(
                       label: 'Usuarios iOS',
-                      value: iosCount > 0 ? '$iosCount' : (u.total > 0 ? '${u.total}' : '—'),
+                      value: iosCount > 0
+                          ? '$iosCount'
+                          : (u.total > 0 ? '${u.total}' : '—'),
                       helperText: 'solo iOS disponible',
                     ),
                     MetricCard(
@@ -583,7 +657,10 @@ class _OverviewContentState extends State<_OverviewContent> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      PanelHeader(title: 'Pro vs Free', trailing: '${u.total} usuarios'),
+                      PanelHeader(
+                        title: 'Pro vs Free',
+                        trailing: '${u.total} usuarios',
+                      ),
                       const SizedBox(height: 28),
                       PlanDistributionBar(proportion: u.proProportion),
                       const SizedBox(height: 28),
@@ -615,36 +692,31 @@ class _OverviewContentState extends State<_OverviewContent> {
         const SizedBox(height: 42),
 
         // ── DISTRIBUCIÓN GEOGRÁFICA ──────────────────────────────────────
-        const SectionHeader(label: 'DISTRIBUCIÓN GEOGRÁFICA', source: 'Firebase'),
+        const SectionHeader(
+          label: 'DISTRIBUCIÓN GEOGRÁFICA',
+          source: 'Firebase',
+        ),
         const SizedBox(height: 14),
         FutureBuilder<List<CountryEntry>>(
-          future: CountryMetricsService.future,
+          future: _countryFuture,
           builder: (context, countrySnap) {
-            final entries = countrySnap.data;
+            if (countrySnap.connectionState == ConnectionState.waiting) {
+              return const Panel(child: _CountryShimmer());
+            }
+            final entries = countrySnap.data ?? [];
+            if (entries.isEmpty) {
+              return const Panel(
+                child: EmptyTablesComponent(
+                  title: 'Sin datos de país',
+                  description: 'Aún no hay registros de ubicación.',
+                ),
+              );
+            }
             return Panel(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  PanelHeader(
-                    title: 'Registros por país',
-                    trailing: entries == null ? 'Top 4' : 'Top ${entries.length}',
-                  ),
-                  const SizedBox(height: 18),
-                  if (entries == null)
-                    _CountryShimmer()
-                  else if (entries.isEmpty)
-                    const Expanded(
-                      child: EmptyTablesComponent(
-                        title: 'Sin datos de país',
-                        description: 'Aún no hay registros de ubicación.',
-                      ),
-                    )
-                  else
-                    for (int i = 0; i < entries.length; i++) ...[
-                      _CountryEntryRow(entry: entries[i]),
-                      if (i < entries.length - 1) const SizedBox(height: 18),
-                    ],
-                ],
+              child: GeoDonutPanel(
+                allEntries: entries,
+                filter: _continentFilter,
+                onFilterChanged: (v) => setState(() => _continentFilter = v),
               ),
             );
           },
@@ -666,7 +738,11 @@ class _PlatformToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const options = [('all', 'Ambas tiendas'), ('ios', 'iOS'), ('android', 'Android')];
+    const options = [
+      ('all', 'Ambas tiendas'),
+      ('ios', 'iOS'),
+      ('android', 'Android'),
+    ];
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
@@ -678,7 +754,11 @@ class _PlatformToggle extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           for (final (key, label) in options)
-            _PlatformBtn(label: label, selected: selected == key, onTap: () => onSelect(key)),
+            _PlatformBtn(
+              label: label,
+              selected: selected == key,
+              onTap: () => onSelect(key),
+            ),
         ],
       ),
     );
@@ -686,7 +766,11 @@ class _PlatformToggle extends StatelessWidget {
 }
 
 class _PlatformBtn extends StatelessWidget {
-  const _PlatformBtn({required this.label, required this.selected, required this.onTap});
+  const _PlatformBtn({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -770,7 +854,10 @@ class _OverviewFunnel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PanelHeader(title: 'Flujo de conversión', trailing: 'Firebase · RevenueCat'),
+          const PanelHeader(
+            title: 'Flujo de conversión',
+            trailing: 'Firebase · RevenueCat',
+          ),
           const SizedBox(height: 24),
           SizedBox(
             height: maxH,
@@ -786,7 +873,9 @@ class _OverviewFunnel extends StatelessWidget {
                         color: steps[i].count > 0
                             ? steps[i].color
                             : AppColors.shimmerBase,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(10),
+                        ),
                       ),
                     ),
                   ),
@@ -818,13 +907,19 @@ class _OverviewFunnel extends StatelessWidget {
                         steps[i].count > 0
                             ? '${(steps[i].count / base * 100).toStringAsFixed(0)}%'
                             : '—',
-                        style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.ink3,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 6),
                       Text(
                         steps[i].label,
-                        style: const TextStyle(fontSize: 12, color: AppColors.ink2),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.ink2,
+                        ),
                         textAlign: TextAlign.center,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -864,7 +959,10 @@ class _AppStoreCardsShimmer extends StatelessWidget {
               (_) => Container(
                 width: tileWidth,
                 height: 160,
-                decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(28)),
+                decoration: BoxDecoration(
+                  color: AppColors.shimmerBase,
+                  borderRadius: BorderRadius.circular(28),
+                ),
               ),
             ),
           );
@@ -898,18 +996,22 @@ class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
           .collection('refresh_triggers')
           .add({'created_at': FieldValue.serverTimestamp()});
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Actualización en curso (~60s)'),
-          backgroundColor: AppColors.ink,
-          duration: Duration(seconds: 4),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Actualización en curso (~60s)'),
+            backgroundColor: AppColors.ink,
+            duration: Duration(seconds: 4),
+          ),
+        );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Error al solicitar actualización'),
-          backgroundColor: AppColors.danger,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al solicitar actualización'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -927,10 +1029,18 @@ class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
           padding: const EdgeInsets.all(6),
           child: _loading
               ? const SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.pink),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.pink,
+                  ),
                 )
-              : const Icon(FluentIcons.arrow_sync_20_regular, size: 18, color: AppColors.pink),
+              : const Icon(
+                  FluentIcons.arrow_sync_20_regular,
+                  size: 18,
+                  color: AppColors.pink,
+                ),
         ),
       ),
     );
@@ -945,7 +1055,8 @@ class _RevenueCatRefreshButton extends StatefulWidget {
   const _RevenueCatRefreshButton();
 
   @override
-  State<_RevenueCatRefreshButton> createState() => _RevenueCatRefreshButtonState();
+  State<_RevenueCatRefreshButton> createState() =>
+      _RevenueCatRefreshButtonState();
 }
 
 class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
@@ -957,18 +1068,22 @@ class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
     try {
       await RevenueCatMetricsService.requestRefresh();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Actualización de RevenueCat en curso'),
-          backgroundColor: AppColors.ink,
-          duration: Duration(seconds: 4),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Actualización de RevenueCat en curso'),
+            backgroundColor: AppColors.ink,
+            duration: Duration(seconds: 4),
+          ),
+        );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Error al solicitar actualización de RevenueCat'),
-          backgroundColor: AppColors.danger,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al solicitar actualización de RevenueCat'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -986,10 +1101,18 @@ class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
           padding: const EdgeInsets.all(6),
           child: _loading
               ? const SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.success),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.success,
+                  ),
                 )
-              : const Icon(FluentIcons.arrow_sync_20_regular, size: 18, color: AppColors.success),
+              : const Icon(
+                  FluentIcons.arrow_sync_20_regular,
+                  size: 18,
+                  color: AppColors.success,
+                ),
         ),
       ),
     );
@@ -1004,7 +1127,8 @@ class _PlayStoreRefreshButton extends StatefulWidget {
   const _PlayStoreRefreshButton();
 
   @override
-  State<_PlayStoreRefreshButton> createState() => _PlayStoreRefreshButtonState();
+  State<_PlayStoreRefreshButton> createState() =>
+      _PlayStoreRefreshButtonState();
 }
 
 class _PlayStoreRefreshButtonState extends State<_PlayStoreRefreshButton> {
@@ -1016,18 +1140,22 @@ class _PlayStoreRefreshButtonState extends State<_PlayStoreRefreshButton> {
     try {
       await PlayStoreMetricsService.requestRefresh();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Actualización de Play Store en curso (~60s)'),
-          backgroundColor: AppColors.ink,
-          duration: Duration(seconds: 4),
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Actualización de Play Store en curso (~60s)'),
+            backgroundColor: AppColors.ink,
+            duration: Duration(seconds: 4),
+          ),
+        );
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Error al solicitar actualización de Play Store'),
-          backgroundColor: AppColors.danger,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error al solicitar actualización de Play Store'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -1045,10 +1173,18 @@ class _PlayStoreRefreshButtonState extends State<_PlayStoreRefreshButton> {
           padding: const EdgeInsets.all(6),
           child: _loading
               ? const SizedBox(
-                  width: 18, height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.chartGreen),
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.chartGreen,
+                  ),
                 )
-              : const Icon(FluentIcons.arrow_sync_20_regular, size: 18, color: AppColors.chartGreen),
+              : const Icon(
+                  FluentIcons.arrow_sync_20_regular,
+                  size: 18,
+                  color: AppColors.chartGreen,
+                ),
         ),
       ),
     );
@@ -1068,19 +1204,27 @@ class PlanDistributionBar extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     return Container(
       height: 32,
-      decoration: BoxDecoration(color: AppColors.fieldBg, borderRadius: BorderRadius.circular(18)),
+      decoration: BoxDecoration(
+        color: AppColors.fieldBg,
+        borderRadius: BorderRadius.circular(18),
+      ),
       child: Stack(
         children: [
           Container(
             width: size.width * (1 - proportion),
-            decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(18)),
+            decoration: BoxDecoration(
+              color: AppColors.shimmerBase,
+              borderRadius: BorderRadius.circular(18),
+            ),
           ),
           FractionallySizedBox(
             widthFactor: proportion.clamp(0.0, 1.0),
             alignment: Alignment.centerLeft,
             child: Container(
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [AppColors.goldGradStart, AppColors.goldGradEnd]),
+                gradient: const LinearGradient(
+                  colors: [AppColors.goldGradStart, AppColors.goldGradEnd],
+                ),
                 borderRadius: BorderRadius.circular(18),
               ),
             ),
@@ -1122,9 +1266,15 @@ class PlanRow extends StatelessWidget {
         Container(
           width: 54,
           height: 54,
-          decoration: BoxDecoration(color: iconBackground, borderRadius: BorderRadius.circular(16)),
+          decoration: BoxDecoration(
+            color: iconBackground,
+            borderRadius: BorderRadius.circular(16),
+          ),
           alignment: Alignment.center,
-          child: IconTheme(data: IconThemeData(color: iconColor, size: 26), child: icon),
+          child: IconTheme(
+            data: IconThemeData(color: iconColor, size: 26),
+            child: icon,
+          ),
         ),
         const SizedBox(width: 20),
         Expanded(
@@ -1133,7 +1283,11 @@ class PlanRow extends StatelessWidget {
               children: [
                 TextSpan(
                   text: title,
-                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w500, color: AppColors.ink),
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.ink,
+                  ),
                 ),
                 if (subtitle != null)
                   TextSpan(
@@ -1149,65 +1303,21 @@ class PlanRow extends StatelessWidget {
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.ink),
+            style: const TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              color: AppColors.ink,
+            ),
           ),
         ),
         const SizedBox(width: 22),
         SizedBox(
           width: 82,
-          child: Text(percentage, textAlign: TextAlign.right, style: const TextStyle(fontSize: 20, color: AppColors.ink2)),
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// COUNTRY ENTRY ROW
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _CountryEntryRow extends StatelessWidget {
-  const _CountryEntryRow({required this.entry});
-  final CountryEntry entry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(width: 46, child: Text(entry.flag, style: const TextStyle(fontSize: 26, height: 1))),
-        const SizedBox(width: 18),
-        Expanded(
           child: Text(
-            entry.name,
-            style: const TextStyle(fontSize: 22, height: 1.15, fontWeight: FontWeight.w500, color: AppColors.ink),
-          ),
-        ),
-        const SizedBox(width: 18),
-        SizedBox(
-          width: 200,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: entry.fraction,
-              minHeight: 14,
-              backgroundColor: AppColors.progressBg,
-              valueColor: const AlwaysStoppedAnimation(AppColors.progressFill),
-            ),
-          ),
-        ),
-        const SizedBox(width: 18),
-        SizedBox(
-          width: 42,
-          child: Text(
-            '${entry.count}',
+            percentage,
             textAlign: TextAlign.right,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: AppColors.ink),
+            style: const TextStyle(fontSize: 20, color: AppColors.ink2),
           ),
-        ),
-        const SizedBox(width: 18),
-        SizedBox(
-          width: 56,
-          child: Text(entry.percent, textAlign: TextAlign.right, style: const TextStyle(fontSize: 17, color: AppColors.ink2)),
         ),
       ],
     );
@@ -1226,13 +1336,42 @@ class _CountryShimmer extends StatelessWidget {
           padding: EdgeInsets.only(bottom: i < 3 ? 18 : 0),
           child: Row(
             children: [
-              Container(width: 36, height: 36, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(8))),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.shimmerBase,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
               const SizedBox(width: 10),
-              Expanded(child: Container(height: 18, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6)))),
+              Expanded(
+                child: Container(
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: AppColors.shimmerBase,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ),
               const SizedBox(width: 18),
-              Container(width: 200, height: 14, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(999))),
+              Container(
+                width: 200,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: AppColors.shimmerBase,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
               const SizedBox(width: 18),
-              Container(width: 42, height: 18, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6))),
+              Container(
+                width: 42,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: AppColors.shimmerBase,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
             ],
           ),
         ),

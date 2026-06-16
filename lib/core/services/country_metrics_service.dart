@@ -121,6 +121,8 @@ class CountryMetricsService {
     return '🌐';
   }
 
+  static String isoFor(String name) => _isoFor(name);
+
   static String _isoFor(String name) {
     final key = _norm(name);
     for (final entry in _isos.entries) {
