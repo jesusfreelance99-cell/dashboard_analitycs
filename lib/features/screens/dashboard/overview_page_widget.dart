@@ -527,10 +527,12 @@ class _OverviewContentState extends State<_OverviewContent> {
           children: [
             MetricCard(
               label: 'MRR',
-              value: rcOverview?.mrrLabel ?? '—',
+              value: (rcOverview != null && rcOverview.hasMrrBreakdown)
+                  ? rcOverview.computedMrrLabel
+                  : rcOverview?.mrrLabel ?? '—',
               accent: true,
               helperText: (rcOverview != null && rcOverview.hasMrrBreakdown)
-                  ? '${rcOverview.monthlySubscriptions}×\$4.99 + ${rcOverview.annualSubscriptions}×\$1.67'
+                  ? '${rcOverview.monthlySubscriptions}×\$4.99 + ${rcOverview.annualSubscriptions}×\$1.67/mes'
                   : 'ingresos recurrentes mensuales',
             ),
             MetricCard(

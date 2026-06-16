@@ -155,6 +155,7 @@ class _FunnelContent extends StatelessWidget {
         count: onboarding, unique: onboardingUniq > 0 ? onboardingUniq : null,
         baseline: baseline, color: AppColors.chartGreen,
         event: onbE,
+        subSteps: fRange?.onboardingSteps ?? [],
       ),
       _FStep(
         num: 3, eventCode: 'sign_up', label: 'Registro completado',
@@ -368,6 +369,7 @@ class _FStep {
     required this.color,
     this.event,
     this.extraInfo,
+    this.subSteps = const [],
   });
 
   final int num;
@@ -379,6 +381,7 @@ class _FStep {
   final Color color;
   final FunnelEvent? event;
   final String? extraInfo;
+  final List<OnboardingStep> subSteps;
 
   double get fraction => baseline > 0 && count > 0 ? (count / baseline).clamp(0.0, 1.0) : 0;
   String get pctStr => count > 0 ? '${(fraction * 100).toStringAsFixed(0)}%' : '—';
@@ -388,7 +391,7 @@ class _FStep {
 // FUNNEL STEP ROW
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _FunnelStepRow extends StatelessWidget {
+class _FunnelStepRow extends StatefulWidget {
   const _FunnelStepRow({
     required this.step,
     required this.funnel,
@@ -401,13 +404,21 @@ class _FunnelStepRow extends StatelessWidget {
   final DateRange currentRange;
   final bool isLast;
 
-  void _openDetail(BuildContext context) {
-    if (step.event == null || funnel == null) return;
+  @override
+  State<_FunnelStepRow> createState() => _FunnelStepRowState();
+}
+
+class _FunnelStepRowState extends State<_FunnelStepRow> {
+  bool _expanded = false;
+
+  void _openDetail() {
+    final step = widget.step;
+    if (step.event == null || widget.funnel == null) return;
     showDialog(
       context: context,
       barrierColor: AppColors.ink.withAlpha(80),
       builder: (_) => _EventDetailDialog(
-        funnel: funnel!,
+        funnel: widget.funnel!,
         event: step.event!,
       ),
     );
@@ -415,104 +426,201 @@ class _FunnelStepRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final step = widget.step;
     final hasData = step.count > 0;
-    return InkWell(
-      onTap: step.event != null ? () => _openDetail(context) : null,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Step number
-                SizedBox(
-                  width: 22,
-                  child: Text(
-                    '${step.num}',
-                    style: const TextStyle(fontSize: 12, color: AppColors.ink3),
-                  ),
-                ),
-                // Event code
-                Expanded(
-                  flex: 3,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    final hasSubSteps = step.subSteps.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: hasSubSteps
+                ? () => setState(() => _expanded = !_expanded)
+                : (step.event != null ? _openDetail : null),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Text(
-                        step.eventCode,
-                        style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w700,
-                          color: AppColors.ink2, fontFamily: 'monospace',
+                      SizedBox(
+                        width: 22,
+                        child: Text(
+                          '${step.num}',
+                          style: const TextStyle(fontSize: 12, color: AppColors.ink3),
                         ),
                       ),
-                      Text(
-                        step.label,
-                        style: const TextStyle(fontSize: 13, color: AppColors.ink3),
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              step.eventCode,
+                              style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700,
+                                color: AppColors.ink2, fontFamily: 'monospace',
+                              ),
+                            ),
+                            Text(
+                              step.label,
+                              style: const TextStyle(fontSize: 13, color: AppColors.ink3),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 60,
+                        child: Text(
+                          hasData ? '${step.count}' : '—',
+                          style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700,
+                            color: hasData ? AppColors.ink : AppColors.ink3,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 90,
+                        child: Text(
+                          step.unique != null ? '${step.unique} únicos' : (step.extraInfo ?? ''),
+                          style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 50,
+                        child: Text(
+                          step.pctStr,
+                          style: TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700,
+                            color: hasData ? step.color : AppColors.ink3,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 22,
+                        child: hasSubSteps
+                            ? Icon(
+                                _expanded
+                                    ? Icons.expand_less_rounded
+                                    : Icons.expand_more_rounded,
+                                size: 16,
+                                color: AppColors.ink3,
+                              )
+                            : (step.event != null
+                                ? const Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.ink3)
+                                : const SizedBox()),
                       ),
                     ],
                   ),
-                ),
-                // Count
-                SizedBox(
-                  width: 60,
-                  child: Text(
-                    hasData ? '${step.count}' : '—',
-                    style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w700,
-                      color: hasData ? AppColors.ink : AppColors.ink3,
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 22),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: LinearProgressIndicator(
+                        value: step.fraction,
+                        minHeight: 10,
+                        backgroundColor: AppColors.progressBg,
+                        valueColor: AlwaysStoppedAnimation(
+                          hasData ? step.color : AppColors.shimmerBase,
+                        ),
+                      ),
                     ),
-                    textAlign: TextAlign.right,
                   ),
-                ),
-                // Uniques
-                SizedBox(
-                  width: 90,
-                  child: Text(
-                    step.unique != null ? '${step.unique} únicos' : (step.extraInfo ?? ''),
-                    style: const TextStyle(fontSize: 12, color: AppColors.ink3),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-                // %
-                SizedBox(
-                  width: 50,
-                  child: Text(
-                    step.pctStr,
-                    style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w700,
-                      color: hasData ? step.color : AppColors.ink3,
-                    ),
-                    textAlign: TextAlign.right,
-                  ),
-                ),
-                if (step.event != null) ...[
-                  const SizedBox(width: 6),
-                  Icon(Icons.chevron_right_rounded, size: 16, color: AppColors.ink3),
-                ] else
-                  const SizedBox(width: 22),
-              ],
+                ],
+              ),
             ),
+          ),
+          // Sub-detalle colapsable — pasos de onboarding
+          if (hasSubSteps && _expanded) ...[
             const SizedBox(height: 8),
-            // Progress bar
             Padding(
               padding: const EdgeInsets.only(left: 22),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: LinearProgressIndicator(
-                  value: step.fraction,
-                  minHeight: 10,
-                  backgroundColor: AppColors.progressBg,
-                  valueColor: AlwaysStoppedAnimation(
-                    hasData ? step.color : AppColors.shimmerBase,
-                  ),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final s in step.subSteps)
+                    _OnboardingSubRow(
+                      step: s,
+                      total: step.count > 0 ? step.count : 1,
+                      color: step.color,
+                    ),
+                ],
               ),
             ),
           ],
-        ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnboardingSubRow extends StatelessWidget {
+  const _OnboardingSubRow({
+    required this.step,
+    required this.total,
+    required this.color,
+  });
+
+  final OnboardingStep step;
+  final int total;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final pct = total > 0 ? (step.count / total).clamp(0.0, 1.0) : 0.0;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  step.name,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.ink2,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+              Text(
+                '${step.count}',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.ink),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 44,
+                child: Text(
+                  '${(pct * 100).toStringAsFixed(0)}%',
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 6,
+              backgroundColor: AppColors.progressBg,
+              valueColor: AlwaysStoppedAnimation(color.withAlpha(160)),
+            ),
+          ),
+        ],
       ),
     );
   }

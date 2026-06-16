@@ -47,12 +47,31 @@ class FunnelMetrics {
   }
 }
 
+class OnboardingStep {
+  final String name;
+  final int count;
+  final int uniqueUsers;
+
+  const OnboardingStep({
+    required this.name,
+    required this.count,
+    required this.uniqueUsers,
+  });
+
+  factory OnboardingStep.fromMap(Map<String, dynamic> m) => OnboardingStep(
+    name:        m['step_name']    as String? ?? '',
+    count:       (m['count']        as num?)?.toInt() ?? 0,
+    uniqueUsers: (m['unique_users'] as num?)?.toInt() ?? 0,
+  );
+}
+
 class FunnelRangeData {
   final int paywallViewed;
   final int trialStarted;
   final int uniquePaywall;
   final int uniqueTrial;
   final List<FunnelEvent> events;
+  final List<OnboardingStep> onboardingSteps;
 
   const FunnelRangeData({
     this.paywallViewed = 0,
@@ -60,6 +79,7 @@ class FunnelRangeData {
     this.uniquePaywall = 0,
     this.uniqueTrial = 0,
     this.events = const [],
+    this.onboardingSteps = const [],
   });
 
   factory FunnelRangeData.fromMap(Map<String, dynamic> m) => FunnelRangeData(
@@ -70,6 +90,10 @@ class FunnelRangeData {
     events: (m['events'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(FunnelEvent.fromMap)
+        .toList(),
+    onboardingSteps: (m['onboarding_steps'] as List<dynamic>? ?? [])
+        .whereType<Map<String, dynamic>>()
+        .map(OnboardingStep.fromMap)
         .toList(),
   );
 }
