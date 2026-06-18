@@ -436,16 +436,22 @@ class _OverviewContentState extends State<_OverviewContent> {
                 label: 'Impresiones',
                 value: as.impressionsStr,
                 helperText: 'visitas a la ficha en App Store',
+                infoTooltip:
+                    'El número de veces que se ha visto el icono de la app en App Store en dispositivos con iOS 8, macOS 10.14.1, tvOS 9, visionOS 1.0 o versiones posteriores.',
               ),
               MetricCard(
                 label: 'Visualizaciones',
                 value: as.pageViewsStr,
                 helperText: 'página del producto · App Store',
+                infoTooltip:
+                    'El número de veces que se ha visto la página del producto de la app en App Store en dispositivos con iOS 8, macOS 10.14.1, tvOS 9, visionOS 1.0 o versiones posteriores.',
               ),
               MetricCard(
                 label: 'Conversión',
                 value: as.conversionStr,
                 helperText: 'visualizaciones → descargas',
+                infoTooltip:
+                    'Se calcula dividiendo el número total de reservas y descargas por las impresiones en dispositivos únicos. Cuando un usuario reserva una app, se contabiliza para la tasa de conversión. No se cuenta de nuevo cuando se descarga en el dispositivo.',
               ),
               MetricCard(
                 label: 'Rating',
@@ -532,13 +538,9 @@ class _OverviewContentState extends State<_OverviewContent> {
           children: [
             MetricCard(
               label: 'MRR',
-              value: (rcOverview != null && rcOverview.hasMrrBreakdown)
-                  ? rcOverview.computedMrrLabel
-                  : rcOverview?.mrrLabel ?? '—',
+              value: rcOverview?.mrrLabel ?? '—',
               accent: true,
-              helperText: (rcOverview != null && rcOverview.hasMrrBreakdown)
-                  ? '${rcOverview.monthlySubscriptions}×\$4.99 + ${rcOverview.annualSubscriptions}×\$1.67/mes'
-                  : 'ingresos recurrentes mensuales',
+              helperText: 'ingresos recurrentes mensuales',
             ),
             MetricCard(
               label: 'Activos / nuevos clientes',
@@ -1011,11 +1013,11 @@ class _AppStoreRefreshButton extends StatefulWidget {
 }
 
 class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
-  bool _loading = false;
+  bool _requested = false;
 
   Future<void> _refresh() async {
-    if (_loading) return;
-    setState(() => _loading = true);
+    if (_requested) return;
+    setState(() => _requested = true);
     try {
       await FirebaseFirestore.instance
           .collection('dashboard_metrics')
@@ -1033,6 +1035,7 @@ class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
       }
     } catch (_) {
       if (mounted) {
+        setState(() => _requested = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Error al solicitar actualización'),
@@ -1040,36 +1043,46 @@ class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Actualizar métricas App Store',
-      child: InkWell(
-        onTap: _refresh,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: _loading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.pink,
-                  ),
-                )
-              : const Icon(
-                  FluentIcons.arrow_sync_20_regular,
-                  size: 18,
-                  color: AppColors.pink,
-                ),
-        ),
-      ),
+    return StreamBuilder<AppStoreMetrics?>(
+      stream: AppStoreMetricsService.stream(),
+      builder: (context, snap) {
+        final isLoading = _requested || snap.data?.status == 'partial';
+        // Cuando el stream vuelve a 'complete', limpiamos _requested
+        if (!isLoading && _requested) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _requested = false);
+          });
+        }
+        return Tooltip(
+          message: 'Actualizar métricas App Store',
+          child: InkWell(
+            onTap: isLoading ? null : _refresh,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.pink,
+                      ),
+                    )
+                  : const Icon(
+                      FluentIcons.arrow_sync_20_regular,
+                      size: 18,
+                      color: AppColors.pink,
+                    ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1087,11 +1100,11 @@ class _RevenueCatRefreshButton extends StatefulWidget {
 }
 
 class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
-  bool _loading = false;
+  bool _requested = false;
 
   Future<void> _refresh() async {
-    if (_loading) return;
-    setState(() => _loading = true);
+    if (_requested) return;
+    setState(() => _requested = true);
     try {
       await RevenueCatMetricsService.requestRefresh();
       if (mounted) {
@@ -1105,6 +1118,7 @@ class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
       }
     } catch (_) {
       if (mounted) {
+        setState(() => _requested = false);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Error al solicitar actualización de RevenueCat'),
@@ -1112,36 +1126,45 @@ class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
           ),
         );
       }
-    } finally {
-      if (mounted) setState(() => _loading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: 'Actualizar métricas RevenueCat',
-      child: InkWell(
-        onTap: _refresh,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(6),
-          child: _loading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.success,
-                  ),
-                )
-              : const Icon(
-                  FluentIcons.arrow_sync_20_regular,
-                  size: 18,
-                  color: AppColors.success,
-                ),
-        ),
-      ),
+    return StreamBuilder<RevenueCatMetrics?>(
+      stream: RevenueCatMetricsService.stream(),
+      builder: (context, snap) {
+        final isLoading = _requested || snap.data?.status == 'partial';
+        if (!isLoading && _requested) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _requested = false);
+          });
+        }
+        return Tooltip(
+          message: 'Actualizar métricas RevenueCat',
+          child: InkWell(
+            onTap: isLoading ? null : _refresh,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.success,
+                      ),
+                    )
+                  : const Icon(
+                      FluentIcons.arrow_sync_20_regular,
+                      size: 18,
+                      color: AppColors.success,
+                    ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

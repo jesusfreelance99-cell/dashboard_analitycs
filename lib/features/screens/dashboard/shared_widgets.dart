@@ -304,6 +304,7 @@ class MetricCard extends StatelessWidget {
     this.helperText,
     this.accent = false,
     this.valueSuffix,
+    this.infoTooltip,
   });
 
   final String label;
@@ -313,6 +314,7 @@ class MetricCard extends StatelessWidget {
   final String? helperText;
   final bool accent;
   final Widget? valueSuffix;
+  final String? infoTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -325,7 +327,42 @@ class MetricCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 16, color: context.dc.ink2)),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
+                  label,
+                  style: TextStyle(fontSize: 16, color: context.dc.ink2),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (infoTooltip != null) ...[
+                const SizedBox(width: 6),
+                Tooltip(
+                  message: infoTooltip!,
+                  preferBelow: true,
+                  waitDuration: Duration.zero,
+                  showDuration: const Duration(seconds: 8),
+                  textStyle: const TextStyle(fontSize: 12, color: AppColors.white),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2A2A),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  constraints: const BoxConstraints(maxWidth: 320),
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.help,
+                    child: Icon(
+                      Icons.info_outline_rounded,
+                      size: 16,
+                      color: context.dc.ink3,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
           const SizedBox(height: 18),
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
