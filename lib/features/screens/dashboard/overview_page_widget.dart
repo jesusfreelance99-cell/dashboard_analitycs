@@ -497,18 +497,6 @@ class _OverviewContentState extends State<_OverviewContent> {
               value: rcOverview?.activeTrialsLabel ?? '0',
               helperText: 'activas ahora',
             ),
-            MetricCard(
-              label: 'Canceladas',
-              value: '—',
-              accent: true,
-              helperText: 'acumulado',
-            ),
-            MetricCard(
-              label: '% canceladas',
-              value: '—',
-              accent: true,
-              helperText: 'canceladas / total',
-            ),
           ],
         ),
 

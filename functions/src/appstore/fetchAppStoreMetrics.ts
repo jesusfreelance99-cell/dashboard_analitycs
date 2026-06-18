@@ -120,15 +120,15 @@ async function parseTsv(buf: Buffer): Promise<ParsedTsv> {
   const headersStr = headers.join(' | ');
   console.log(`TSV headers: ${headersStr} (${lines.length - 1} filas)`);
 
-  const ci  = (name: string) => hl.indexOf(name);
+  const ci = (name: string) => hl.indexOf(name);
   const cip = (...kws: string[]) => hl.findIndex(h => kws.some(k => h.includes(k)));
 
-  const dateIdx         = ci('date');
-  const eventIdx        = ci('event');
+  const dateIdx = ci('date');
+  const eventIdx = ci('event');
   const downloadTypeIdx = hl.findIndex(h => h === 'download type');
-  const countsIdx       = cip('counts');
+  const countsIdx = cip('counts');
 
-  const getDay   = (c: string[]) => (dateIdx >= 0 ? (c[dateIdx]?.trim() ?? '') : '');
+  const getDay = (c: string[]) => (dateIdx >= 0 ? (c[dateIdx]?.trim() ?? '') : '');
   const getCount = (c: string[]) => (countsIdx >= 0 ? parseFloat(c[countsIdx]?.trim() ?? '0') || 0 : 0);
 
   let impressions = 0, pageViews = 0, redownloads = 0, appUnits = 0;
@@ -141,7 +141,7 @@ async function parseTsv(buf: Buffer): Promise<ParsedTsv> {
       const c = line.split('\t');
       const event = c[eventIdx]?.trim().toLowerCase() ?? '';
       const count = getCount(c);
-      const date  = getDay(c);
+      const date = getDay(c);
       if (!date) continue;
       distinctEvents.add(c[eventIdx]?.trim() ?? '');
 
@@ -166,8 +166,8 @@ async function parseTsv(buf: Buffer): Promise<ParsedTsv> {
     for (const line of lines.slice(1)) {
       const c = line.split('\t');
       const dlType = c[downloadTypeIdx]?.trim().toLowerCase() ?? '';
-      const count  = getCount(c);
-      const date   = getDay(c);
+      const count = getCount(c);
+      const date = getDay(c);
       if (!date || !dlType) continue;
       distinctEvents.add(c[downloadTypeIdx]?.trim() ?? '');
 
@@ -188,9 +188,9 @@ async function parseTsv(buf: Buffer): Promise<ParsedTsv> {
   } else {
     // ── Formato columnar clásico (fallback) ────────────────────────────────────
     const impIdx = cip('impression');
-    const pvIdx  = cip('page view', 'pageview', 'product page');
-    const rdIdx  = cip('redownload');
-    const auIdx  = cip('app units', 'app unit', 'appunit');
+    const pvIdx = cip('page view', 'pageview', 'product page');
+    const rdIdx = cip('redownload');
+    const auIdx = cip('app units', 'app unit', 'appunit');
     console.log(`Columnar: imp:${impIdx} pv:${pvIdx} rd:${rdIdx} au:${auIdx}`);
 
     for (const line of lines.slice(1)) {
@@ -389,9 +389,9 @@ async function fetchAnalytics(
       const ex = globalByDate.get(date) ?? { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
       // Sumar por tipo de métrica (distintos reportes no se solapan por tipo de evento)
       ex.impressions += d.impressions;
-      ex.pageViews   += d.pageViews;
+      ex.pageViews += d.pageViews;
       ex.redownloads += d.redownloads;
-      ex.appUnits    += d.appUnits;
+      ex.appUnits += d.appUnits;
       globalByDate.set(date, ex);
     }
   };
@@ -423,7 +423,7 @@ async function fetchAnalytics(
             for (const [date, d] of parsed.byDate) {
               const ex = instByDate.get(date) ?? { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
               ex.impressions += d.impressions; ex.pageViews += d.pageViews;
-              ex.redownloads += d.redownloads; ex.appUnits  += d.appUnits;
+              ex.redownloads += d.redownloads; ex.appUnits += d.appUnits;
               instByDate.set(date, ex);
             }
           }
@@ -452,16 +452,17 @@ async function fetchAnalytics(
   const timeSeries: DailyPoint[] = [];
   for (const [date, d] of globalByDate) {
     impressions += d.impressions;
-    pageViews   += d.pageViews;
+    pageViews += d.pageViews;
     redownloads += d.redownloads;
-    appUnits    += d.appUnits;
+    appUnits += d.appUnits;
     timeSeries.push({ date, downloads: d.appUnits, impressions: d.impressions, redownloads: d.redownloads });
   }
 
   timeSeries.sort((a, b) => a.date.localeCompare(b.date));
 
-  const conversion = impressions > 0
-    ? Math.round((pageViews / impressions) * 1000) / 10
+  // Tasa de conversión = primeras descargas / visualizaciones de la página (definición Apple)
+  const conversion = pageViews > 0
+    ? Math.round((appUnits / pageViews) * 1000) / 10
     : 0;
 
   console.log(`✅ Analytics: imp=${impressions} pv=${pageViews} dl=${appUnits} rd=${redownloads} conv=${conversion}% ts=${timeSeries.length}d`);

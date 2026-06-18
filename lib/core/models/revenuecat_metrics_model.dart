@@ -124,6 +124,7 @@ class RevenueCatRangeMetrics {
     this.activeSubscriptions = 0,
     this.activeTrials = 0,
     this.churn = 0,
+    this.cancelledSubscriptions = 0,
     this.newCustomers = 0,
     this.activeCustomers = 0,
     this.revenueBars = const [42, 68, 88, 124, 98],
@@ -136,6 +137,7 @@ class RevenueCatRangeMetrics {
   final int activeSubscriptions;
   final int activeTrials;
   final double churn;
+  final int cancelledSubscriptions;
   final int newCustomers;
   final int activeCustomers;
   final List<double> revenueBars;
@@ -155,6 +157,7 @@ class RevenueCatRangeMetrics {
       activeSubscriptions: (map['active_subscriptions'] as num?)?.toInt() ?? 0,
       activeTrials: (map['active_trials'] as num?)?.toInt() ?? 0,
       churn: (map['churn'] as num?)?.toDouble() ?? 0,
+      cancelledSubscriptions: (map['cancelled_subscriptions'] as num?)?.toInt() ?? 0,
       newCustomers: (map['new_customers'] as num?)?.toInt() ?? 0,
       activeCustomers: (map['active_customers'] as num?)?.toInt() ?? 0,
       revenueBars: rawBars.isEmpty ? const [42, 68, 88, 124, 98] : rawBars,
@@ -172,6 +175,8 @@ class RevenueCatRangeMetrics {
   String get activeTrialsLabel => formatInteger(activeTrials);
   String get newCustomersLabel => formatInteger(newCustomers);
   String get activeCustomersLabel => formatInteger(activeCustomers);
+  String get cancelledSubscriptionsLabel =>
+      cancelledSubscriptions > 0 ? cancelledSubscriptions.toString() : '—';
 
   String get churnLabel {
     final percent = churn <= 1 ? churn * 100 : churn;

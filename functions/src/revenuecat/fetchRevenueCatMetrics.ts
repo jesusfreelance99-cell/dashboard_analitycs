@@ -344,21 +344,50 @@ async function fetchCatalogSnapshot(
 const TREVO_MONTHLY_PRICE = 4.99;
 const TREVO_ANNUAL_PRICE  = 19.99;
 
+// Cuenta suscripciones mensuales y anuales activas leyendo la subcollección
+// plan_user de cada usuario en Firestore (campo suscription_id contiene el product ID de RC).
+async function countSubscriptionsByType(): Promise<{ monthly: number; annual: number }> {
+  const db = admin.firestore();
+  // Sin .where() para evitar requerir índice de collectionGroup en Firestore.
+  // Filtramos activos en memoria: solo contamos docs con suscription_id != '' y status == 'active'.
+  const snapshot = await db.collectionGroup('plan_user').get();
+
+  let monthly = 0, annual = 0;
+  for (const doc of snapshot.docs) {
+    const data = doc.data();
+    const status = (data['status'] as string ?? '').toLowerCase();
+    if (status !== 'active') continue;
+    const subId = (data['suscription_id'] as string ?? '').toLowerCase();
+    if (!subId) continue;
+    if (subId.includes('annual') || subId.includes('yearly') || subId.includes('year')) {
+      annual++;
+    } else if (subId.includes('monthly') || subId.includes('month')) {
+      monthly++;
+    }
+  }
+
+  console.log(`📊 Suscripciones activas por tipo: mensual=${monthly} anual=${annual} (total=${snapshot.size})`);
+  return { monthly, annual };
+}
+
 async function fetchOverviewMetrics(
   apiKey: string,
   projectId: string,
 ): Promise<Record<string, unknown>> {
-  const payload = await revenueCatGet<Record<string, unknown>>(
-    apiKey,
-    `/projects/${projectId}/metrics/overview`,
-    { currency: 'USD', environment: 'production' },
-  );
+  // Ejecutar en paralelo: overview de RC + conteo por tipo desde Firestore
+  const [payload, subTypes] = await Promise.all([
+    revenueCatGet<Record<string, unknown>>(
+      apiKey,
+      `/projects/${projectId}/metrics/overview`,
+      { currency: 'USD', environment: 'production' },
+    ),
+    countSubscriptionsByType(),
+  ]);
 
   const metrics = Array.isArray(payload.metrics)
     ? (payload.metrics as Array<Record<string, unknown>>)
     : [];
 
-  // Log de todos los IDs disponibles para diagnosticar el split mensual/anual
   const availableIds = metrics.map((m) => `${m.id}=${m.value}`).join(' | ');
   console.log('RevenueCat overview metrics:', availableIds);
 
@@ -370,18 +399,11 @@ async function fetchOverviewMetrics(
     pickMetricValue(metrics, 'active_subscriptions') ||
     pickMetricValue(metrics, 'active_subscribers');
 
-  // Intentar obtener split mensual / anual (si RevenueCat los expone)
-  const monthlySubscriptions =
-    pickMetricValue(metrics, 'monthly_subscriptions') ||
-    pickMetricValue(metrics, 'active_monthly_subscriptions') ||
-    pickMetricValue(metrics, 'monthly_active_subscriptions');
+  // Split mensual/anual desde Firestore (más confiable que RC metrics)
+  const monthlySubscriptions = subTypes.monthly;
+  const annualSubscriptions  = subTypes.annual;
 
-  const annualSubscriptions =
-    pickMetricValue(metrics, 'annual_subscriptions') ||
-    pickMetricValue(metrics, 'annual_active_subscriptions') ||
-    pickMetricValue(metrics, 'active_annual_subscriptions');
-
-  // MRR calculado manualmente si tenemos el split (precios USD antes de comisión Apple)
+  // MRR calculado manualmente: mensual×$4.99 + anual×($19.99/12)
   const computedMrr =
     monthlySubscriptions > 0 || annualSubscriptions > 0
       ? parseFloat(
@@ -392,13 +414,11 @@ async function fetchOverviewMetrics(
         )
       : 0;
 
-  if (computedMrr > 0) {
-    console.log(
-      `MRR manual: mensual=${monthlySubscriptions}×${TREVO_MONTHLY_PRICE}` +
-      ` + anual=${annualSubscriptions}×${(TREVO_ANNUAL_PRICE / 12).toFixed(2)}` +
-      ` = $${computedMrr}`,
-    );
-  }
+  console.log(
+    `MRR manual: mensual=${monthlySubscriptions}×${TREVO_MONTHLY_PRICE}` +
+    ` + anual=${annualSubscriptions}×${(TREVO_ANNUAL_PRICE / 12).toFixed(2)}` +
+    ` = $${computedMrr}`,
+  );
 
   return {
     active_trials: pickMetricValue(metrics, 'active_trials'),
@@ -482,12 +502,38 @@ async function fetchRangeMetrics(
 
   const revenueTimeSeries = extractRevenueTimeSeries(revenueChart);
 
+  // Extraer cancelaciones absolutas del chart de churn
+  // RevenueCat devuelve periodos con métricas: [{period, values: [{id, value}]}]
+  let cancelledSubscriptions = 0;
+  let churnRate = 0;
+  const churnEntries = resolveArray(churn);
+  for (const entry of churnEntries) {
+    const record = asRecord(entry);
+    if (!record) continue;
+
+    // Formato con valores por id dentro de cada periodo
+    const values = Array.isArray(record.values) ? record.values as Array<Record<string, unknown>> :
+                   Array.isArray(record.totals) ? record.totals as Array<Record<string, unknown>> : [];
+
+    const cancelledItem = values.find(v => v.id === 'churned_subscriptions' || v.id === 'cancellations' || v.id === 'cancelled_subscriptions');
+    const churnRateItem = values.find(v => v.id === 'churn_rate' || v.id === 'churn');
+
+    if (cancelledItem) cancelledSubscriptions += pickNumber(cancelledItem.value);
+    if (churnRateItem) churnRate = Math.max(churnRate, pickNumber(churnRateItem.value));
+  }
+
+  // Si no encontramos el desglose por id, usar latestChartValue como fallback para churn rate
+  if (churnRate === 0) churnRate = latestChartValue(churn);
+
+  console.log(`Range ${range.key}: cancelled=${cancelledSubscriptions} churnRate=${churnRate}`);
+
   return {
     mrr: latestChartValue(mrr),
     revenue: pickNumber(revenueMetric.value),
     active_subscriptions: Math.round(latestChartValue(actives)),
     active_trials: Math.round(latestChartValue(trials)),
-    churn: latestChartValue(churn),
+    churn: churnRate,
+    cancelled_subscriptions: cancelledSubscriptions,
     new_customers: 0,
     active_customers: 0,
     revenue_bars: normalizeBars(extractChartValues(revenueChart)),
