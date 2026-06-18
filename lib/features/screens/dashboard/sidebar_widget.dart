@@ -37,7 +37,7 @@ class DashboardSidebar extends StatelessWidget {
         items: const [
           DashPage.overview,
           DashPage.funnel,
-          DashPage.cac,
+          // DashPage.cac,
           DashPage.features,
           DashPage.retention,
           DashPage.users,

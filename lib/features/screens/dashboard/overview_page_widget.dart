@@ -343,30 +343,49 @@ class _OverviewContentState extends State<_OverviewContent> {
         .where((d) => d.os.toLowerCase().contains('android'))
         .fold(0, (s, d) => s + d.count);
 
-
-
     // Funnel steps
-    final funnelBase = as?.downloadsLastMonth ?? 0;
-    final funnelOpen = _eventUniques(funnelEvents, 'first_open') > 0
+    // Descarga: total clientes activos RevenueCat (28d)
+    final funnelBase = rcOverview?.activeCustomers28d ?? 0;
+    // App abierta: app_open (reaperturas) → first_open (instalaciones nuevas)
+    final funnelOpen = _eventUniques(funnelEvents, 'app_open') > 0
+        ? _eventUniques(funnelEvents, 'app_open')
+        : _eventUniques(funnelEvents, 'first_open') > 0
         ? _eventUniques(funnelEvents, 'first_open')
         : _eventUniques(funnelEvents, 'session_start');
-    final funnelSignup = _eventUniques(funnelEvents, 'sign_up') > 0
+    // Onboarding: onboarding_step es el evento principal del onboarding de Trevo
+    final funnelSignup = _eventUniques(funnelEvents, 'onboarding_step') > 0
+        ? _eventUniques(funnelEvents, 'onboarding_step')
+        : _eventUniques(funnelEvents, 'sign_up') > 0
         ? _eventUniques(funnelEvents, 'sign_up')
         : _eventUniques(funnelEvents, 'registration_completed');
-    final funnelLogin = _eventUniques(funnelEvents, 'login') > 0
-        ? _eventUniques(funnelEvents, 'login')
-        : funnelSignup;
+    // Tutorial completado
+    final funnelTutorial = _eventUniques(funnelEvents, 'tutorial_complete');
+    // Login: solo usuarios que iniciaron sesión (no usar Onboarding como fallback)
+    final funnelLogin = _eventUniques(funnelEvents, 'login');
     final funnelPaywall = funnelRange?.uniquePaywall ?? 0;
     final funnelTrial =
         funnelRange?.uniqueTrial ?? rcOverview?.activeTrials ?? 0;
-    final funnelSub = _eventUniques(funnelEvents, 'subscription_purchased') > 0
-        ? _eventUniques(funnelEvents, 'subscription_purchased')
+    // Suscripción: purchase (IAP) → app_store_subscription_convert → activas RC
+    final funnelSub = _eventUniques(funnelEvents, 'purchase') > 0
+        ? _eventUniques(funnelEvents, 'purchase')
+        : _eventUniques(funnelEvents, 'app_store_subscription_convert') > 0
+        ? _eventUniques(funnelEvents, 'app_store_subscription_convert')
         : activeSubs;
 
     final funnelSteps = [
-      _FunnelStep('Descarga', funnelBase, AppColors.chartBlue),
+      _FunnelStep(
+        'Descarga',
+        funnelBase,
+        AppColors.chartBlue,
+        tooltip:
+            'Los nuevos clientes son clientes vistos por primera vez en el período que se mide. '
+            'En RevenueCat, el término "cliente" se refiere a la persona que utiliza una aplicación, '
+            'independientemente de si ya ha realizado una compra. '
+            'Cualquier cliente que sea alias a otro cliente será excluido de esta tabla.',
+      ),
       _FunnelStep('App abierta', funnelOpen, AppColors.chartGreen),
-      _FunnelStep('Onboarding', funnelSignup, const Color(0xFF8B80E8)),
+      _FunnelStep('Onboarding', funnelSignup, AppColors.chartPurple),
+      _FunnelStep('Tutorial', funnelTutorial, AppColors.chartOlive),
       _FunnelStep('Login', funnelLogin, AppColors.pink),
       _FunnelStep('Paywall', funnelPaywall, AppColors.chartAmber),
       _FunnelStep('Trial', funnelTrial, AppColors.danger),
@@ -615,7 +634,14 @@ class _OverviewContentState extends State<_OverviewContent> {
           source: 'Firebase · RevenueCat',
         ),
         const SizedBox(height: 14),
-        _OverviewFunnel(steps: funnelSteps),
+        _OverviewFunnel(
+          steps: funnelSteps,
+          totalEvents: funnelEvents.fold(0, (s, e) => s + e.count),
+          totalUsers: funnelEvents.fold(
+            0,
+            (s, e) => s > e.uniqueUsers ? s : e.uniqueUsers,
+          ),
+        ),
         const SizedBox(height: 42),
 
         // ── USUARIOS ─────────────────────────────────────────────────────
@@ -857,25 +883,83 @@ class _FunnelStep {
   final String label;
   final int count;
   final Color color;
-  const _FunnelStep(this.label, this.count, this.color);
+  final String? tooltip;
+  const _FunnelStep(this.label, this.count, this.color, {this.tooltip});
 }
 
 class _OverviewFunnel extends StatelessWidget {
-  const _OverviewFunnel({required this.steps});
+  const _OverviewFunnel({
+    required this.steps,
+    this.totalEvents = 0,
+    this.totalUsers = 0,
+  });
   final List<_FunnelStep> steps;
+  final int totalEvents;
+  final int totalUsers;
 
   @override
   Widget build(BuildContext context) {
     final base = steps.isEmpty ? 1 : (steps[0].count > 0 ? steps[0].count : 1);
     const maxH = 90.0;
 
+    String fmt(int n) {
+      if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
+      if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
+      return '$n';
+    }
+
     return Panel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PanelHeader(
-            title: 'Flujo de conversión',
-            trailing: 'Firebase · RevenueCat',
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Expanded(
+                child: PanelHeader(
+                  title: 'Flujo de conversión',
+                  trailing: 'Firebase · RevenueCat',
+                ),
+              ),
+              if (totalEvents > 0) ...[
+                const SizedBox(width: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      fmt(totalEvents),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const Text(
+                      'eventos totales',
+                      style: TextStyle(fontSize: 11, color: AppColors.ink3),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 20),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      fmt(totalUsers),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.ink,
+                      ),
+                    ),
+                    const Text(
+                      'usuarios activos',
+                      style: TextStyle(fontSize: 11, color: AppColors.ink3),
+                    ),
+                  ],
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 24),
           SizedBox(
@@ -933,16 +1017,58 @@ class _OverviewFunnel extends StatelessWidget {
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        steps[i].label,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.ink2,
+                      if (steps[i].tooltip != null)
+                        Tooltip(
+                          message: steps[i].tooltip!,
+                          preferBelow: true,
+                          waitDuration: Duration.zero,
+                          showDuration: const Duration(seconds: 8),
+                          textStyle: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.white,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2A2A2A),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 8,
+                          ),
+                          constraints: const BoxConstraints(maxWidth: 320),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                steps[i].label,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.ink2,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(width: 3),
+                              const Icon(
+                                Icons.info_outline_rounded,
+                                size: 11,
+                                color: AppColors.ink3,
+                              ),
+                            ],
+                          ),
+                        )
+                      else
+                        Text(
+                          steps[i].label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.ink2,
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ],
                   ),
                 ),
