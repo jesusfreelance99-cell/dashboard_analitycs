@@ -11,29 +11,53 @@ const gunzip = promisify(zlib.gunzip);
 const appstoreDocPath = () =>
   admin.firestore().collection('dashboard_metrics').doc('appstore');
 
-// ── Rating desde Customer Reviews ────────────────────────────────────────────
+// ── Rating paginando todas las reseñas del App Store Connect API ──────────────
+// Pagina hasta 5 páginas (1000 reseñas) para calcular el promedio real global.
 
 async function fetchRating(token: string): Promise<{ rating: number; totalReviews: number }> {
-  const url =
-    `https://api.appstoreconnect.apple.com/v1/apps/${APP_ID}/customerReviews` +
-    `?limit=200&sort=-createdDate&fields[customerReviews]=rating`;
+  const PAGE_LIMIT = 200;
+  const MAX_PAGES  = 5;
 
-  const res = await appleGet(url, token);
-  if (!res.ok) {
-    console.warn(`Customer Reviews API ${res.status}`);
-    return { rating: 0, totalReviews: 0 };
+  let cursor: string | null = null;
+  let totalCount = 0;
+  let ratingSum  = 0;
+  let fetched    = 0;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const url =
+      `https://api.appstoreconnect.apple.com/v1/apps/${APP_ID}/customerReviews` +
+      `?limit=${PAGE_LIMIT}&sort=-createdDate&fields[customerReviews]=rating` +
+      (cursor ? `&cursor=${cursor}` : '');
+
+    const res = await appleGet(url, token);
+    if (!res.ok) {
+      console.warn(`Customer Reviews page ${page} → ${res.status}`);
+      break;
+    }
+
+    const body = await res.json() as {
+      data: Array<{ attributes: { rating: number } }>;
+      meta?: { paging?: { total?: number } };
+      links?: { next?: string };
+    };
+
+    const rows = body.data ?? [];
+    if (page === 0) totalCount = body.meta?.paging?.total ?? rows.length;
+    for (const r of rows) ratingSum += r.attributes.rating;
+    fetched += rows.length;
+
+    // Extraer cursor del link `next` si existe
+    const nextUrl = body.links?.next;
+    if (!nextUrl || rows.length < PAGE_LIMIT) break;
+    const match = nextUrl.match(/[?&]cursor=([^&]+)/);
+    cursor = match ? decodeURIComponent(match[1]) : null;
+    if (!cursor) break;
   }
 
-  const body = await res.json() as {
-    data: Array<{ attributes: { rating: number } }>;
-    meta?: { paging?: { total?: number } };
-  };
-
-  const reviews = body.data ?? [];
-  const total = body.meta?.paging?.total ?? reviews.length;
-  if (reviews.length === 0) return { rating: 0, totalReviews: total };
-  const avg = reviews.reduce((sum, r) => sum + r.attributes.rating, 0) / reviews.length;
-  return { rating: Math.round(avg * 10) / 10, totalReviews: total };
+  if (fetched === 0) return { rating: 0, totalReviews: totalCount };
+  const avg = Math.round((ratingSum / fetched) * 10) / 10;
+  console.log(`📱 Rating: ${avg} (${fetched} reseñas leídas de ${totalCount} totales)`);
+  return { rating: avg, totalReviews: totalCount };
 }
 
 // ── Descargas totales — suma últimos 12 meses de Sales Reports ────────────────

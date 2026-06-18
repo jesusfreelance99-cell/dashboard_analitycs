@@ -436,10 +436,10 @@ class _OverviewContentState extends State<_OverviewContent> {
             children: [
               MetricCard(
                 label: 'Primeras descargas',
-                value: as.firstDownloadsStr,
-                helperText: as.firstDownloads != null && as.firstDownloads! > 0
-                    ? 'Analytics Reports · App Store'
-                    : 'Sales Reports · 12 meses',
+                value: (rcOverview?.activeCustomers28d ?? 0) > 0
+                    ? '${rcOverview!.activeCustomers28d}'
+                    : '—',
+                helperText: 'clientes activos · RevenueCat',
               ),
               MetricCard(
                 label: 'Impresiones',
@@ -457,10 +457,17 @@ class _OverviewContentState extends State<_OverviewContent> {
               ),
               MetricCard(
                 label: 'Conversión',
-                value: as.conversionStr,
-                helperText: 'visualizaciones → descargas',
+                value: () {
+                  final pv = as.pageViews ?? 0;
+                  final rc = rcOverview?.activeCustomers28d ?? 0;
+                  if (pv > 0 && rc > 0) {
+                    return '${(rc / pv * 100).toStringAsFixed(1)}%';
+                  }
+                  return as.conversionStr;
+                }(),
+                helperText: 'visualizaciones → clientes RC',
                 infoTooltip:
-                    'Se calcula dividiendo el número total de reservas y descargas por las impresiones en dispositivos únicos. Cuando un usuario reserva una app, se contabiliza para la tasa de conversión. No se cuenta de nuevo cuando se descarga en el dispositivo.',
+                    'Se calcula dividiendo el número total de clientes activos (RevenueCat, últimos 28 días) por las visualizaciones de la página del producto en App Store.',
               ),
               MetricCard(
                 label: 'Rating',
