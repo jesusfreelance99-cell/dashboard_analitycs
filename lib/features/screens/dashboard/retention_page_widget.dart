@@ -3,9 +3,7 @@ import 'dart:math' as math;
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/core/models/retention_metrics_model.dart';
-import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
 import 'package:dashboard_analitycs/core/services/retention_metrics_service.dart';
-import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/core/widgets/app_shimmer.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/empty_tables_component.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/shared_widgets.dart';
@@ -99,75 +97,57 @@ class _RetentionPageState extends State<RetentionPage> {
             metrics.retentionCurve.isNotEmpty ||
             metrics.engagementSeries.isNotEmpty;
 
-        return StreamBuilder<RevenueCatMetrics?>(
-          stream: RevenueCatMetricsService.stream(),
-          builder: (context, rcSnap) {
-            final rc = rcSnap.data;
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _filterRow(),
-                const SizedBox(height: 20),
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _filterRow(),
+            const SizedBox(height: 20),
 
-                // ── CANCELACIÓN Y CHURN (RevenueCat) ────────────────────────
-                _SubscriptionHealthSection(rc: rc),
-                const SizedBox(height: 28),
+            // ── COHORTE D1/D2/D7/D30 ────────────────────────────────────
+            if (metrics.retentionCurve.isNotEmpty) ...[
+              const SectionHeader(
+                label: 'RETENCIÓN DE USUARIOS POR COHORTE',
+                source: 'Firebase Analytics',
+              ),
+              const SizedBox(height: 12),
+              _CohortCards(retentionCurve: metrics.retentionCurve),
+              const SizedBox(height: 28),
+            ],
 
-                // ── RETENCIÓN DE SUSCRIPCIONES (RevenueCat) ─────────────────
-                _SubRetentionSection(rc: rc),
-                const SizedBox(height: 28),
+            // ── CURVA DE RETENCIÓN ───────────────────────────────────────
+            if (metrics.retentionCurve.isNotEmpty) ...[
+              Panel(child: _RetentionCurveChart(data: metrics.retentionCurve)),
+              const SizedBox(height: 20),
+            ],
 
-                // ── APERTURAS cards (nuevos + recurrentes) ───────────────────
-                if (filtered.isNotEmpty) ...[
-                  _AperturaCards(data: filtered),
-                  const SizedBox(height: 14),
-                ],
+            // ── APERTURAS cards (nuevos + recurrentes) ───────────────────
+            if (filtered.isNotEmpty) ...[
+              _AperturaCards(data: filtered),
+              const SizedBox(height: 20),
+            ],
 
-                // ── COHORTE D1/D3/D7/D30 ────────────────────────────────────
-                if (metrics.retentionCurve.isNotEmpty) ...[
-                  const SectionHeader(
-                    label: 'RETENCIÓN DE USUARIOS POR COHORTE',
-                    source: 'Firebase Analytics',
-                  ),
-                  const SizedBox(height: 12),
-                  _CohortCards(retentionCurve: metrics.retentionCurve),
-                  const SizedBox(height: 28),
-                ],
+            // ── DURACIÓN DE SESIÓN ───────────────────────────────────────
+            if (metrics.engagementSeries.isNotEmpty) ...[
+              Panel(child: _EngagementChart(data: metrics.engagementSeries)),
+              const SizedBox(height: 20),
+            ],
 
-                // ── CURVA DE RETENCIÓN ───────────────────────────────────────
-                if (metrics.retentionCurve.isNotEmpty) ...[
-                  Panel(
-                    child: _RetentionCurveChart(data: metrics.retentionCurve),
-                  ),
-                  const SizedBox(height: 20),
-                ],
+            // ── LTV CURVE ────────────────────────────────────────────────
+            if (metrics.ltvCurve.isNotEmpty) ...[
+              Panel(child: _LtvChart(data: metrics.ltvCurve)),
+              const SizedBox(height: 20),
+            ],
 
-                // ── DURACIÓN DE SESIÓN ───────────────────────────────────────
-                if (metrics.engagementSeries.isNotEmpty) ...[
-                  Panel(
-                    child: _EngagementChart(data: metrics.engagementSeries),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                // ── LTV CURVE ────────────────────────────────────────────────
-                if (metrics.ltvCurve.isNotEmpty) ...[
-                  Panel(child: _LtvChart(data: metrics.ltvCurve)),
-                  const SizedBox(height: 20),
-                ],
-
-                if (!hasData) ...[
-                  const SizedBox(height: 40),
-                  const EmptyTablesComponent(
-                    title: 'Sin datos aún',
-                    description:
-                        'Los datos aparecerán tras la primera sincronización.',
-                  ),
-                ],
-                const SizedBox(height: 32),
-              ],
-            );
-          },
+            if (!hasData) ...[
+              const SizedBox(height: 40),
+              const EmptyTablesComponent(
+                title: 'Sin datos aún',
+                description:
+                    'Los datos aparecerán tras la primera sincronización.',
+              ),
+            ],
+            const SizedBox(height: 32),
+          ],
         );
       },
     );
@@ -210,171 +190,6 @@ class _RetentionPageState extends State<RetentionPage> {
 // ─────────────────────────────────────────────────────────────────────────────
 // CANCELACIÓN Y CHURN — RevenueCat
 // ─────────────────────────────────────────────────────────────────────────────
-
-class _SubscriptionHealthSection extends StatelessWidget {
-  const _SubscriptionHealthSection({required this.rc});
-  final RevenueCatMetrics? rc;
-
-  @override
-  Widget build(BuildContext context) {
-    final ov = rc?.overview;
-    final churnLabel = ov?.churnRateLabel ?? '—';
-    final cancelLabel = ov?.cancelledLabel ?? '—';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionHeader(
-          label: 'CANCELACIÓN Y CHURN',
-          source: 'Firestore · plan_user',
-        ),
-        const SizedBox(height: 12),
-        ResponsiveGrid(
-          minTileWidth: 200,
-          children: [
-            _SubMetricCard(
-              label: 'Canceladas',
-              value: cancelLabel,
-              sub: 'suscripciones canceladas',
-              color: AppColors.danger,
-            ),
-            _SubMetricCard(
-              label: '% Churn',
-              value: churnLabel,
-              sub: 'tasa de cancelación',
-              color: churnLabel == '—' ? AppColors.chartBlue : AppColors.danger,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// RETENCIÓN DE SUSCRIPCIONES — RevenueCat subscription_retention
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SubRetentionSection extends StatelessWidget {
-  const _SubRetentionSection({required this.rc});
-  final RevenueCatMetrics? rc;
-
-  @override
-  Widget build(BuildContext context) {
-    final ov = rc?.overview;
-    final p1 = ov?.subRetentionP1Label ?? '—';
-    final p3 = ov?.subRetentionP3Label ?? '—';
-    final hasData =
-        (ov?.subRetentionP1 ?? 0) > 0 || (ov?.subRetentionP3 ?? 0) > 0;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionHeader(
-          label: 'RETENCIÓN DE SUSCRIPCIONES',
-          source: 'RevenueCat · Subscription Retention',
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.fieldBg,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: const Text(
-            'Porcentaje de suscripciones que renuevan en cada periodo. '
-            'Semana 1 = primer renovación · Mes 1 = primera renovación mensual · Mes 3 = tercera renovación mensual.',
-            style: TextStyle(fontSize: 12, color: AppColors.ink3, height: 1.5),
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (!hasData)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(
-              'Sin datos disponibles. RevenueCat puede tardar en procesar cohortes de suscripción.',
-              style: TextStyle(fontSize: 13, color: context.dc.ink3),
-            ),
-          )
-        else
-          ResponsiveGrid(
-            minTileWidth: 200,
-            children: [
-              _SubMetricCard(
-                label: 'Semana 1',
-                value: p1,
-                sub: '1ª renovación',
-                color: AppColors.chartGreen,
-              ),
-              _SubMetricCard(
-                label: 'Mes 1',
-                value: p1,
-                sub: '1ª renovación mensual',
-                color: AppColors.chartBlue,
-              ),
-              _SubMetricCard(
-                label: 'Mes 3',
-                value: p3,
-                sub: '3ª renovación mensual',
-                color: AppColors.chartAmber,
-              ),
-            ],
-          ),
-      ],
-    );
-  }
-}
-
-// Tarjeta genérica pequeña para métricas de suscripción
-class _SubMetricCard extends StatelessWidget {
-  const _SubMetricCard({
-    required this.label,
-    required this.value,
-    required this.sub,
-    required this.color,
-  });
-  final String label;
-  final String value;
-  final String sub;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: context.dc.surface,
-        borderRadius: BorderRadius.circular(22),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: context.dc.ink2,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 36,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -1,
-              height: 1,
-              color: value == '—' ? context.dc.ink3 : color,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(sub, style: TextStyle(fontSize: 12, color: context.dc.ink3)),
-        ],
-      ),
-    );
-  }
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // APERTURA CARDS — nuevos y recurrentes
@@ -473,7 +288,7 @@ class _CohortCards extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d1 = _rateAt(1);
-    final d3 = _rateAt(3);
+    final d2 = _rateAt(2);
     final d7 = _rateAt(7);
     final d30 = _rateAt(30);
 
@@ -488,10 +303,10 @@ class _CohortCards extends StatelessWidget {
           color: AppColors.chartBlue,
         ),
         _CohortCard(
-          label: 'D3 · Tres días',
-          rate: d3,
-          benchmark: 0.30,
-          benchmarkLabel: 'ref: 30%',
+          label: 'D2 · Día 2',
+          rate: d2,
+          benchmark: 0.40,
+          benchmarkLabel: 'ref: 40%',
           color: AppColors.chartGreen,
         ),
         _CohortCard(
