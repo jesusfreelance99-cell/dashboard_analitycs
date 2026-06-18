@@ -344,45 +344,108 @@ async function fetchCatalogSnapshot(
 const TREVO_MONTHLY_PRICE = 4.99;
 const TREVO_ANNUAL_PRICE  = 19.99;
 
-// Cuenta suscripciones mensuales y anuales activas leyendo la subcollección
-// plan_user de cada usuario en Firestore (campo suscription_id contiene el product ID de RC).
-async function countSubscriptionsByType(): Promise<{ monthly: number; annual: number }> {
+// Lee la subcollección plan_user de Firestore y cuenta suscripciones por tipo y estado.
+async function countSubscriptionsByType(): Promise<{
+  monthly: number;
+  annual: number;
+  cancelled: number;
+  totalWithPlan: number;
+}> {
   const db = admin.firestore();
-  // Sin .where() para evitar requerir índice de collectionGroup en Firestore.
-  // Filtramos activos en memoria: solo contamos docs con suscription_id != '' y status == 'active'.
   const snapshot = await db.collectionGroup('plan_user').get();
 
-  let monthly = 0, annual = 0;
+  let monthly = 0, annual = 0, cancelled = 0, totalWithPlan = 0;
   for (const doc of snapshot.docs) {
     const data = doc.data();
     const status = (data['status'] as string ?? '').toLowerCase();
-    if (status !== 'active') continue;
-    const subId = (data['suscription_id'] as string ?? '').toLowerCase();
+    const subId  = (data['suscription_id'] as string ?? '').toLowerCase();
     if (!subId) continue;
-    if (subId.includes('annual') || subId.includes('yearly') || subId.includes('year')) {
-      annual++;
-    } else if (subId.includes('monthly') || subId.includes('month')) {
-      monthly++;
+
+    totalWithPlan++;
+
+    const isAnnual  = subId.includes('annual') || subId.includes('yearly') || subId.includes('year');
+    const isMonthly = subId.includes('monthly') || subId.includes('month');
+
+    if (status === 'active') {
+      if (isAnnual)  annual++;
+      else if (isMonthly) monthly++;
+    } else {
+      // cancelled, expired, paused, etc.
+      cancelled++;
     }
   }
 
-  console.log(`📊 Suscripciones activas por tipo: mensual=${monthly} anual=${annual} (total=${snapshot.size})`);
-  return { monthly, annual };
+  // Tasa de cancelación = canceladas / total con plan
+  const churnRate = totalWithPlan > 0
+    ? Math.round((cancelled / totalWithPlan) * 1000) / 10  // porcentaje con 1 decimal
+    : 0;
+
+  console.log(`📊 plan_user → activas: mensual=${monthly} anual=${annual} | canceladas=${cancelled} (${churnRate}%) | total=${totalWithPlan}`);
+  return { monthly, annual, cancelled, totalWithPlan };
+}
+
+// Parsea el chart de subscription_retention y extrae tasas por periodo.
+// RevenueCat devuelve periodos de renovación: 1 = primer renovación, 3 = tercera renovación.
+function parseSubRetention(payload: Record<string, unknown>): {
+  week1: number; month1: number; month3: number; month6: number;
+} {
+  const entries = resolveArray(payload);
+  const byPeriod = new Map<number, number>();
+
+  for (const entry of entries) {
+    const rec = asRecord(entry);
+    if (!rec) continue;
+    const period = typeof rec.period === 'number' ? rec.period
+                 : typeof rec.renewal_number === 'number' ? rec.renewal_number
+                 : typeof rec.cohort === 'number' ? rec.cohort
+                 : null;
+    if (period === null) continue;
+
+    // Tasa: puede venir como 0-1 o 0-100
+    const rate = typeof rec.retention_rate === 'number' ? rec.retention_rate
+               : typeof rec.retained_percentage === 'number' ? rec.retained_percentage
+               : typeof rec.rate === 'number' ? rec.rate
+               : null;
+
+    if (rate !== null) {
+      // Normalizar a 0-1
+      byPeriod.set(period, rate > 1 ? rate / 100 : rate);
+    }
+  }
+
+  console.log('subscription_retention periods:', JSON.stringify(Object.fromEntries(byPeriod)), '| keys:', Object.keys(payload).join(', '));
+
+  return {
+    week1:  byPeriod.get(1) ?? 0,
+    month1: byPeriod.get(1) ?? 0,
+    month3: byPeriod.get(3) ?? 0,
+    month6: byPeriod.get(6) ?? 0,
+  };
 }
 
 async function fetchOverviewMetrics(
   apiKey: string,
   projectId: string,
 ): Promise<Record<string, unknown>> {
-  // Ejecutar en paralelo: overview de RC + conteo por tipo desde Firestore
-  const [payload, subTypes] = await Promise.all([
+  // Ejecutar en paralelo: overview de RC + conteo por tipo desde Firestore + subscription_retention
+  const [payload, subTypes, subRetentionRaw] = await Promise.all([
     revenueCatGet<Record<string, unknown>>(
       apiKey,
       `/projects/${projectId}/metrics/overview`,
       { currency: 'USD', environment: 'production' },
     ),
     countSubscriptionsByType(),
+    revenueCatGet<Record<string, unknown>>(
+      apiKey,
+      `/projects/${projectId}/charts/subscription_retention`,
+      { environment: 'production' },
+    ).catch((err: Error) => {
+      console.warn('subscription_retention no disponible:', err.message);
+      return {} as Record<string, unknown>;
+    }),
   ]);
+
+  const subRetention = parseSubRetention(subRetentionRaw);
 
   const metrics = Array.isArray(payload.metrics)
     ? (payload.metrics as Array<Record<string, unknown>>)
@@ -402,6 +465,10 @@ async function fetchOverviewMetrics(
   // Split mensual/anual desde Firestore (más confiable que RC metrics)
   const monthlySubscriptions = subTypes.monthly;
   const annualSubscriptions  = subTypes.annual;
+  const cancelledFromFirestore = subTypes.cancelled;
+  const churnRateFromFirestore = subTypes.totalWithPlan > 0
+    ? Math.round((subTypes.cancelled / subTypes.totalWithPlan) * 1000) / 10
+    : 0;
 
   // MRR calculado manualmente: mensual×$4.99 + anual×($19.99/12)
   const computedMrr =
@@ -431,6 +498,13 @@ async function fetchOverviewMetrics(
     new_customers_28d: pickMetricValue(metrics, 'new_customers'),
     active_customers_28d: pickMetricValue(metrics, 'active_users'),
     last_updated_at: lastUpdatedMetric?.last_updated_at_iso8601 ?? null,
+    // Cancelaciones reales desde Firestore plan_user
+    cancelled_subscriptions: cancelledFromFirestore,
+    churn_rate_firestore: churnRateFromFirestore,
+    // Retención de suscripciones por periodo de renovación (RevenueCat cohorts)
+    sub_retention_p1: subRetention.month1,
+    sub_retention_p3: subRetention.month3,
+    sub_retention_p6: subRetention.month6,
   };
 }
 

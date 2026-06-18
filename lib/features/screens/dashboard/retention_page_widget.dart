@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/constants/dash_colors.dart';
 import 'package:dashboard_analitycs/core/models/retention_metrics_model.dart';
+import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
 import 'package:dashboard_analitycs/core/services/retention_metrics_service.dart';
+import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/core/widgets/app_shimmer.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/empty_tables_component.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/shared_widgets.dart';
@@ -51,7 +53,9 @@ class _RetentionPageState extends State<RetentionPage> {
 
   List<NewVsReturningPoint> _filter(List<NewVsReturningPoint> data) {
     if (_rangeDays == 0 || data.isEmpty) return data;
-    return data.length > _rangeDays ? data.sublist(data.length - _rangeDays) : data;
+    return data.length > _rangeDays
+        ? data.sublist(data.length - _rangeDays)
+        : data;
   }
 
   @override
@@ -60,7 +64,10 @@ class _RetentionPageState extends State<RetentionPage> {
       stream: RetentionMetricsService.stream(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return _RetentionShimmer(refreshing: _refreshing, onRefresh: _manualRefresh);
+          return _RetentionShimmer(
+            refreshing: _refreshing,
+            onRefresh: _manualRefresh,
+          );
         }
 
         final metrics = snap.data;
@@ -80,64 +87,87 @@ class _RetentionPageState extends State<RetentionPage> {
         }
 
         if (metrics.status == 'loading') {
-          return _RetentionShimmer(refreshing: _refreshing, onRefresh: _manualRefresh);
+          return _RetentionShimmer(
+            refreshing: _refreshing,
+            onRefresh: _manualRefresh,
+          );
         }
 
         final filtered = _filter(metrics.newVsReturning);
-        final hasData = metrics.newVsReturning.isNotEmpty ||
+        final hasData =
+            metrics.newVsReturning.isNotEmpty ||
             metrics.retentionCurve.isNotEmpty ||
             metrics.engagementSeries.isNotEmpty;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _filterRow(),
-            const SizedBox(height: 20),
+        return StreamBuilder<RevenueCatMetrics?>(
+          stream: RevenueCatMetricsService.stream(),
+          builder: (context, rcSnap) {
+            final rc = rcSnap.data;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _filterRow(),
+                const SizedBox(height: 20),
 
-            // ── APERTURAS cards (nuevos + recurrentes) ─────────────────────
-            if (filtered.isNotEmpty) ...[
-              _AperturaCards(data: filtered),
-              const SizedBox(height: 14),
-            ],
+                // ── CANCELACIÓN Y CHURN (RevenueCat) ────────────────────────
+                _SubscriptionHealthSection(rc: rc),
+                const SizedBox(height: 28),
 
-            // ── COHORTE D1/D2/D7/D30 ──────────────────────────────────────
-            if (metrics.retentionCurve.isNotEmpty) ...[
-              const SectionHeader(
-                label: 'RETENCIÓN POR COHORTE',
-                source: 'Firebase Analytics',
-              ),
-              const SizedBox(height: 12),
-              _CohortCards(retentionCurve: metrics.retentionCurve),
-              const SizedBox(height: 28),
-            ],
+                // ── RETENCIÓN DE SUSCRIPCIONES (RevenueCat) ─────────────────
+                _SubRetentionSection(rc: rc),
+                const SizedBox(height: 28),
 
-            // ── CURVA DE RETENCIÓN ─────────────────────────────────────────
-            if (metrics.retentionCurve.isNotEmpty) ...[
-              Panel(child: _RetentionCurveChart(data: metrics.retentionCurve)),
-              const SizedBox(height: 20),
-            ],
+                // ── APERTURAS cards (nuevos + recurrentes) ───────────────────
+                if (filtered.isNotEmpty) ...[
+                  _AperturaCards(data: filtered),
+                  const SizedBox(height: 14),
+                ],
 
-            // ── DURACIÓN DE SESIÓN ─────────────────────────────────────────
-            if (metrics.engagementSeries.isNotEmpty) ...[
-              Panel(child: _EngagementChart(data: metrics.engagementSeries)),
-              const SizedBox(height: 20),
-            ],
+                // ── COHORTE D1/D3/D7/D30 ────────────────────────────────────
+                if (metrics.retentionCurve.isNotEmpty) ...[
+                  const SectionHeader(
+                    label: 'RETENCIÓN DE USUARIOS POR COHORTE',
+                    source: 'Firebase Analytics',
+                  ),
+                  const SizedBox(height: 12),
+                  _CohortCards(retentionCurve: metrics.retentionCurve),
+                  const SizedBox(height: 28),
+                ],
 
-            // ── LTV CURVE ─────────────────────────────────────────────────
-            if (metrics.ltvCurve.isNotEmpty) ...[
-              Panel(child: _LtvChart(data: metrics.ltvCurve)),
-              const SizedBox(height: 20),
-            ],
+                // ── CURVA DE RETENCIÓN ───────────────────────────────────────
+                if (metrics.retentionCurve.isNotEmpty) ...[
+                  Panel(
+                    child: _RetentionCurveChart(data: metrics.retentionCurve),
+                  ),
+                  const SizedBox(height: 20),
+                ],
 
-            if (!hasData) ...[
-              const SizedBox(height: 40),
-              const EmptyTablesComponent(
-                title: 'Sin datos aún',
-                description: 'Los datos aparecerán tras la primera sincronización.',
-              ),
-            ],
-            const SizedBox(height: 32),
-          ],
+                // ── DURACIÓN DE SESIÓN ───────────────────────────────────────
+                if (metrics.engagementSeries.isNotEmpty) ...[
+                  Panel(
+                    child: _EngagementChart(data: metrics.engagementSeries),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+
+                // ── LTV CURVE ────────────────────────────────────────────────
+                if (metrics.ltvCurve.isNotEmpty) ...[
+                  Panel(child: _LtvChart(data: metrics.ltvCurve)),
+                  const SizedBox(height: 20),
+                ],
+
+                if (!hasData) ...[
+                  const SizedBox(height: 40),
+                  const EmptyTablesComponent(
+                    title: 'Sin datos aún',
+                    description:
+                        'Los datos aparecerán tras la primera sincronización.',
+                  ),
+                ],
+                const SizedBox(height: 32),
+              ],
+            );
+          },
         );
       },
     );
@@ -146,16 +176,202 @@ class _RetentionPageState extends State<RetentionPage> {
   Widget _filterRow() {
     return Row(
       children: [
-        _RangeChip(label: '7D',   selected: _rangeDays == 7,  onTap: () => setState(() => _rangeDays = 7)),
+        _RangeChip(
+          label: '7D',
+          selected: _rangeDays == 7,
+          onTap: () => setState(() => _rangeDays = 7),
+        ),
         const SizedBox(width: 8),
-        _RangeChip(label: '30D',  selected: _rangeDays == 30, onTap: () => setState(() => _rangeDays = 30)),
+        _RangeChip(
+          label: '30D',
+          selected: _rangeDays == 30,
+          onTap: () => setState(() => _rangeDays = 30),
+        ),
         const SizedBox(width: 8),
-        _RangeChip(label: '90D',  selected: _rangeDays == 90, onTap: () => setState(() => _rangeDays = 90)),
+        _RangeChip(
+          label: '90D',
+          selected: _rangeDays == 90,
+          onTap: () => setState(() => _rangeDays = 90),
+        ),
         const SizedBox(width: 8),
-        _RangeChip(label: 'Todo', selected: _rangeDays == 0,  onTap: () => setState(() => _rangeDays = 0)),
+        _RangeChip(
+          label: 'Todo',
+          selected: _rangeDays == 0,
+          onTap: () => setState(() => _rangeDays = 0),
+        ),
         const Spacer(),
         _RefreshBtn(refreshing: _refreshing, onTap: _manualRefresh),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// CANCELACIÓN Y CHURN — RevenueCat
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SubscriptionHealthSection extends StatelessWidget {
+  const _SubscriptionHealthSection({required this.rc});
+  final RevenueCatMetrics? rc;
+
+  @override
+  Widget build(BuildContext context) {
+    final ov = rc?.overview;
+    final churnLabel = ov?.churnRateLabel ?? '—';
+    final cancelLabel = ov?.cancelledLabel ?? '—';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(
+          label: 'CANCELACIÓN Y CHURN',
+          source: 'Firestore · plan_user',
+        ),
+        const SizedBox(height: 12),
+        ResponsiveGrid(
+          minTileWidth: 200,
+          children: [
+            _SubMetricCard(
+              label: 'Canceladas',
+              value: cancelLabel,
+              sub: 'suscripciones canceladas',
+              color: AppColors.danger,
+            ),
+            _SubMetricCard(
+              label: '% Churn',
+              value: churnLabel,
+              sub: 'tasa de cancelación',
+              color: churnLabel == '—' ? AppColors.chartBlue : AppColors.danger,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RETENCIÓN DE SUSCRIPCIONES — RevenueCat subscription_retention
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SubRetentionSection extends StatelessWidget {
+  const _SubRetentionSection({required this.rc});
+  final RevenueCatMetrics? rc;
+
+  @override
+  Widget build(BuildContext context) {
+    final ov = rc?.overview;
+    final p1 = ov?.subRetentionP1Label ?? '—';
+    final p3 = ov?.subRetentionP3Label ?? '—';
+    final hasData =
+        (ov?.subRetentionP1 ?? 0) > 0 || (ov?.subRetentionP3 ?? 0) > 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SectionHeader(
+          label: 'RETENCIÓN DE SUSCRIPCIONES',
+          source: 'RevenueCat · Subscription Retention',
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.fieldBg,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Text(
+            'Porcentaje de suscripciones que renuevan en cada periodo. '
+            'Semana 1 = primer renovación · Mes 1 = primera renovación mensual · Mes 3 = tercera renovación mensual.',
+            style: TextStyle(fontSize: 12, color: AppColors.ink3, height: 1.5),
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (!hasData)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(
+              'Sin datos disponibles. RevenueCat puede tardar en procesar cohortes de suscripción.',
+              style: TextStyle(fontSize: 13, color: context.dc.ink3),
+            ),
+          )
+        else
+          ResponsiveGrid(
+            minTileWidth: 200,
+            children: [
+              _SubMetricCard(
+                label: 'Semana 1',
+                value: p1,
+                sub: '1ª renovación',
+                color: AppColors.chartGreen,
+              ),
+              _SubMetricCard(
+                label: 'Mes 1',
+                value: p1,
+                sub: '1ª renovación mensual',
+                color: AppColors.chartBlue,
+              ),
+              _SubMetricCard(
+                label: 'Mes 3',
+                value: p3,
+                sub: '3ª renovación mensual',
+                color: AppColors.chartAmber,
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+// Tarjeta genérica pequeña para métricas de suscripción
+class _SubMetricCard extends StatelessWidget {
+  const _SubMetricCard({
+    required this.label,
+    required this.value,
+    required this.sub,
+    required this.color,
+  });
+  final String label;
+  final String value;
+  final String sub;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: context.dc.surface,
+        borderRadius: BorderRadius.circular(22),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: context.dc.ink2,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1,
+              height: 1,
+              color: value == '—' ? context.dc.ink3 : color,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(sub, style: TextStyle(fontSize: 12, color: context.dc.ink3)),
+        ],
+      ),
     );
   }
 }
@@ -187,7 +403,10 @@ class _AperturaCards extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(label: 'APERTURAS DE USUARIOS', source: 'Firebase Analytics'),
+        const SectionHeader(
+          label: 'APERTURAS DE USUARIOS',
+          source: 'Firebase Analytics',
+        ),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
@@ -239,28 +458,56 @@ class _CohortCards extends StatelessWidget {
     if (retentionCurve.isEmpty) return 0;
     for (int i = 0; i < retentionCurve.length - 1; i++) {
       if (retentionCurve[i].day <= day && day <= retentionCurve[i + 1].day) {
-        final t = (day - retentionCurve[i].day) /
+        final t =
+            (day - retentionCurve[i].day) /
             (retentionCurve[i + 1].day - retentionCurve[i].day);
-        return retentionCurve[i].rate + t * (retentionCurve[i + 1].rate - retentionCurve[i].rate);
+        return retentionCurve[i].rate +
+            t * (retentionCurve[i + 1].rate - retentionCurve[i].rate);
       }
     }
-    return day <= retentionCurve.first.day ? retentionCurve.first.rate : retentionCurve.last.rate;
+    return day <= retentionCurve.first.day
+        ? retentionCurve.first.rate
+        : retentionCurve.last.rate;
   }
 
   @override
   Widget build(BuildContext context) {
-    final d1  = _rateAt(1);
-    final d2  = _rateAt(2);
-    final d7  = _rateAt(7);
+    final d1 = _rateAt(1);
+    final d3 = _rateAt(3);
+    final d7 = _rateAt(7);
     final d30 = _rateAt(30);
 
     return ResponsiveGrid(
       minTileWidth: 200,
       children: [
-        _CohortCard(label: 'D1 · Día siguiente', rate: d1, benchmark: 1.0,   benchmarkLabel: 'punto base', color: AppColors.chartBlue),
-        _CohortCard(label: 'D2 · Dos días',      rate: d2, benchmark: 0.40,  benchmarkLabel: 'ref: 40%',   color: AppColors.chartGreen),
-        _CohortCard(label: 'D7 · Semana',        rate: d7, benchmark: 0.15,  benchmarkLabel: 'ref: 15%',   color: AppColors.chartAmber),
-        _CohortCard(label: 'D30 · Mes',          rate: d30, benchmark: 0.08, benchmarkLabel: 'ref: 8%',    color: AppColors.chartPurple),
+        _CohortCard(
+          label: 'D1 · Día siguiente',
+          rate: d1,
+          benchmark: 1.0,
+          benchmarkLabel: 'punto base',
+          color: AppColors.chartBlue,
+        ),
+        _CohortCard(
+          label: 'D3 · Tres días',
+          rate: d3,
+          benchmark: 0.30,
+          benchmarkLabel: 'ref: 30%',
+          color: AppColors.chartGreen,
+        ),
+        _CohortCard(
+          label: 'D7 · Semana 1',
+          rate: d7,
+          benchmark: 0.15,
+          benchmarkLabel: 'ref: 15%',
+          color: AppColors.chartAmber,
+        ),
+        _CohortCard(
+          label: 'D30 · Mes 1',
+          rate: d30,
+          benchmark: 0.08,
+          benchmarkLabel: 'ref: 8%',
+          color: AppColors.chartPurple,
+        ),
       ],
     );
   }
@@ -299,29 +546,52 @@ class _CohortCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: context.dc.ink2)),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: context.dc.ink2,
+            ),
+          ),
           const SizedBox(height: 10),
           Text(
             hasData ? '$pct%' : '—',
             style: TextStyle(
-              fontSize: 36, fontWeight: FontWeight.w800,
-              letterSpacing: -1, height: 1,
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1,
+              height: 1,
               color: hasData ? statusColor : context.dc.ink3,
             ),
           ),
           const SizedBox(height: 8),
           if (hasData && benchmark < 1.0)
-            Row(children: [
-              Icon(
-                isAboveBenchmark ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                size: 12,
-                color: statusColor,
-              ),
-              const SizedBox(width: 4),
-              Text(benchmarkLabel, style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w600)),
-            ])
+            Row(
+              children: [
+                Icon(
+                  isAboveBenchmark
+                      ? Icons.arrow_upward_rounded
+                      : Icons.arrow_downward_rounded,
+                  size: 12,
+                  color: statusColor,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  benchmarkLabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: statusColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            )
           else
-            Text(benchmarkLabel, style: const TextStyle(fontSize: 11, color: AppColors.ink3)),
+            Text(
+              benchmarkLabel,
+              style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+            ),
           const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
@@ -329,7 +599,9 @@ class _CohortCard extends StatelessWidget {
               value: hasData ? rate.clamp(0.0, 1.0) : 0,
               minHeight: 6,
               backgroundColor: AppColors.progressBg,
-              valueColor: AlwaysStoppedAnimation(hasData ? color : AppColors.shimmerBase),
+              valueColor: AlwaysStoppedAnimation(
+                hasData ? color : AppColors.shimmerBase,
+              ),
             ),
           ),
         ],
@@ -372,15 +644,27 @@ class _MetricCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 36, height: 36,
-                decoration: BoxDecoration(color: color.withAlpha(22), borderRadius: BorderRadius.circular(12)),
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: color.withAlpha(22),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: Icon(icon, size: 18, color: color),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.dc.ink2)),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    color: context.dc.ink2,
+                  ),
+                ),
               ),
-              if (delta != null && delta!.abs() >= 0.01) _DeltaBadge(delta: delta!),
+              if (delta != null && delta!.abs() >= 0.01)
+                _DeltaBadge(delta: delta!),
             ],
           ),
           const SizedBox(height: 14),
@@ -389,13 +673,21 @@ class _MetricCard extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: Text(
               value,
-              style: TextStyle(fontSize: 44, fontWeight: FontWeight.w700, letterSpacing: -2, height: 0.95, color: context.dc.ink),
+              style: TextStyle(
+                fontSize: 44,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -2,
+                height: 0.95,
+                color: context.dc.ink,
+              ),
             ),
           ),
           const SizedBox(height: 12),
           SizedBox(
             height: 40,
-            child: sparkline.length > 2 ? _MiniSparkline(data: sparkline, color: color) : const SizedBox.shrink(),
+            child: sparkline.length > 2
+                ? _MiniSparkline(data: sparkline, color: color)
+                : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -424,54 +716,141 @@ class _RetentionCurveChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spots  = data.map((p) => FlSpot(p.day.toDouble(), p.rate * 100)).toList();
-    final d1  = (_rateAt(1)  * 100).toStringAsFixed(1);
-    final d7  = (_rateAt(7)  * 100).toStringAsFixed(1);
+    final spots = data
+        .map((p) => FlSpot(p.day.toDouble(), p.rate * 100))
+        .toList();
+    final d1 = (_rateAt(1) * 100).toStringAsFixed(1);
+    final d7 = (_rateAt(7) * 100).toStringAsFixed(1);
     final d30 = (_rateAt(30) * 100).toStringAsFixed(1);
     final maxDay = data.isEmpty ? 42 : data.last.day;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Curva de retención de usuarios', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: context.dc.ink)),
+        Text(
+          'Curva de retención de usuarios',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: context.dc.ink,
+          ),
+        ),
         const SizedBox(height: 2),
-        Text('Porcentaje de usuarios que regresan tras la primera sesión', style: TextStyle(fontSize: 13, color: context.dc.ink3)),
+        Text(
+          'Porcentaje de usuarios que regresan tras la primera sesión',
+          style: TextStyle(fontSize: 13, color: context.dc.ink3),
+        ),
         const SizedBox(height: 16),
-        Row(children: [
-          _StatChip(color: AppColors.chartAmber, label: 'Día 1',  value: '$d1%'),
-          const SizedBox(width: 16),
-          _StatChip(color: AppColors.chartBlue,  label: 'Día 7',  value: '$d7%'),
-          const SizedBox(width: 16),
-          _StatChip(color: AppColors.chartGreen, label: 'Día 30', value: '$d30%'),
-        ]),
+        Row(
+          children: [
+            _StatChip(
+              color: AppColors.chartAmber,
+              label: 'Día 1',
+              value: '$d1%',
+            ),
+            const SizedBox(width: 16),
+            _StatChip(
+              color: AppColors.chartBlue,
+              label: 'Día 7',
+              value: '$d7%',
+            ),
+            const SizedBox(width: 16),
+            _StatChip(
+              color: AppColors.chartGreen,
+              label: 'Día 30',
+              value: '$d30%',
+            ),
+          ],
+        ),
         const SizedBox(height: 20),
         SizedBox(
           height: 220,
-          child: LineChart(LineChartData(
-            gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (_) => FlLine(color: context.dc.divider, strokeWidth: 1)),
-            borderData: FlBorderData(show: false),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 44, getTitlesWidget: (v, _) => Text('${v.toInt()}%', style: TextStyle(fontSize: 11, color: context.dc.ink3)))),
-              bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 22, interval: (maxDay / 6).ceilToDouble(), getTitlesWidget: (v, _) {
-                final day = v.toInt();
-                if (day == 0) return const SizedBox.shrink();
-                return Text('Día $day', style: TextStyle(fontSize: 10, color: context.dc.ink3));
-              })),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          child: LineChart(
+            LineChartData(
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: context.dc.divider, strokeWidth: 1),
+              ),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 44,
+                    getTitlesWidget: (v, _) => Text(
+                      '${v.toInt()}%',
+                      style: TextStyle(fontSize: 11, color: context.dc.ink3),
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 22,
+                    interval: (maxDay / 6).ceilToDouble(),
+                    getTitlesWidget: (v, _) {
+                      final day = v.toInt();
+                      if (day == 0) return const SizedBox.shrink();
+                      return Text(
+                        'Día $day',
+                        style: TextStyle(fontSize: 10, color: context.dc.ink3),
+                      );
+                    },
+                  ),
+                ),
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+              ),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => context.dc.elevated,
+                  getTooltipItems: (spots) => spots
+                      .map(
+                        (s) => LineTooltipItem(
+                          'Día ${s.x.toInt()}: ${s.y.toStringAsFixed(1)}%',
+                          TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.chartBlue,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  curveSmoothness: 0.3,
+                  color: AppColors.chartBlue,
+                  barWidth: 2.5,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.chartBlue.withAlpha(60),
+                        AppColors.chartBlue.withAlpha(0),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              minY: 0,
+              maxY: 105,
+              minX: 0,
+              maxX: maxDay.toDouble(),
             ),
-            lineTouchData: LineTouchData(touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => context.dc.elevated,
-              getTooltipItems: (spots) => spots.map((s) => LineTooltipItem('Día ${s.x.toInt()}: ${s.y.toStringAsFixed(1)}%', TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.chartBlue))).toList(),
-            )),
-            lineBarsData: [LineChartBarData(
-              spots: spots, isCurved: true, curveSmoothness: 0.3,
-              color: AppColors.chartBlue, barWidth: 2.5,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(show: true, gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.chartBlue.withAlpha(60), AppColors.chartBlue.withAlpha(0)])),
-            )],
-            minY: 0, maxY: 105, minX: 0, maxX: maxDay.toDouble(),
-          )),
+          ),
         ),
       ],
     );
@@ -506,74 +885,168 @@ class _EngagementChart extends StatelessWidget {
       spots.add(FlSpot(i.toDouble(), data[i].avgSessionSec));
     }
 
-    final recent   = data.length >= 7 ? data.sublist(data.length - 7) : data;
-    final avgRecent = recent.isEmpty ? 0.0 : recent.map((p) => p.avgSessionSec).reduce((a, b) => a + b) / recent.length;
+    final recent = data.length >= 7 ? data.sublist(data.length - 7) : data;
+    final avgRecent = recent.isEmpty
+        ? 0.0
+        : recent.map((p) => p.avgSessionSec).reduce((a, b) => a + b) /
+              recent.length;
 
     final step = math.max(1, (data.length / 6).ceil());
     final dateLabels = <int, String>{};
     for (int i = 0; i < data.length; i += step) {
       final raw = data[i].date;
-      if (raw.length >= 8) dateLabels[i] = '${raw.substring(6, 8)}/${raw.substring(4, 6)}';
+      if (raw.length >= 8)
+        dateLabels[i] = '${raw.substring(6, 8)}/${raw.substring(4, 6)}';
     }
 
     final yInterval = _niceInterval(maxSec, 4);
-    final chartMax  = yInterval * 5;
+    final chartMax = yInterval * 5;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Interacción de los usuarios', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: context.dc.ink)),
+        Text(
+          'Interacción de los usuarios',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w700,
+            color: context.dc.ink,
+          ),
+        ),
         const SizedBox(height: 2),
-        Text('Duración media de sesión — últimos 42 días', style: TextStyle(fontSize: 13, color: context.dc.ink3)),
+        Text(
+          'Duración media de sesión — últimos 42 días',
+          style: TextStyle(fontSize: 13, color: context.dc.ink3),
+        ),
         if (hasOutlier) ...[
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(color: AppColors.chartAmber.withAlpha(20), borderRadius: BorderRadius.circular(12)),
-            child: Row(children: [
-              const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.chartAmber),
-              const SizedBox(width: 8),
-              const Expanded(child: Text(
-                'El máximo supera 15 min — probable outlier (app en segundo plano). El promedio puede estar inflado.',
-                style: TextStyle(fontSize: 12, color: AppColors.chartAmber),
-              )),
-            ]),
+            decoration: BoxDecoration(
+              color: AppColors.chartAmber.withAlpha(20),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.warning_amber_rounded,
+                  size: 16,
+                  color: AppColors.chartAmber,
+                ),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text(
+                    'El máximo supera 15 min — probable outlier (app en segundo plano). El promedio puede estar inflado.',
+                    style: TextStyle(fontSize: 12, color: AppColors.chartAmber),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
         const SizedBox(height: 16),
-        Row(children: [
-          _StatChip(color: AppColors.chartPurple, label: 'Promedio reciente', value: _fmtSec(avgRecent)),
-          const SizedBox(width: 16),
-          _StatChip(color: AppColors.chartAmber, label: 'Máximo', value: _fmtSec(maxSec)),
-        ]),
+        Row(
+          children: [
+            _StatChip(
+              color: AppColors.chartPurple,
+              label: 'Promedio reciente',
+              value: _fmtSec(avgRecent),
+            ),
+            const SizedBox(width: 16),
+            _StatChip(
+              color: AppColors.chartAmber,
+              label: 'Máximo',
+              value: _fmtSec(maxSec),
+            ),
+          ],
+        ),
         const SizedBox(height: 20),
         SizedBox(
           height: 200,
-          child: LineChart(LineChartData(
-            gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (_) => FlLine(color: context.dc.divider, strokeWidth: 1)),
-            borderData: FlBorderData(show: false),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 52, interval: yInterval, getTitlesWidget: (v, _) => Text(_fmtSec(v), style: TextStyle(fontSize: 10, color: context.dc.ink3)))),
-              bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 22, getTitlesWidget: (v, _) {
-                final label = dateLabels[v.toInt()];
-                if (label == null) return const SizedBox.shrink();
-                return Text(label, style: TextStyle(fontSize: 11, color: context.dc.ink3));
-              })),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          child: LineChart(
+            LineChartData(
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: context.dc.divider, strokeWidth: 1),
+              ),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 52,
+                    interval: yInterval,
+                    getTitlesWidget: (v, _) => Text(
+                      _fmtSec(v),
+                      style: TextStyle(fontSize: 10, color: context.dc.ink3),
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 22,
+                    getTitlesWidget: (v, _) {
+                      final label = dateLabels[v.toInt()];
+                      if (label == null) return const SizedBox.shrink();
+                      return Text(
+                        label,
+                        style: TextStyle(fontSize: 11, color: context.dc.ink3),
+                      );
+                    },
+                  ),
+                ),
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+              ),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => context.dc.elevated,
+                  getTooltipItems: (spots) => spots
+                      .map(
+                        (s) => LineTooltipItem(
+                          _fmtSec(s.y),
+                          TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.chartPurple,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  curveSmoothness: 0.3,
+                  color: AppColors.chartPurple,
+                  barWidth: 2.5,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.chartPurple.withAlpha(60),
+                        AppColors.chartPurple.withAlpha(0),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              minY: 0,
+              maxY: chartMax,
             ),
-            lineTouchData: LineTouchData(touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => context.dc.elevated,
-              getTooltipItems: (spots) => spots.map((s) => LineTooltipItem(_fmtSec(s.y), TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.chartPurple))).toList(),
-            )),
-            lineBarsData: [LineChartBarData(
-              spots: spots, isCurved: true, curveSmoothness: 0.3,
-              color: AppColors.chartPurple, barWidth: 2.5,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(show: true, gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.chartPurple.withAlpha(60), AppColors.chartPurple.withAlpha(0)])),
-            )],
-            minY: 0, maxY: chartMax,
-          )),
+          ),
         ),
       ],
     );
@@ -590,54 +1063,141 @@ class _LtvChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxVal = data.map((p) => p.avgRevenue).fold(0.0, (a, b) => a > b ? a : b);
+    final maxVal = data
+        .map((p) => p.avgRevenue)
+        .fold(0.0, (a, b) => a > b ? a : b);
     if (maxVal <= 0) return const SizedBox.shrink();
 
-    final spots  = data.map((p) => FlSpot(p.day.toDouble(), p.avgRevenue)).toList();
+    final spots = data
+        .map((p) => FlSpot(p.day.toDouble(), p.avgRevenue))
+        .toList();
     final maxDay = data.isEmpty ? 120 : data.last.day;
     final latest = data.last.avgRevenue;
     final yInterval = _niceInterval(maxVal, 4);
-    final chartMax  = yInterval * 5;
+    final chartMax = yInterval * 5;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Valor medio 120 días', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: context.dc.ink)),
-            const SizedBox(height: 2),
-            Text('Ingresos acumulados promedio por usuario (cohorte)', style: TextStyle(fontSize: 13, color: context.dc.ink3)),
-          ])),
-          _StatChip(color: AppColors.chartAmber, label: 'LTV día ${data.last.day}', value: '\$${latest.toStringAsFixed(2)}'),
-        ]),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Valor medio 120 días',
+                    style: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: context.dc.ink,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Ingresos acumulados promedio por usuario (cohorte)',
+                    style: TextStyle(fontSize: 13, color: context.dc.ink3),
+                  ),
+                ],
+              ),
+            ),
+            _StatChip(
+              color: AppColors.chartAmber,
+              label: 'LTV día ${data.last.day}',
+              value: '\$${latest.toStringAsFixed(2)}',
+            ),
+          ],
+        ),
         const SizedBox(height: 20),
         SizedBox(
           height: 200,
-          child: LineChart(LineChartData(
-            gridData: FlGridData(show: true, drawVerticalLine: false, getDrawingHorizontalLine: (_) => FlLine(color: context.dc.divider, strokeWidth: 1)),
-            borderData: FlBorderData(show: false),
-            titlesData: FlTitlesData(
-              leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 48, interval: yInterval, getTitlesWidget: (v, _) => Text('\$${v.toStringAsFixed(0)}', style: TextStyle(fontSize: 11, color: context.dc.ink3)))),
-              bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 22, interval: (maxDay / 5).ceilToDouble(), getTitlesWidget: (v, _) {
-                final day = v.toInt();
-                if (day == 0) return const SizedBox.shrink();
-                return Text('Día $day', style: TextStyle(fontSize: 10, color: context.dc.ink3));
-              })),
-              topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          child: LineChart(
+            LineChartData(
+              gridData: FlGridData(
+                show: true,
+                drawVerticalLine: false,
+                getDrawingHorizontalLine: (_) =>
+                    FlLine(color: context.dc.divider, strokeWidth: 1),
+              ),
+              borderData: FlBorderData(show: false),
+              titlesData: FlTitlesData(
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 48,
+                    interval: yInterval,
+                    getTitlesWidget: (v, _) => Text(
+                      '\$${v.toStringAsFixed(0)}',
+                      style: TextStyle(fontSize: 11, color: context.dc.ink3),
+                    ),
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 22,
+                    interval: (maxDay / 5).ceilToDouble(),
+                    getTitlesWidget: (v, _) {
+                      final day = v.toInt();
+                      if (day == 0) return const SizedBox.shrink();
+                      return Text(
+                        'Día $day',
+                        style: TextStyle(fontSize: 10, color: context.dc.ink3),
+                      );
+                    },
+                  ),
+                ),
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+              ),
+              lineTouchData: LineTouchData(
+                touchTooltipData: LineTouchTooltipData(
+                  getTooltipColor: (_) => context.dc.elevated,
+                  getTooltipItems: (spots) => spots
+                      .map(
+                        (s) => LineTooltipItem(
+                          'Día ${s.x.toInt()}\n\$${s.y.toStringAsFixed(2)}',
+                          TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.chartAmber,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  curveSmoothness: 0.25,
+                  color: AppColors.chartAmber,
+                  barWidth: 2.5,
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(
+                    show: true,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        AppColors.chartAmber.withAlpha(60),
+                        AppColors.chartAmber.withAlpha(0),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              minY: 0,
+              maxY: chartMax,
+              minX: 0,
+              maxX: maxDay.toDouble(),
             ),
-            lineTouchData: LineTouchData(touchTooltipData: LineTouchTooltipData(
-              getTooltipColor: (_) => context.dc.elevated,
-              getTooltipItems: (spots) => spots.map((s) => LineTooltipItem('Día ${s.x.toInt()}\n\$${s.y.toStringAsFixed(2)}', TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.chartAmber))).toList(),
-            )),
-            lineBarsData: [LineChartBarData(
-              spots: spots, isCurved: true, curveSmoothness: 0.25,
-              color: AppColors.chartAmber, barWidth: 2.5,
-              dotData: const FlDotData(show: false),
-              belowBarData: BarAreaData(show: true, gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [AppColors.chartAmber.withAlpha(60), AppColors.chartAmber.withAlpha(0)])),
-            )],
-            minY: 0, maxY: chartMax, minX: 0, maxX: maxDay.toDouble(),
-          )),
+          ),
         ),
       ],
     );
@@ -649,7 +1209,11 @@ class _LtvChart extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _RangeChip extends StatelessWidget {
-  const _RangeChip({required this.label, required this.selected, required this.onTap});
+  const _RangeChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -668,7 +1232,8 @@ class _RangeChip extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 13, fontWeight: FontWeight.w600,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
             color: selected ? AppColors.white : context.dc.ink2,
           ),
         ),
@@ -678,7 +1243,11 @@ class _RangeChip extends StatelessWidget {
 }
 
 class _StatChip extends StatelessWidget {
-  const _StatChip({required this.color, required this.label, required this.value});
+  const _StatChip({
+    required this.color,
+    required this.label,
+    required this.value,
+  });
   final Color color;
   final String label;
   final String value;
@@ -688,13 +1257,24 @@ class _StatChip extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label, style: TextStyle(fontSize: 11, color: context.dc.ink3)),
-            Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.dc.ink)),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: context.dc.ink,
+              ),
+            ),
           ],
         ),
       ],
@@ -711,24 +1291,44 @@ class _MiniSparkline extends StatelessWidget {
   Widget build(BuildContext context) {
     final maxVal = data.isEmpty ? 0 : data.reduce(math.max);
     if (maxVal <= 0) return const SizedBox.shrink();
-    return LineChart(LineChartData(
-      minY: 0, maxY: maxVal * 1.4,
-      gridData: const FlGridData(show: false),
-      borderData: FlBorderData(show: false),
-      titlesData: const FlTitlesData(
-        topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-        bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+    return LineChart(
+      LineChartData(
+        minY: 0,
+        maxY: maxVal * 1.4,
+        gridData: const FlGridData(show: false),
+        borderData: FlBorderData(show: false),
+        titlesData: const FlTitlesData(
+          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+        ),
+        lineBarsData: [
+          LineChartBarData(
+            spots: data
+                .asMap()
+                .entries
+                .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
+                .toList(),
+            isCurved: true,
+            curveSmoothness: 0.35,
+            color: color,
+            barWidth: 2,
+            isStrokeCapRound: true,
+            dotData: const FlDotData(show: false),
+            belowBarData: BarAreaData(
+              show: true,
+              gradient: LinearGradient(
+                colors: [color.withAlpha(40), color.withAlpha(0)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+        ],
+        lineTouchData: const LineTouchData(enabled: false),
       ),
-      lineBarsData: [LineChartBarData(
-        spots: data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.toDouble())).toList(),
-        isCurved: true, curveSmoothness: 0.35, color: color, barWidth: 2,
-        isStrokeCapRound: true, dotData: const FlDotData(show: false),
-        belowBarData: BarAreaData(show: true, gradient: LinearGradient(colors: [color.withAlpha(40), color.withAlpha(0)], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
-      )],
-      lineTouchData: const LineTouchData(enabled: false),
-    ));
+    );
   }
 }
 
@@ -738,13 +1338,23 @@ class _DeltaBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isUp  = delta > 0;
+    final isUp = delta > 0;
     final color = isUp ? AppColors.chartGreen : AppColors.chartRed;
-    final pct   = (delta.abs() * 100).toStringAsFixed(0);
+    final pct = (delta.abs() * 100).toStringAsFixed(0);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: color.withAlpha(18), borderRadius: BorderRadius.circular(8)),
-      child: Text('${isUp ? '↑' : '↓'} $pct%', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: color)),
+      decoration: BoxDecoration(
+        color: color.withAlpha(18),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        '${isUp ? '↑' : '↓'} $pct%',
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
     );
   }
 }
@@ -759,10 +1369,20 @@ class _RefreshBtn extends StatelessWidget {
     return GestureDetector(
       onTap: refreshing ? null : onTap,
       child: Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(color: context.dc.elevated, borderRadius: BorderRadius.circular(20)),
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: context.dc.elevated,
+          borderRadius: BorderRadius.circular(20),
+        ),
         child: refreshing
-            ? Padding(padding: const EdgeInsets.all(10), child: CircularProgressIndicator(strokeWidth: 2, color: context.dc.ink3))
+            ? Padding(
+                padding: const EdgeInsets.all(10),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: context.dc.ink3,
+                ),
+              )
             : Icon(Icons.refresh_rounded, size: 20, color: context.dc.ink2),
       ),
     );
@@ -786,21 +1406,25 @@ class _RetentionShimmer extends StatelessWidget {
         children: [
           const AppSkeletonBox(width: 260, height: 36, radius: 20),
           const SizedBox(height: 20),
-          Row(children: const [
-            Expanded(child: AppSkeletonBox(height: 130, radius: 22)),
-            SizedBox(width: 14),
-            Expanded(child: AppSkeletonBox(height: 130, radius: 22)),
-          ]),
+          Row(
+            children: const [
+              Expanded(child: AppSkeletonBox(height: 130, radius: 22)),
+              SizedBox(width: 14),
+              Expanded(child: AppSkeletonBox(height: 130, radius: 22)),
+            ],
+          ),
           const SizedBox(height: 20),
-          Row(children: const [
-            Expanded(child: AppSkeletonBox(height: 110, radius: 22)),
-            SizedBox(width: 14),
-            Expanded(child: AppSkeletonBox(height: 110, radius: 22)),
-            SizedBox(width: 14),
-            Expanded(child: AppSkeletonBox(height: 110, radius: 22)),
-            SizedBox(width: 14),
-            Expanded(child: AppSkeletonBox(height: 110, radius: 22)),
-          ]),
+          Row(
+            children: const [
+              Expanded(child: AppSkeletonBox(height: 110, radius: 22)),
+              SizedBox(width: 14),
+              Expanded(child: AppSkeletonBox(height: 110, radius: 22)),
+              SizedBox(width: 14),
+              Expanded(child: AppSkeletonBox(height: 110, radius: 22)),
+              SizedBox(width: 14),
+              Expanded(child: AppSkeletonBox(height: 110, radius: 22)),
+            ],
+          ),
           const SizedBox(height: 20),
           const AppSkeletonBox(height: 340, radius: 28),
           const SizedBox(height: 20),
@@ -817,7 +1441,7 @@ class _RetentionShimmer extends StatelessWidget {
 
 String _fmtInt(int n) {
   if (n >= 1000000) return '${(n / 1000000).toStringAsFixed(1)}M';
-  if (n >= 1000)    return '${(n / 1000).toStringAsFixed(1)}K';
+  if (n >= 1000) return '${(n / 1000).toStringAsFixed(1)}K';
   return '$n';
 }
 

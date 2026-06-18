@@ -61,6 +61,11 @@ class RevenueCatOverviewMetrics {
     this.revenue28d = 0,
     this.newCustomers28d = 0,
     this.activeCustomers28d = 0,
+    this.subRetentionP1 = 0,
+    this.subRetentionP3 = 0,
+    this.subRetentionP6 = 0,
+    this.cancelledSubscriptions = 0,
+    this.churnRateFirestore = 0,
   });
 
   final double mrr;
@@ -72,6 +77,13 @@ class RevenueCatOverviewMetrics {
   final double revenue28d;
   final int newCustomers28d;
   final int activeCustomers28d;
+  final double subRetentionP1;
+  final double subRetentionP3;
+  final double subRetentionP6;
+  /// Planes cancelados/expirados desde Firestore plan_user
+  final int cancelledSubscriptions;
+  /// % churn = canceladas / total con plan (desde Firestore)
+  final double churnRateFirestore;
 
   factory RevenueCatOverviewMetrics.fromMap(Map<String, dynamic> map) {
     return RevenueCatOverviewMetrics(
@@ -84,10 +96,28 @@ class RevenueCatOverviewMetrics {
       revenue28d: (map['revenue_28d'] as num?)?.toDouble() ?? 0,
       newCustomers28d: (map['new_customers_28d'] as num?)?.toInt() ?? 0,
       activeCustomers28d: (map['active_customers_28d'] as num?)?.toInt() ?? 0,
+      subRetentionP1: (map['sub_retention_p1'] as num?)?.toDouble() ?? 0,
+      subRetentionP3: (map['sub_retention_p3'] as num?)?.toDouble() ?? 0,
+      subRetentionP6: (map['sub_retention_p6'] as num?)?.toDouble() ?? 0,
+      cancelledSubscriptions: (map['cancelled_subscriptions'] as num?)?.toInt() ?? 0,
+      churnRateFirestore: (map['churn_rate_firestore'] as num?)?.toDouble() ?? 0,
     );
   }
 
   bool get hasMrrBreakdown => monthlySubscriptions > 0 || annualSubscriptions > 0;
+
+  String subRetentionLabel(double rate) {
+    if (rate <= 0) return '—';
+    return '${(rate * 100).toStringAsFixed(1)}%';
+  }
+
+  String get subRetentionP1Label => subRetentionLabel(subRetentionP1);
+  String get subRetentionP3Label => subRetentionLabel(subRetentionP3);
+  String get subRetentionP6Label => subRetentionLabel(subRetentionP6);
+  String get cancelledLabel => cancelledSubscriptions > 0 ? '$cancelledSubscriptions' : '0';
+  String get churnRateLabel => churnRateFirestore > 0
+      ? '${churnRateFirestore.toStringAsFixed(1)}%'
+      : '0%';
 
   String get mrrLabel => RevenueCatRangeMetrics.formatCurrency(mrr);
   String get computedMrrLabel => RevenueCatRangeMetrics.formatCurrency(computedMrr);

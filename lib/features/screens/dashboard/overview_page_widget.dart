@@ -262,14 +262,6 @@ class _OverviewContentState extends State<_OverviewContent> {
   int _eventUniques(List<FunnelEvent> events, String name) =>
       events.where((e) => e.name == name).fold(0, (s, e) => s + e.uniqueUsers);
 
-  String _retLabel(int day) {
-    final curve = widget.retention?.retentionCurve ?? [];
-    if (curve.isEmpty) return '—';
-    final pt = curve.where((p) => p.day <= day).lastOrNull;
-    if (pt == null) return '—';
-    return '${(pt.rate * 100).toStringAsFixed(0)}%';
-  }
-
   Widget _buildAndroidStoreCards() {
     final ps = widget.playStore;
     final rcOverview = widget.revenueCat?.overview;
@@ -351,9 +343,7 @@ class _OverviewContentState extends State<_OverviewContent> {
         .where((d) => d.os.toLowerCase().contains('android'))
         .fold(0, (s, d) => s + d.count);
 
-    // Retención
-    final retD3 = _retLabel(3);
-    final retW1 = _retLabel(7);
+
 
     // Funnel steps
     final funnelBase = as?.downloadsLastMonth ?? 0;
@@ -594,26 +584,26 @@ class _OverviewContentState extends State<_OverviewContent> {
           children: [
             MetricCard(
               label: 'Cancelaciones',
-              value: '—',
+              value: rcOverview?.cancelledLabel ?? '—',
               accent: true,
               helperText: 'planes pagos cancelados',
             ),
             MetricCard(
               label: '% Churn',
-              value: rcRange?.churnLabel ?? '—',
+              value: rcOverview?.churnRateLabel ?? '—',
               accent: true,
               helperText: 'cancelados / activos',
             ),
             MetricCard(
-              label: 'Day 3 retention',
-              value: retD3,
-              helperText: 'activos 3 días después',
+              label: 'Mes 1',
+              value: rcOverview?.subRetentionP1Label ?? '—',
+              helperText: 'retención 1er mes · suscripciones',
             ),
             MetricCard(
-              label: 'Week 1 retention',
-              value: retW1,
-              accent: retW1 == '—' ? false : true,
-              helperText: 'activos 7 días después',
+              label: 'Mes 6',
+              value: rcOverview?.subRetentionP6Label ?? '—',
+              accent: (rcOverview?.subRetentionP6 ?? 0) > 0,
+              helperText: 'retención 6° mes · suscripciones',
             ),
           ],
         ),
@@ -1051,9 +1041,10 @@ class _AppStoreRefreshButtonState extends State<_AppStoreRefreshButton> {
     return StreamBuilder<AppStoreMetrics?>(
       stream: AppStoreMetricsService.stream(),
       builder: (context, snap) {
-        final isLoading = _requested || snap.data?.status == 'partial';
-        // Cuando el stream vuelve a 'complete', limpiamos _requested
-        if (!isLoading && _requested) {
+        final status = snap.data?.status ?? '';
+        final isLoading = _requested || status == 'partial';
+        // Resetear _requested cuando el status vuelve a 'complete'
+        if (_requested && status == 'complete') {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) setState(() => _requested = false);
           });
@@ -1134,8 +1125,9 @@ class _RevenueCatRefreshButtonState extends State<_RevenueCatRefreshButton> {
     return StreamBuilder<RevenueCatMetrics?>(
       stream: RevenueCatMetricsService.stream(),
       builder: (context, snap) {
-        final isLoading = _requested || snap.data?.status == 'partial';
-        if (!isLoading && _requested) {
+        final status = snap.data?.status ?? '';
+        final isLoading = _requested || status == 'partial';
+        if (_requested && status == 'complete') {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) setState(() => _requested = false);
           });
