@@ -514,14 +514,14 @@ class _OverviewContentState extends State<_OverviewContent> {
               value: (rcOverview?.monthlySubscriptions ?? 0) > 0
                   ? '${rcOverview!.monthlySubscriptions}'
                   : '—',
-              helperText: 'activas',
+              helperText: 'activas · puede incluir usuarios de prueba',
             ),
             MetricCard(
               label: 'Anuales',
               value: (rcOverview?.annualSubscriptions ?? 0) > 0
                   ? '${rcOverview!.annualSubscriptions}'
                   : '—',
-              helperText: 'activas',
+              helperText: 'activas · puede incluir usuarios de prueba',
             ),
           ],
         ),
