@@ -25,9 +25,11 @@ class AppStoreMetrics {
   final double rating;
   final int totalReviews;
   final int downloadsLastMonth;
+  final int? firstDownloads;
   final int redownloads;
   final String periodLabel;
   final int? impressions;
+  final int? pageViews;
   final double? conversion;
   final String status;
   final List<AppStoreDailyPoint> timeSeries;
@@ -38,7 +40,9 @@ class AppStoreMetrics {
     required this.downloadsLastMonth,
     required this.redownloads,
     required this.periodLabel,
+    this.firstDownloads,
     this.impressions,
+    this.pageViews,
     this.conversion,
     this.status = 'partial',
     this.timeSeries = const [],
@@ -50,9 +54,11 @@ class AppStoreMetrics {
       rating: (m['rating'] as num?)?.toDouble() ?? 0,
       totalReviews: (m['total_reviews'] as num?)?.toInt() ?? 0,
       downloadsLastMonth: (m['downloads_last_month'] as num?)?.toInt() ?? 0,
+      firstDownloads: (m['first_downloads'] as num?)?.toInt(),
       redownloads: (m['redownloads'] as num?)?.toInt() ?? 0,
       periodLabel: m['downloads_period_label'] as String? ?? '',
       impressions: (m['impressions'] as num?)?.toInt(),
+      pageViews: (m['page_views'] as num?)?.toInt(),
       conversion: (m['conversion'] as num?)?.toDouble(),
       status: m['status'] as String? ?? 'partial',
       timeSeries: rawSeries
@@ -62,10 +68,17 @@ class AppStoreMetrics {
     );
   }
 
+  // Primeras descargas — usa Analytics Reports si disponible, sino Sales Reports
+  int get effectiveDownloads => (firstDownloads != null && firstDownloads! > 0)
+      ? firstDownloads!
+      : downloadsLastMonth;
+
   String get ratingStr => rating > 0 ? rating.toStringAsFixed(1) : '—';
+  String get firstDownloadsStr => (firstDownloads != null && firstDownloads! > 0) ? _fmt(firstDownloads!) : (downloadsLastMonth > 0 ? _fmt(downloadsLastMonth) : '—');
   String get downloadsStr => downloadsLastMonth > 0 ? _fmt(downloadsLastMonth) : '—';
   String get redownloadsStr => redownloads > 0 ? _fmt(redownloads) : '—';
   String get impressionsStr => (impressions != null && impressions! > 0) ? _fmt(impressions!) : '—';
+  String get pageViewsStr => (pageViews != null && pageViews! > 0) ? _fmt(pageViews!) : '—';
   String get conversionStr => (conversion != null && conversion! > 0) ? '${conversion!.toStringAsFixed(1)}%' : '—';
 
   static String _fmt(int n) {

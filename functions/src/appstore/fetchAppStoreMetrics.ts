@@ -85,48 +85,130 @@ async function fetchTotalDownloads(token: string): Promise<number> {
 
 // ── Parser de TSV con detección de columnas por nombre ───────────────────────
 
-async function parseTsv(
-  buf: Buffer
-): Promise<{ impressions: number; pageViews: number; redownloads: number; appUnits: number }> {
+type ParsedTsv = {
+  // Totales acumulados del TSV completo
+  impressions: number;
+  pageViews: number;
+  redownloads: number;
+  appUnits: number;
+  // Desglose diario: Map<date, {imp, pv, rd, au}>
+  byDate: Map<string, { impressions: number; pageViews: number; redownloads: number; appUnits: number }>;
+  debugHeaders: string;
+  debugPreview: string;
+};
+
+async function parseTsv(buf: Buffer): Promise<ParsedTsv> {
+  const EMPTY: ParsedTsv = {
+    impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0,
+    byDate: new Map(), debugHeaders: '', debugPreview: '',
+  };
+
   let text: string;
   try { text = (await gunzip(buf)).toString('utf-8'); }
   catch { text = buf.toString('utf-8'); }
 
+  const rawPreview = text.substring(0, 400).replace(/\n/g, '↵');
   const lines = text.split('\n').filter(l => l.trim());
-  if (lines.length < 2) return { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
 
-  const headerLine = lines[0];
-
-  // Valida que sea realmente un TSV (tiene tabs)
-  if (!headerLine.includes('\t')) {
-    console.warn('parseTsv: respuesta no es TSV. Primeros 200 chars:', headerLine.substring(0, 200));
-    return { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
+  if (lines.length < 2 || !lines[0].includes('\t')) {
+    console.warn('parseTsv: no es TSV válido. Preview:', rawPreview.substring(0, 200));
+    return { ...EMPTY, debugPreview: `INVALID|${rawPreview}` };
   }
 
-  const headers = headerLine.split('\t').map(h => h.trim().toLowerCase());
-  console.log('TSV headers:', headers.join(' | '));
+  const headers = lines[0].split('\t').map(h => h.trim());
+  const hl = headers.map(h => h.toLowerCase());
+  const headersStr = headers.join(' | ');
+  console.log(`TSV headers: ${headersStr} (${lines.length - 1} filas)`);
 
-  const col = (kw: string) => headers.findIndex(h => h.includes(kw));
+  const ci  = (name: string) => hl.indexOf(name);
+  const cip = (...kws: string[]) => hl.findIndex(h => kws.some(k => h.includes(k)));
 
-  const impIdx = col('impression');
-  const pvIdx = col('page view') >= 0 ? col('page view') : col('pageview');
-  const rdIdx = col('redownload');
-  const auIdx = col('app unit') >= 0 ? col('app unit') : col('appunit');
+  const dateIdx         = ci('date');
+  const eventIdx        = ci('event');
+  const downloadTypeIdx = hl.findIndex(h => h === 'download type');
+  const countsIdx       = cip('counts');
 
-  console.log(`Column indices → imp:${impIdx} pv:${pvIdx} rd:${rdIdx} au:${auIdx}`);
+  const getDay   = (c: string[]) => (dateIdx >= 0 ? (c[dateIdx]?.trim() ?? '') : '');
+  const getCount = (c: string[]) => (countsIdx >= 0 ? parseFloat(c[countsIdx]?.trim() ?? '0') || 0 : 0);
 
   let impressions = 0, pageViews = 0, redownloads = 0, appUnits = 0;
+  const byDate = new Map<string, { impressions: number; pageViews: number; redownloads: number; appUnits: number }>();
+  const distinctEvents = new Set<string>();
 
-  for (const line of lines.slice(1)) {
-    const c = line.split('\t');
-    const n = (idx: number) => (idx >= 0 ? parseFloat(c[idx] ?? '0') || 0 : 0);
-    impressions += n(impIdx);
-    pageViews += n(pvIdx);
-    redownloads += n(rdIdx);
-    appUnits += n(auIdx);
+  if (eventIdx >= 0 && countsIdx >= 0) {
+    // ── Formato event-row: columna "Event" + "Counts" ──────────────────────────
+    for (const line of lines.slice(1)) {
+      const c = line.split('\t');
+      const event = c[eventIdx]?.trim().toLowerCase() ?? '';
+      const count = getCount(c);
+      const date  = getDay(c);
+      if (!date) continue;
+      distinctEvents.add(c[eventIdx]?.trim() ?? '');
+
+      const day = byDate.get(date) ?? { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
+
+      if (event === 'impression' || event === 'impressions') {
+        impressions += count; day.impressions += count;
+      } else if (event.startsWith('product page view') || event === 'page view' || event === 'page views') {
+        pageViews += count; day.pageViews += count;
+      } else if (event === 'app units' || event === 'app unit') {
+        appUnits += count; day.appUnits += count;
+      } else if (event.includes('re-download') || event.includes('redownload')) {
+        redownloads += count; day.redownloads += count;
+      }
+
+      byDate.set(date, day);
+    }
+    console.log(`Event-row: imp=${impressions} pv=${pageViews} au=${appUnits} rd=${redownloads} events=[${[...distinctEvents].join(',')}]`);
+
+  } else if (downloadTypeIdx >= 0 && countsIdx >= 0) {
+    // ── Formato download-type-row: columna "Download Type" + "Counts" ──────────
+    for (const line of lines.slice(1)) {
+      const c = line.split('\t');
+      const dlType = c[downloadTypeIdx]?.trim().toLowerCase() ?? '';
+      const count  = getCount(c);
+      const date   = getDay(c);
+      if (!date || !dlType) continue;
+      distinctEvents.add(c[downloadTypeIdx]?.trim() ?? '');
+
+      const day = byDate.get(date) ?? { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
+
+      if (dlType.includes('first')) {
+        // "First Time Download", "First-Time Download"
+        appUnits += count; day.appUnits += count;
+      } else if (dlType.includes('re')) {
+        // "Re-Download", "Redownload"
+        redownloads += count; day.redownloads += count;
+      }
+
+      byDate.set(date, day);
+    }
+    console.log(`DL-type-row: au=${appUnits} rd=${redownloads} types=[${[...distinctEvents].join(',')}]`);
+
+  } else {
+    // ── Formato columnar clásico (fallback) ────────────────────────────────────
+    const impIdx = cip('impression');
+    const pvIdx  = cip('page view', 'pageview', 'product page');
+    const rdIdx  = cip('redownload');
+    const auIdx  = cip('app units', 'app unit', 'appunit');
+    console.log(`Columnar: imp:${impIdx} pv:${pvIdx} rd:${rdIdx} au:${auIdx}`);
+
+    for (const line of lines.slice(1)) {
+      const c = line.split('\t');
+      const n = (idx: number) => idx >= 0 ? parseFloat(c[idx] ?? '0') || 0 : 0;
+      const date = getDay(c);
+      const imp = n(impIdx), pv = n(pvIdx), rd = n(rdIdx), au = n(auIdx);
+      impressions += imp; pageViews += pv; redownloads += rd; appUnits += au;
+      if (date) {
+        const day = byDate.get(date) ?? { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
+        day.impressions += imp; day.pageViews += pv; day.redownloads += rd; day.appUnits += au;
+        byDate.set(date, day);
+      }
+    }
   }
 
-  return { impressions, pageViews, redownloads, appUnits };
+  const debugEvents = [...distinctEvents].slice(0, 20).join(' | ');
+  return { impressions, pageViews, redownloads, appUnits, byDate, debugHeaders: headersStr, debugPreview: debugEvents };
 }
 
 // ── Tipos ─────────────────────────────────────────────────────────────────────
@@ -202,26 +284,50 @@ async function getOrCreateOngoingRequest(token: string): Promise<string | null> 
   return id;
 }
 
-async function getReportInstanceCount(reportId: string, token: string): Promise<number> {
+type ReportInstance = {
+  id: string;
+  attributes: {
+    processingDate: string;
+    granularity?: string;
+  };
+};
+
+async function getReportInstances(reportId: string, token: string, limit = 1): Promise<ReportInstance[]> {
   const res = await appleGet(
     `https://api.appstoreconnect.apple.com/v1/analyticsReports/${reportId}/instances` +
-    `?filter[granularity]=DAILY&limit=1`,
+    `?filter[granularity]=DAILY&limit=${limit}`,
     token
   );
-  if (!res.ok) return 0;
-  const body = await res.json() as { data: unknown[] };
-  return body.data?.length ?? 0;
+  if (!res.ok) return [];
+  const body = await res.json() as { data: ReportInstance[] };
+  return body.data ?? [];
 }
 
-async function findAcquisitionReportId(requestId: string, token: string): Promise<string | null> {
+// Apple Analytics Reports API: las URLs de descarga están en los SEGMENTOS de cada instancia,
+// no en la instancia misma. Cada instancia puede tener 1+ segmentos.
+async function getInstanceSegmentUrls(instanceId: string, token: string): Promise<string[]> {
+  const res = await appleGet(
+    `https://api.appstoreconnect.apple.com/v1/analyticsReportInstances/${instanceId}/segments`,
+    token
+  );
+  if (!res.ok) {
+    console.warn(`Segments ${instanceId} → ${res.status}`);
+    return [];
+  }
+  const body = await res.json() as { data: Array<{ attributes: { url?: string } }> };
+  return (body.data ?? []).map(s => s.attributes.url ?? '').filter(Boolean);
+}
+
+// Retorna los IDs de TODOS los reportes que ya tienen instancias DAILY generadas.
+// Apple crea múltiples reportes por ONGOING request (uno por tipo de métrica).
+async function getAllReportIdsWithInstances(requestId: string, token: string): Promise<string[]> {
   const rRes = await appleGet(
     `https://api.appstoreconnect.apple.com/v1/analyticsReportRequests/${requestId}/reports?limit=50`,
     token
   );
-
   if (!rRes.ok) {
-    console.warn(`Reports list → ${rRes.status}: ${await rRes.text()}`);
-    return null;
+    console.warn(`Reports list → ${rRes.status}`);
+    return [];
   }
 
   const body = await rRes.json() as {
@@ -229,152 +335,137 @@ async function findAcquisitionReportId(requestId: string, token: string): Promis
   };
 
   if (!body.data || body.data.length === 0) {
-    console.log(`Sin reportes para request ${requestId}`);
-    return null;
+    console.log(`Sin reportes todavía para request ${requestId} — Apple tarda 24-48h`);
+    return [];
   }
 
-  // Loguear cada reporte en línea propia para no truncar
+  const reportIds: string[] = [];
   for (const r of body.data) {
-    const name = String(r.attributes['name'] ?? r.attributes['reportType'] ?? '?');
-    const cat  = String(r.attributes['category'] ?? '?');
-    console.log(`REPORT id=${r.id} name="${name}" category="${cat}"`);
+    const name = String(r.attributes['name'] ?? r.attributes['reportType'] ?? r.id);
+    const instances = await getReportInstances(r.id, token, 1);
+    console.log(`REPORT "${name}" (${r.id}) → ${instances.length} instancias`);
+    if (instances.length > 0) reportIds.push(r.id);
   }
 
-  // 1. Buscar por nombre o categoría que contenga "acquisition"
-  const byName = body.data.find(r => {
-    const name = String(r.attributes['name'] ?? r.attributes['reportType'] ?? '').toLowerCase();
-    const cat  = String(r.attributes['category'] ?? '').toLowerCase();
-    return name.includes('acquisition') || cat.includes('acquisition');
-  });
-
-  if (byName) {
-    console.log(`✅ Adquisición por nombre/categoría: ${byName.id}`);
-    return byName.id;
-  }
-
-  // 2. Fallback: primer reporte que tenga instancias DAILY disponibles
-  console.log('Sin match por nombre — buscando reporte con instancias DAILY...');
-  for (const r of body.data) {
-    const count = await getReportInstanceCount(r.id, token);
-    const name  = String(r.attributes['name'] ?? r.id);
-    console.log(`  "${name}" → ${count} instancias`);
-    if (count > 0) {
-      console.log(`✅ Usando reporte con instancias: "${name}" (${r.id})`);
-      return r.id;
-    }
-  }
-
-  console.warn('Ningún reporte tiene instancias DAILY disponibles.');
-  return null;
+  console.log(`✅ ${reportIds.length} de ${body.data.length} reportes tienen instancias`);
+  return reportIds;
 }
 
+// Retorna datos vacíos si no hay datos disponibles todavía (no-fatal).
 async function fetchAnalytics(
   token: string
-): Promise<{ impressions: number; redownloads: number; conversion: number; timeSeries: DailyPoint[] }> {
-  const empty = { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
+): Promise<{
+  impressions: number;
+  pageViews: number;
+  downloads: number;
+  redownloads: number;
+  conversion: number;
+  timeSeries: DailyPoint[];
+} | null> {
   const docRef = appstoreDocPath();
   const snap = await docRef.get();
   const savedId = snap.data()?.analyticsRequestId as string | undefined;
 
-  let reportId: string | null = null;
+  // Asegurar que existe un ONGOING request en Apple
+  const requestId = savedId ?? await getOrCreateOngoingRequest(token);
+  if (!requestId) {
+    console.warn('No se pudo obtener/crear ONGOING request');
+    return null;
+  }
 
-  if (savedId) {
-    // ── Caso A: tenemos un ID guardado — consultar sin esperar demasiado ──
-    console.log(`Reusando analyticsRequestId: ${savedId}`);
-    reportId = await findAcquisitionReportId(savedId, token);
+  // Obtener TODOS los reportes con instancias (cada reporte cubre un tipo de métrica distinto)
+  const reportIds = await getAllReportIdsWithInstances(requestId, token);
+  if (reportIds.length === 0) {
+    console.log('Sin datos disponibles aún — se reintentará mañana');
+    return null;
+  }
 
-    if (!reportId) {
-      console.warn(`ID ${savedId} sin reportes. Verificando en Apple...`);
-      await docRef.update({ analyticsRequestId: admin.firestore.FieldValue.delete() });
+  // Acumulador global por fecha real (columna Date del TSV)
+  const globalByDate = new Map<string, { impressions: number; pageViews: number; redownloads: number; appUnits: number }>();
+  const debugHeaders: Record<string, string> = {};
 
-      const newId = await getOrCreateOngoingRequest(token);
-      if (!newId) return empty;
+  const mergeIntoGlobal = (byDate: Map<string, { impressions: number; pageViews: number; redownloads: number; appUnits: number }>) => {
+    for (const [date, d] of byDate) {
+      const ex = globalByDate.get(date) ?? { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
+      // Sumar por tipo de métrica (distintos reportes no se solapan por tipo de evento)
+      ex.impressions += d.impressions;
+      ex.pageViews   += d.pageViews;
+      ex.redownloads += d.redownloads;
+      ex.appUnits    += d.appUnits;
+      globalByDate.set(date, ex);
+    }
+  };
 
-      reportId = await findAcquisitionReportId(newId, token);
-      if (!reportId) {
-        console.warn('Reportes aún no disponibles. Se reintentan en el próximo ciclo.');
-        return empty;
+  const CONCURRENCY = 5;
+  for (const reportId of reportIds) {
+    const instances = await getReportInstances(reportId, token, 200);
+    console.log(`Reporte ${reportId}: ${instances.length} instancias`);
+
+    for (let i = 0; i < instances.length; i += CONCURRENCY) {
+      const batch = instances.slice(i, i + CONCURRENCY);
+      const results = await Promise.allSettled(
+        batch.map(async inst => {
+          const processingDate = inst.attributes.processingDate;
+          const segmentUrls = await getInstanceSegmentUrls(inst.id, token);
+          if (segmentUrls.length === 0) return null;
+
+          const instByDate = new Map<string, { impressions: number; pageViews: number; redownloads: number; appUnits: number }>();
+          let hdrs = '';
+
+          for (const url of segmentUrls) {
+            const dlRes = await fetch(url); // pre-signed URL sin Authorization
+            if (!dlRes.ok) {
+              console.warn(`Download falló ${dlRes.status} instancia ${processingDate}`);
+              continue;
+            }
+            const parsed = await parseTsv(Buffer.from(await dlRes.arrayBuffer()));
+            if (!hdrs) hdrs = parsed.debugHeaders;
+            for (const [date, d] of parsed.byDate) {
+              const ex = instByDate.get(date) ?? { impressions: 0, pageViews: 0, redownloads: 0, appUnits: 0 };
+              ex.impressions += d.impressions; ex.pageViews += d.pageViews;
+              ex.redownloads += d.redownloads; ex.appUnits  += d.appUnits;
+              instByDate.set(date, ex);
+            }
+          }
+          return { instByDate, hdrs };
+        })
+      );
+
+      for (const r of results) {
+        if (r.status === 'fulfilled' && r.value) {
+          const { instByDate, hdrs } = r.value;
+          if (hdrs && !debugHeaders[reportId]) debugHeaders[reportId] = hdrs;
+          mergeIntoGlobal(instByDate);
+        }
       }
     }
-  } else {
-    // ── Caso B: sin ID guardado — recuperar de Apple o crear nuevo ─────────
-    const newId = await getOrCreateOngoingRequest(token);
-    if (!newId) return empty;
-
-    reportId = await findAcquisitionReportId(newId, token);
-    if (!reportId) {
-      console.warn('Request listo. Reportes disponibles en ~24h.');
-      return empty;
-    }
   }
 
-  // Obtener instancias DAILY (paginadas, máx 200)
-  const instRes = await appleGet(
-    `https://api.appstoreconnect.apple.com/v1/analyticsReports/${reportId}/instances` +
-    `?filter[granularity]=DAILY&limit=200`,
-    token
-  );
+  // Guardar debug headers para inspección futura
+  const allHeaders = Object.values(debugHeaders).join(' || ');
+  await appstoreDocPath().update({
+    tsv_debug_headers: allHeaders || '(vacío)',
+  }).catch(() => undefined);
 
-  if (!instRes.ok) {
-    console.warn(`Instances ${instRes.status}: ${await instRes.text()}`);
-    return { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
-  }
-
-  const { data: instances } = await instRes.json() as {
-    data: Array<{ id: string; attributes: { downloadUrl: string; processingDate: string } }>;
-  };
-  console.log(`${instances.length} instancias encontradas`);
-
-  if (instances.length === 0) {
-    console.warn('Sin instancias disponibles para este reporte');
-    return { impressions: 0, redownloads: 0, conversion: 0, timeSeries: [] };
-  }
-
-  // Descarga en paralelo (máx 10 concurrentes) — preserva datos por día
-  const CONCURRENCY = 10;
+  // Construir totales y timeSeries desde el mapa global
   let impressions = 0, pageViews = 0, redownloads = 0, appUnits = 0;
   const timeSeries: DailyPoint[] = [];
-
-  for (let i = 0; i < instances.length; i += CONCURRENCY) {
-    const batch = instances.slice(i, i + CONCURRENCY);
-    const results = await Promise.allSettled(
-      batch.map(async inst => {
-        const date = inst.attributes.processingDate; // "YYYY-MM-DD"
-        const dlRes = await fetch(inst.attributes.downloadUrl, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!dlRes.ok) {
-          console.warn(`Download falló ${dlRes.status} para instancia ${date}`);
-          return null;
-        }
-        const parsed = await parseTsv(Buffer.from(await dlRes.arrayBuffer()));
-        return { date, ...parsed };
-      })
-    );
-
-    for (const r of results) {
-      if (r.status === 'fulfilled' && r.value) {
-        const { date, impressions: imp, pageViews: pv, redownloads: rd, appUnits: au } = r.value;
-        impressions += imp;
-        pageViews += pv;
-        redownloads += rd;
-        appUnits += au;
-        if (date) {
-          timeSeries.push({ date, downloads: au, impressions: imp, redownloads: rd });
-        }
-      }
-    }
+  for (const [date, d] of globalByDate) {
+    impressions += d.impressions;
+    pageViews   += d.pageViews;
+    redownloads += d.redownloads;
+    appUnits    += d.appUnits;
+    timeSeries.push({ date, downloads: d.appUnits, impressions: d.impressions, redownloads: d.redownloads });
   }
 
-  // Ordenar cronológicamente (ascendente)
   timeSeries.sort((a, b) => a.date.localeCompare(b.date));
 
   const conversion = impressions > 0
     ? Math.round((pageViews / impressions) * 1000) / 10
     : 0;
 
-  console.log(`✅ Analytics totales: imp=${impressions} pv=${pageViews} rd=${redownloads} units=${appUnits} conv=${conversion}% timeSeries=${timeSeries.length} días`);
-  return { impressions, redownloads, conversion, timeSeries };
+  console.log(`✅ Analytics: imp=${impressions} pv=${pageViews} dl=${appUnits} rd=${redownloads} conv=${conversion}% ts=${timeSeries.length}d`);
+  return { impressions, pageViews, downloads: appUnits, redownloads, conversion, timeSeries };
 }
 
 // ── Orquestador principal ─────────────────────────────────────────────────────
@@ -396,6 +487,7 @@ export async function fetchAndStoreAppStoreMetrics(privateKey: string): Promise<
     redownloads: 0,
     downloads_period_label: 'últimos 12 meses',
     impressions: null,
+    page_views: null,
     conversion: null,
     updated_at: admin.firestore.FieldValue.serverTimestamp(),
     status: 'partial',
@@ -405,16 +497,36 @@ export async function fetchAndStoreAppStoreMetrics(privateKey: string): Promise<
 
   try {
     const analytics = await fetchAnalytics(token);
-    await docRef.update({
-      impressions: analytics.impressions,
-      redownloads: analytics.redownloads,
-      conversion: analytics.conversion,
-      time_series: analytics.timeSeries,
-      status: 'complete',
-    });
-    console.log('✅ Métricas completas guardadas en dashboard_metrics/appstore');
+    if (analytics === null) {
+      // Apple aún no generó instancias (tarda 24-48h tras crear el ONGOING request)
+      await docRef.update({
+        status: 'partial',
+        analytics_pending: 'Apple está procesando los reportes de Analytics. Los datos estarán disponibles en ~24h.',
+        analytics_error: admin.firestore.FieldValue.delete(),
+        analytics_error_at: admin.firestore.FieldValue.delete(),
+      });
+      console.log('⏳ Analytics pendientes — Apple aún no generó instancias');
+    } else {
+      await docRef.update({
+        impressions: analytics.impressions,
+        page_views: analytics.pageViews,
+        first_downloads: analytics.downloads,
+        redownloads: analytics.redownloads,
+        conversion: analytics.conversion,
+        time_series: analytics.timeSeries,
+        analytics_pending: admin.firestore.FieldValue.delete(),
+        analytics_error: admin.firestore.FieldValue.delete(),
+        analytics_error_at: admin.firestore.FieldValue.delete(),
+        status: 'complete',
+      });
+      console.log('✅ Métricas completas guardadas en dashboard_metrics/appstore');
+    }
   } catch (err) {
     console.error('Analytics error:', err);
-    await docRef.update({ status: 'complete' });
+    await docRef.update({
+      status: 'partial',
+      analytics_error: String(err),
+      analytics_error_at: admin.firestore.FieldValue.serverTimestamp(),
+    });
   }
 }

@@ -166,8 +166,9 @@ class OverviewPage extends StatelessWidget {
     return StreamBuilder<AppStoreMetrics?>(
       stream: AppStoreMetricsService.stream(),
       builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting)
+        if (snap.connectionState == ConnectionState.waiting) {
           return const _AppStoreShimmer();
+        }
         return StreamBuilder<RevenueCatMetrics?>(
           stream: RevenueCatMetricsService.stream(),
           builder: (context, revenueSnap) {
@@ -230,7 +231,7 @@ class _OverviewContent extends StatefulWidget {
 }
 
 class _OverviewContentState extends State<_OverviewContent> {
-  String _platform = 'all';
+  String _platform = 'ios';
   String _continentFilter = 'Todos';
   Future<List<CountryEntry>>? _countryFuture;
 
@@ -271,6 +272,12 @@ class _OverviewContentState extends State<_OverviewContent> {
 
   Widget _buildAndroidStoreCards() {
     final ps = widget.playStore;
+    final rcOverview = widget.revenueCat?.overview;
+    final rcRange = widget.revenueCat?.range(widget.range);
+    final hasRangeNewCustomers = (rcRange?.newCustomers ?? 0) > 0;
+    final newCustomers = hasRangeNewCustomers
+        ? rcRange!.newCustomers
+        : (rcOverview?.newCustomers28d ?? 0);
     if (ps == null) return const _AppStoreCardsShimmer();
     return ResponsiveGrid(
       minTileWidth: 250,
@@ -281,11 +288,11 @@ class _OverviewContentState extends State<_OverviewContent> {
           helperText: 'visitas a la ficha en Play Store',
         ),
         MetricCard(
-          label: 'Instalaciones estimadas',
-          value: ps.estimatedInstallsStr,
-          helperText: ps.conversionRate > 0
-              ? 'conversión ${ps.conversionStr}'
-              : 'visitas × tasa de conversión',
+          label: 'Nuevos clientes',
+          value: newCustomers > 0 ? '$newCustomers' : '—',
+          helperText: hasRangeNewCustomers
+              ? 'RevenueCat · ${rcRange!.periodLabel}'
+              : 'RevenueCat · últimos 28 días',
         ),
         MetricCard(
           label: 'Rating',
@@ -317,20 +324,18 @@ class _OverviewContentState extends State<_OverviewContent> {
     final funnelRange = funnel?.range(widget.range);
     final funnelEvents = funnelRange?.events ?? [];
 
-    // Descargas únicas = total - repetidas
-    final uniqueDownloads = as != null
-        ? (as.downloadsLastMonth - as.redownloads).clamp(0, 999999)
-        : 0;
-    final uniqueDownloadsStr = uniqueDownloads > 0 ? '$uniqueDownloads' : '—';
+    final newCustomers = (rcRange?.newCustomers ?? 0) > 0
+        ? rcRange!.newCustomers
+        : (rcOverview?.newCustomers28d ?? 0);
 
-    // Install-to-purchase
+    // Ratio comercial de referencia: stock de suscripciones activas vs nuevos clientes.
     final activeSubs = rcOverview?.activeSubscriptions ?? 0;
-    final installToPurchase = uniqueDownloads > 0 && activeSubs > 0
-        ? '${(activeSubs / uniqueDownloads * 100).toStringAsFixed(1)}%'
+    final activeSubsToNewCustomers = newCustomers > 0 && activeSubs > 0
+        ? '${(activeSubs / newCustomers * 100).toStringAsFixed(1)}%'
         : '—';
-    final itpHelper = uniqueDownloads > 0 && activeSubs > 0
-        ? '$activeSubs de $uniqueDownloads descargas'
-        : 'descargas únicas · suscripciones';
+    final activeSubsToNewCustomersHelper = newCustomers > 0 && activeSubs > 0
+        ? '$activeSubs activas de $newCustomers nuevos clientes'
+        : 'suscripciones activas · nuevos clientes';
 
     // Usuarios iOS / Android desde funnel devices
     final devices = funnel?.devices ?? [];
@@ -421,14 +426,26 @@ class _OverviewContentState extends State<_OverviewContent> {
             minTileWidth: 250,
             children: [
               MetricCard(
+                label: 'Primeras descargas',
+                value: as.firstDownloadsStr,
+                helperText: as.firstDownloads != null && as.firstDownloads! > 0
+                    ? 'Analytics Reports · App Store'
+                    : 'Sales Reports · 12 meses',
+              ),
+              MetricCard(
                 label: 'Impresiones',
                 value: as.impressionsStr,
                 helperText: 'visitas a la ficha en App Store',
               ),
               MetricCard(
-                label: 'Descargas únicas',
-                value: uniqueDownloadsStr,
-                helperText: 'descargas totales − repetidas',
+                label: 'Visualizaciones',
+                value: as.pageViewsStr,
+                helperText: 'página del producto · App Store',
+              ),
+              MetricCard(
+                label: 'Conversión',
+                value: as.conversionStr,
+                helperText: 'visualizaciones → descargas',
               ),
               MetricCard(
                 label: 'Rating',
@@ -536,9 +553,9 @@ class _OverviewContentState extends State<_OverviewContent> {
                   : 'ingresos recurrentes mensuales',
             ),
             MetricCard(
-              label: 'Install-to-purchase',
-              value: installToPurchase,
-              helperText: itpHelper,
+              label: 'Activos / nuevos clientes',
+              value: activeSubsToNewCustomers,
+              helperText: activeSubsToNewCustomersHelper,
             ),
           ],
         ),
@@ -764,11 +781,7 @@ class _PlatformToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const options = [
-      ('all', 'Ambas tiendas'),
-      ('ios', 'iOS'),
-      ('android', 'Android'),
-    ];
+    const options = [('ios', 'iOS'), ('android', 'Android')];
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(

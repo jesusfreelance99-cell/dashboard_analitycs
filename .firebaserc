@@ -1,5 +1,7 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "trevo-ia"
+  },
   "targets": {
     "trevo-ia": {
       "hosting": {
