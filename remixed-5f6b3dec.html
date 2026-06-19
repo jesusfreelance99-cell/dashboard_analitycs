@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trevo · Vista general</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#fff; --bg2:#f7f7f6; --bg3:#f3f2ef;
+    --text:#15140f; --text2:#8a8780; --text3:#b5b2aa;
+    --border:rgba(0,0,0,.06);
+    --success:#1a9e58; --danger:#d6395c;
+    --radius:14px; --radius-lg:18px;
+    --accent:#fd386f; --accent-tint:#fdebf0;
+  }
+  html.force-dark{
+    --bg:#161513; --bg2:#1d1c19; --bg3:#0f0e0c;
+    --text:#f5f3ef; --text2:#8a8780; --text3:#5a5852;
+    --border:rgba(255,255,255,.06); --accent-tint:#2c1a20;
+  }
+  body{font-family:'Plus Jakarta Sans',-apple-system,sans-serif;background:var(--bg3);color:var(--text);-webkit-font-smoothing:antialiased;display:flex;height:100vh;overflow:hidden}
+
+  /* sidebar */
+  .sidebar{width:220px;flex-shrink:0;background:var(--bg3);display:flex;flex-direction:column;height:100vh}
+  .sidebar-header{padding:18px 16px 12px;display:flex;align-items:center;min-height:56px}
+  .logo-mark{width:26px;height:26px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .logo-mark::after{content:'';width:10px;height:10px;border-radius:50%;background:#fff}
+  .logo-text{font-size:15px;font-weight:700;margin-left:9px}
+  .sidebar-section{padding:14px 10px 4px}
+  .sidebar-section-label{font-size:10px;font-weight:600;letter-spacing:.12em;color:var(--text3);text-transform:uppercase;padding:0 8px;margin-bottom:6px}
+  .nav-item{display:flex;align-items:center;gap:11px;padding:9px 12px;border-radius:10px;color:var(--text2);font-size:14px;font-weight:500;border:none;background:none;width:100%;text-align:left;cursor:pointer;margin-bottom:1px}
+  .nav-item:hover{background:var(--bg);color:var(--text)}
+  .nav-item.active{background:var(--bg);color:var(--text);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .nav-item.active .nav-icon{color:var(--accent);opacity:1}
+  .nav-icon{font-size:16px;width:20px;text-align:center;opacity:.75}
+  .nav-badge{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .sidebar-footer{margin-top:auto;padding:12px 8px}
+  .profile-row{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:4px}
+  .avatar{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+
+  /* main */
+  .main{flex:1;display:flex;flex-direction:column;overflow:hidden;background:var(--bg3)}
+  .content{flex:1;overflow-y:auto;padding:1.25rem 2rem 3rem}
+  .page-header{padding:1.5rem 2rem 0;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .slabel{font-size:13px;font-weight:700;letter-spacing:.08em;color:var(--text);text-transform:uppercase;margin:0 0 12px;display:flex;align-items:center;justify-content:space-between;opacity:.55}
+  .slabel .meta{font-size:11px;font-weight:500;letter-spacing:0;color:var(--text3);text-transform:none;display:flex;align-items:center;gap:5px}
+  .page-header h1{font-size:28px;font-weight:700;letter-spacing:-0.5px}
+  .page-header p{font-size:13px;color:var(--text2);margin-top:4px}
+
+  /* date filter */
+  .datebar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .datebar input[type=date]{font-size:12px;padding:7px 10px;border-radius:10px;border:none;background:var(--bg);color:var(--text);cursor:pointer}
+  .datepresets{display:flex;gap:4px;background:var(--bg);padding:4px;border-radius:12px}
+  .dpbtn{font-size:12px;padding:6px 12px;border-radius:9px;border:none;background:transparent;color:var(--text2);cursor:pointer;font-weight:500;transition:all .15s}
+  .dpbtn.active{background:var(--accent);color:#fff}
+
+  .mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:1.75rem}
+  .metric{background:var(--bg);border-radius:var(--radius-lg);padding:20px 22px}
+  .metric.accent-card{background:var(--accent-tint)}
+  .metric .lbl{font-size:13px;color:var(--text2);margin-bottom:14px;font-weight:500;display:flex;align-items:center;justify-content:space-between}
+  .metric .val{font-size:34px;font-weight:700;line-height:1;margin-bottom:8px;letter-spacing:-0.5px;display:flex;align-items:center;gap:8px}
+  .metric .dlt{font-size:13px;color:var(--text3)}
+  .dup,.ddn{display:inline-block;background:var(--bg2);padding:3px 8px;border-radius:8px;font-weight:600;font-size:11px}
+  .dup{color:var(--success)} .ddn{color:var(--danger)}
+
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.75rem}
+  @media(max-width:900px){.twocol{grid-template-columns:1fr}}
+  .card{background:var(--bg);border-radius:var(--radius-lg);padding:1.5rem}
+  .card-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:7px;margin-bottom:6px}
+  .card-title-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+  .pill-select{font-size:12px;padding:5px 12px;border-radius:10px;background:var(--bg2);color:var(--text2);font-weight:500;display:flex;align-items:center;gap:4px}
+  .trend-val{font-size:30px;font-weight:700;letter-spacing:-0.5px;margin-bottom:18px}
+
+  /* distribución */
+  .crow{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+  .crow:last-child{border-bottom:none}
+  .cflag{font-size:18px}
+  .cname{font-size:14px;flex:1}
+  .cbw{flex:2;background:var(--bg2);border-radius:6px;height:6px;max-width:260px}
+  .cb{height:6px;border-radius:6px;background:var(--accent)}
+  .cnum{font-size:14px;font-weight:700;min-width:34px;text-align:right}
+  .cpct{font-size:12px;color:var(--text3);min-width:46px;text-align:right}
+
+  /* funnel */
+  .fstep{margin-bottom:12px}
+  .fhdr{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+  .fname{font-size:13px;flex:1;font-weight:500}
+  .fcount{font-size:14px;font-weight:700;min-width:50px;text-align:right}
+  .fpct{font-size:12px;color:var(--text3);min-width:44px;text-align:right}
+  .fbarwrap{height:10px;background:var(--bg2);border-radius:6px;overflow:hidden}
+  .fbar{height:100%;border-radius:6px;background:var(--accent)}
+
+  .sstat{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px}
+  .sstat:last-child{border-bottom:none}
+  .sstat span:first-child{color:var(--text2)}
+  .sstat span:last-child{font-weight:700;font-size:15px}
+  .metric .spark{margin-top:10px;height:32px;position:relative}
+  .subgroup-label{font-size:11px;font-weight:600;color:var(--text3);margin:-0.75rem 4px 8px;display:flex;align-items:center;gap:8px}
+  .subgroup-label:first-of-type{margin-top:0}
+  .subgroup-label::after{content:'';flex:1;height:1px;background:var(--border)}
+  .platform-toggle{display:inline-flex;gap:4px;background:var(--bg);padding:4px;border-radius:12px;margin-bottom:14px}
+  .ptbtn{font-size:12px;padding:6px 14px;border-radius:9px;border:none;background:transparent;color:var(--text2);cursor:pointer;font-weight:500;transition:all .15s}
+  .ptbtn.active{background:var(--accent);color:#fff}
+  .apply-btn{font-size:12px;padding:7px 14px;border-radius:10px;border:none;background:var(--text);color:var(--bg);cursor:pointer;font-weight:600}
+
+  /* detailed funnel page */
+  .page{display:none} .page.active{display:block}
+  .badge-mp{font-size:10px;font-weight:700;padding:3px 8px;border-radius:6px;background:#ede9fe;color:#6d28d9;margin-left:4px}
+  .fstep{margin-bottom:18px}
+  .fhdr{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .fstepnum{font-size:12px;color:var(--text3);width:16px}
+  .fname{flex:1}
+  .fname code{font-size:12px;font-weight:700;background:transparent;font-family:'SF Mono',monospace}
+  .fname-es{font-size:13px;color:var(--text2);margin-left:8px;font-weight:500}
+  .fcount{font-size:15px;font-weight:700;min-width:50px;text-align:right}
+  .fpct{font-size:12px;color:var(--text3);min-width:46px;text-align:right}
+  .funiq{font-size:12px;color:var(--text3);min-width:90px;text-align:right}
+
+  /* split bar Pro vs Free */
+  .split-bar{display:flex;height:14px;border-radius:8px;overflow:hidden;margin-bottom:14px}
+  .split-pro{background:#f5a524}
+  .split-free{background:#3b8ee8}
+  .split-labels{display:flex;gap:24px;font-size:13px;color:var(--text2)}
+  .split-labels strong{color:var(--text);font-weight:700}
+  .split-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+  .split-dot-pro{background:#f5a524}
+  .split-dot-free{background:#3b8ee8}
+  .fbarwrap{height:14px;background:var(--bg2);border-radius:7px;overflow:hidden}
+  .fbar{height:100%;border-radius:7px}
+  .fdrop{font-size:12px;color:var(--danger);margin-top:6px}
+  .fsub{margin:10px 0 0 20px;padding-left:14px;border-left:2px solid var(--border)}
+  .fsublabel{font-size:11px;color:var(--text3);margin-bottom:8px}
+  .substep{display:flex;align-items:center;gap:10px;padding:4px 0;font-size:13px;color:var(--text2)}
+  .ssname{flex:1}
+  .ssbw{width:140px;background:var(--bg2);border-radius:4px;height:6px}
+  .ssbar{height:6px;border-radius:4px;background:#3b8ee8}
+  .sscount{min-width:40px;text-align:right;font-weight:600;color:var(--text)}
+  .fnote{font-size:12px;color:#b45309;background:#fef3c7;border-radius:8px;padding:8px 10px;margin-bottom:8px}
+  html.force-dark .fnote{background:#3d2f10;color:#fcd34d}
+  #onb-arrow{transition:transform .2s;display:inline-block;font-size:11px}
+  #onb-content.collapsed{display:none}
+  #onb-arrow.collapsed{transform:rotate(-90deg)}
+
+  /* Usuarios page */
+  .geo-layout{display:flex;gap:2rem;align-items:center}
+  @media(max-width:800px){.geo-layout{flex-direction:column}}
+  .ufilters{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center}
+  .ufilters input{font-size:13px;padding:9px 14px;border-radius:10px;border:none;background:var(--bg2);color:var(--text)}
+  .tbl-wrap{overflow-x:auto}
+  .utbl{width:100%;border-collapse:collapse}
+  .utbl th{font-size:11px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;text-align:left;padding:8px 12px;border-bottom:1px solid var(--border)}
+  .utbl td{padding:12px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+  .utbl tr:last-child td{border-bottom:none}
+  .utbl td:first-child{display:flex;align-items:center;gap:10px}
+  .uavatar{width:32px;height:32px;border-radius:50%;background:var(--bg2);color:var(--text3);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+  .ucell{display:flex;flex-direction:column}
+  .uname{font-weight:600}
+  .uemail{font-size:12px;color:var(--text3)}
+  .ucount{font-size:12px;color:var(--text3);margin-top:12px}
+
+  .type-pill{font-size:10px;font-weight:700;padding:4px 9px;border-radius:6px;letter-spacing:.03em;white-space:nowrap}
+  .type-new{background:#dbeafe;color:#1e40af}
+  .type-trial{background:#fef3c7;color:#92400e}
+  .type-trial-cancel{background:#fee2e2;color:#991b1b}
+  .type-cancel{background:#f3f4f6;color:#4b5563}
+  .type-free{background:var(--bg2);color:var(--text3)}
+  html.force-dark .type-new{background:#1e3a8a;color:#bfdbfe}
+  html.force-dark .type-trial{background:#78350f;color:#fde68a}
+  html.force-dark .type-trial-cancel{background:#7f1d1d;color:#fecaca}
+  html.force-dark .type-cancel{background:#27272a;color:#d4d4d8}
+  .trial-tag{color:var(--text3);font-size:11px}
+
+  /* metric modal */
+  .metric-clickable{cursor:pointer;transition:transform .12s,box-shadow .12s}
+  .metric-clickable:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.06)}
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;z-index:1000}
+  .modal-overlay.active{display:flex}
+  .modal-box{background:var(--bg);border-radius:var(--radius-lg);padding:1.75rem;width:min(680px,90vw);box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .modal-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px}
+  .modal-title{font-size:18px;font-weight:700}
+  .modal-sub{font-size:12px;color:var(--text3);margin-top:2px}
+  .modal-close{background:var(--bg2);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;color:var(--text2);font-size:14px}
+  .modal-value{font-size:34px;font-weight:700;letter-spacing:-0.5px;margin:14px 0 16px}
+  .modal-legend{display:flex;gap:20px;font-size:12px;color:var(--text2);margin-top:12px}
+  .leg-line{width:20px;height:0;display:inline-block;border-top:2px solid var(--text3)}
+  .leg-line.dashed{border-top:2px dashed var(--text3)}
+
+  /* custom tooltip card */
+  #chartjs-tooltip{
+    position:absolute; pointer-events:none; opacity:0; transition:opacity .1s;
+    background:#1a1a1a; color:#fff; border-radius:12px; padding:12px 16px;
+    font-size:13px; z-index:2000; box-shadow:0 8px 24px rgba(0,0,0,.3);
+    min-width:160px;
+  }
+  .tt-date{font-weight:600;line-height:1.4;margin-bottom:10px}
+  .tt-row{display:flex;align-items:center;gap:8px}
+  .tt-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+  .tt-label{flex:1;color:#e5e5e5}
+  .tt-val{font-weight:700}
+
+  /* funnel visual */
+  .funnel-row{display:flex;flex-direction:column}
+  .funnel-bars{display:flex;align-items:flex-end;gap:8px}
+  .funnel-bar{border-radius:10px;width:100%;transition:height .4s}
+  .funnel-labels{display:flex;gap:8px;margin-top:14px}
+  .funnel-col{text-align:center;min-width:0;flex-shrink:0}
+  .fnum{font-size:18px;font-weight:700}
+  .fpercent{font-size:12px;color:var(--text3);margin-top:2px}
+  .flabel{font-size:13px;color:var(--text2);margin-top:6px}
+  @media(max-width:800px){ .funnel-bars{height:90px} .fnum{font-size:14px} .flabel{font-size:11px} }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="logo-mark"></div>
+    <span class="logo-text">Trevo</span>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Menú</div>
+    <button class="nav-item active" id="nav-ov" onclick="showPage('ov',this)"><span class="nav-icon">▦</span><span>Vista general</span><span class="nav-badge"></span></button>
+    <button class="nav-item" id="nav-fn" onclick="showPage('fn',this)"><span class="nav-icon">🔽</span><span>Embudo</span></button>
+    <button class="nav-item" id="nav-ret" onclick="showPage('ret',this)"><span class="nav-icon">📈</span><span>Retención</span></button>
+    <button class="nav-item" id="nav-us" onclick="showPage('us',this)"><span class="nav-icon">👥</span><span>Usuarios</span></button>
+  </div>
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Panel</div>
+    <button class="nav-item" onclick="toggleDark()"><span class="nav-icon" id="dmIcon">🌙</span><span>Modo oscuro</span></button>
+  </div>
+  <div class="sidebar-footer">
+    <div class="profile-row">
+      <div class="avatar">DR</div>
+      <div>
+        <div style="font-size:13px;font-weight:600">Daniel Ramos</div>
+        <div style="font-size:11px;color:var(--text3)">danielramos@admin.c...</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="page-header">
+    <div>
+      <p class="slabel" style="margin-bottom:6px" id="pageLabel">Vista general</p>
+      <h1 id="pageTitle">Resumen ejecutivo del crecimiento de Trevo</h1>
+    </div>
+    <div class="datebar" id="dateBar">
+      <input type="date" value="2026-05-13">
+      <span style="color:var(--text3);font-size:12px">→</span>
+      <input type="date" value="2026-06-12">
+      <div class="datepresets">
+        <button class="dpbtn grbtn" onclick="applyGlobalRange('7d',this)">7D</button>
+        <button class="dpbtn grbtn active" onclick="applyGlobalRange('30d',this)">30D</button>
+        <button class="dpbtn grbtn" onclick="applyGlobalRange('90d',this)">90D</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+  <div id="page-ov" class="page active">
+    <!-- APP STORE CONNECT -->
+    <div class="platform-toggle">
+      <button class="ptbtn active" onclick="setPlatform('all',this)">Ambas tiendas</button>
+      <button class="ptbtn" onclick="setPlatform('ios',this)">iOS</button>
+      <button class="ptbtn" onclick="setPlatform('android',this)">Android</button>
+    </div>
+    <div class="slabel">Tienda y descargas <span class="meta">App Store · 1 día de retraso 🔄</span></div>
+    <div class="mgrid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="metric"><div class="lbl">Impresiones</div><div class="val" id="pf-imp">1,548</div><div class="dlt">actualizado hoy</div></div>
+      <div class="metric metric-clickable" onclick="openMetricModal('dl')"><div class="lbl">Descargas únicas</div><div class="val" id="pf-dl">545</div><div class="dlt">descargas totales − repetidas</div><div class="spark"><canvas id="spk-dl"></canvas></div></div>
+      <div class="metric"><div class="lbl">Rating</div><div class="val" id="pf-rating">5.0 ⭐</div><div class="dlt" id="pf-reviews">5 reseñas</div></div>
+    </div>
+
+    <!-- REVENUE -->
+    <div class="slabel">Ingresos y suscripciones <span class="meta">RevenueCat · 2026-06-12 🔄</span></div>
+
+    <div class="subgroup-label">Pruebas gratuitas</div>
+    <div class="mgrid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="metric metric-clickable" onclick="openMetricModal('trials')"><div class="lbl">Pruebas gratuitas totales</div><div class="val m-trials-total">23</div><div class="dlt">acumulado</div><div class="spark"><canvas id="spk-trials"></canvas></div></div>
+      <div class="metric"><div class="lbl">Pruebas en proceso</div><div class="val m-trials-proceso">17</div><div class="dlt">activas ahora</div></div>
+      <div class="metric accent-card"><div class="lbl">Pruebas canceladas</div><div class="val m-trials-cancel">6</div><div class="dlt">acumulado</div></div>
+      <div class="metric accent-card"><div class="lbl">% canceladas</div><div class="val m-trials-pct">26%</div><div class="dlt"></div></div>
+    </div>
+
+    <div class="subgroup-label">Suscripciones</div>
+    <div class="mgrid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="metric metric-clickable" onclick="openMetricModal('subs')"><div class="lbl">Suscripciones activadas</div><div class="val" id="m-subs-total">41</div><div class="dlt">total</div><div class="spark"><canvas id="spk-subs"></canvas></div></div>
+      <div class="metric"><div class="lbl">Suscripciones mensuales</div><div class="val m-subs-mensual">28</div><div class="dlt">activas</div></div>
+      <div class="metric"><div class="lbl">Suscripciones anuales</div><div class="val m-subs-anual">13</div><div class="dlt">activas</div></div>
+    </div>
+
+    <div class="subgroup-label">Ingresos</div>
+    <div class="mgrid" style="grid-template-columns:repeat(2,1fr)">
+      <div class="metric metric-clickable" onclick="openMetricModal('mrr')"><div class="lbl">MRR</div><div class="val">$161</div><div class="dlt">28×$4.99 + 13×$19.99/12</div><div class="spark"><canvas id="spk-mrr"></canvas></div></div>
+      <div class="metric"><div class="lbl">Install-to-purchase</div><div class="val">7.5%</div><div class="dlt">41 de 545 descargas</div></div>
+    </div>
+
+    <div class="mgrid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="metric"><div class="lbl">Usuarios activos totales</div><div class="val">236</div><div class="dlt">últimos 28 días</div></div>
+      <div class="metric"><div class="lbl">Usuarios de pago (+ free trial)</div><div class="val m-uact-pago">64</div><div class="dlt">suscripción o prueba activa</div></div>
+      <div class="metric"><div class="lbl">Usuarios plan gratuito activos</div><div class="val m-uact-free">172</div><div class="dlt">iniciaron sesión, sin trial ni compra</div></div>
+    </div>
+
+    <!-- RETENCIÓN -->
+    <div class="slabel">Retención y cancelaciones</div>
+    <div class="mgrid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="metric accent-card"><div class="lbl">Cancelaciones</div><div class="val m-cancel">2</div><div class="dlt">planes pagos canceladas</div></div>
+      <div class="metric accent-card"><div class="lbl">% Churn</div><div class="val m-churn">4.9%</div><div class="dlt">cancelados / compraron</div></div>
+      <div class="metric"><div class="lbl">Day 3 retention</div><div class="val">12%</div><div class="dlt">activos 3 días después</div></div>
+      <div class="metric accent-card"><div class="lbl">Week 1 retention</div><div class="val">8%</div><div class="dlt">activos 7 días después</div><div class="spark"><canvas id="spk-ret"></canvas></div></div>
+    </div>
+
+    <!-- EMBUDO -->
+    <div class="slabel">Embudo de conversión</div>
+    <div class="card" style="margin-bottom:1.75rem">
+      <div class="funnel-row">
+        <div class="funnel-bars">
+          <div class="funnel-col" style="flex:100"><div class="funnel-bar" style="background:#3b8ee8;height:80px"></div></div>
+          <div class="funnel-col" style="flex:87"><div class="funnel-bar" style="background:#1aa974;height:70px"></div></div>
+          <div class="funnel-col" style="flex:62"><div class="funnel-bar" style="background:#8b80e8;height:50px"></div></div>
+          <div class="funnel-col" style="flex:51"><div class="funnel-bar" style="background:#e0507f;height:42px"></div></div>
+          <div class="funnel-col" style="flex:49"><div class="funnel-bar" style="background:#f5a524;height:40px"></div></div>
+          <div class="funnel-col" style="flex:18"><div class="funnel-bar" style="background:#e8503e;height:16px"></div></div>
+          <div class="funnel-col" style="flex:7.2"><div class="funnel-bar" style="background:#6aa83f;height:4px"></div></div>
+        </div>
+        <div class="funnel-labels">
+          <div class="funnel-col" style="flex:100"><div class="fnum" id="ovf1">545</div><div class="fpercent">100%</div><div class="flabel">Descarga</div></div>
+          <div class="funnel-col" style="flex:87"><div class="fnum" id="ovf2">474</div><div class="fpercent">87%</div><div class="flabel">App abierta</div></div>
+          <div class="funnel-col" style="flex:62"><div class="fnum" id="ovf3">338</div><div class="fpercent">62%</div><div class="flabel">Onboarding</div></div>
+          <div class="funnel-col" style="flex:51"><div class="fnum" id="ovf4">278</div><div class="fpercent">51%</div><div class="flabel">Login</div></div>
+          <div class="funnel-col" style="flex:49"><div class="fnum" id="ovf5">267</div><div class="fpercent">49%</div><div class="flabel">Paywall</div></div>
+          <div class="funnel-col" style="flex:18"><div class="fnum" id="ovf6">98</div><div class="fpercent">18%</div><div class="flabel">Trial</div></div>
+          <div class="funnel-col" style="flex:7.2"><div class="fnum" id="ovf7">39</div><div class="fpercent">7.2%</div><div class="flabel">Suscripción</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- USUARIOS -->
+    <div class="slabel">Usuarios <span class="meta">Firebase</span></div>
+    <div class="mgrid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="metric"><div class="lbl">Registrados únicos</div><div class="val m-total">236</div><div class="dlt">total</div></div>
+      <div class="metric"><div class="lbl">Usuarios iOS</div><div class="val m-total">236</div><div class="dlt">100%</div></div>
+      <div class="metric"><div class="lbl">Usuarios Android</div><div class="val">0</div><div class="dlt">pendiente</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Pro vs Free</div>
+      <div class="split-bar"><div class="split-pro" style="width:17.4%"></div><div class="split-free" style="width:82.6%"></div></div>
+      <div class="split-labels">
+        <div><span class="split-dot split-dot-pro"></span>Pro <strong>41</strong> · 17.4%</div>
+        <div><span class="split-dot split-dot-free"></span>Free <strong>195</strong> · 82.6%</div>
+      </div>
+    </div>
+
+    <!-- DISTRIBUCIÓN -->
+    <div class="slabel">Distribución geográfica</div>
+    <div class="card">
+      <div class="card-title-row"><div class="card-title">Registros por país</div><div class="pill-select">236 usuarios</div></div>
+      <div class="crow"><span class="cflag">🇨🇴</span><span class="cname">Colombia</span><div class="cbw"><div class="cb" style="width:69%"></div></div><span class="cnum">163</span><span class="cpct">69.1%</span></div>
+      <div class="crow"><span class="cflag">🇲🇽</span><span class="cname">México</span><div class="cbw"><div class="cb" style="width:14%"></div></div><span class="cnum">33</span><span class="cpct">14.0%</span></div>
+      <div class="crow"><span class="cflag">🇺🇸</span><span class="cname">Estados Unidos</span><div class="cbw"><div class="cb" style="width:7%"></div></div><span class="cnum">17</span><span class="cpct">7.2%</span></div>
+      <div class="crow"><span class="cflag">🇩🇴</span><span class="cname">República Dominicana</span><div class="cbw"><div class="cb" style="width:0.5%"></div></div><span class="cnum">1</span><span class="cpct">0.4%</span></div>
+      <div class="crow"><span class="cflag">🇪🇸</span><span class="cname">España</span><div class="cbw"><div class="cb" style="width:3%"></div></div><span class="cnum">7</span><span class="cpct">3.0%</span></div>
+      <div class="crow"><span class="cflag">🌐</span><span class="cname">Otros</span><div class="cbw"><div class="cb" style="width:6%"></div></div><span class="cnum">15</span><span class="cpct">6.3%</span></div>
+    </div>
+  </div><!-- /page-ov -->
+
+  <div id="page-fn" class="page">
+    <div class="datebar" style="margin-bottom:1rem">
+      <div class="datepresets">
+        <button class="dpbtn grbtn" onclick="applyGlobalRange('7d',this)">7D</button>
+        <button class="dpbtn grbtn active" onclick="applyGlobalRange('30d',this)">30D</button>
+        <button class="dpbtn grbtn" onclick="applyGlobalRange('90d',this)">90D</button>
+      </div>
+      <input type="date" id="fnFrom" value="2026-05-13">
+      <span style="color:var(--text3);font-size:12px">→</span>
+      <input type="date" id="fnTo" value="2026-06-12">
+      <button class="apply-btn" onclick="setFnRange('custom',null)">Aplicar</button>
+    </div>
+    <div class="mgrid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="metric"><div class="lbl">Descargas</div><div class="val" id="fn-base">545</div><div class="dlt" id="fn-period">período: 30 días</div></div>
+      <div class="metric"><div class="lbl">Abrieron la app</div><div class="val" id="fn-opened">474</div><div class="dlt">llegaron a bienvenida</div></div>
+      <div class="metric"><div class="lbl">Iniciaron onboarding</div><div class="val" id="fn-onb">432</div><div class="dlt">79.3%</div></div>
+    </div>
+    <div class="mgrid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="metric"><div class="lbl">Llegaron a la paywall</div><div class="val">49%</div><div class="dlt" id="fn-paywall-n">267 usuarios</div></div>
+      <div class="metric"><div class="lbl">Iniciaron free trial</div><div class="val">18%</div><div class="dlt" id="fn-trial-n">98 usuarios</div></div>
+      <div class="metric"><div class="lbl">Conversión directa mensual</div><div class="val" id="fn-direct">8</div><div class="dlt">sin trial · plan mensual</div></div>
+    </div>
+    <div class="mgrid" style="grid-template-columns:repeat(1,1fr)">
+      <div class="metric accent-card"><div class="lbl">% de conversión del free trial</div><div class="val" id="fn-trial-conv">40%</div><div class="dlt" id="fn-conv-n">39 suscriptores · de 98 trials iniciados</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Embudo completo · eventos Mixpanel <span class="badge-mp">Mixpanel</span></div>
+
+      <div class="fstep" data-pct="100">
+        <div class="fhdr"><span class="fstepnum">1</span><span class="fname"><code>app_downloaded</code> <span class="fname-es">Descarga de la app</span></span><span class="fcount">545</span><span class="fpct">100%</span></div>
+        <div class="fbarwrap"><div class="fbar" style="width:100%;background:#0d1b2a"></div></div>
+      </div>
+
+      <div class="fstep" data-pct="87">
+        <div class="fhdr"><span class="fstepnum">2</span><span class="fname"><code>app_opened</code> <span class="fname-es">App abierta</span></span><span class="fcount">474</span><span class="funiq" id="fu2">461 únicos</span><span class="fpct">87%</span></div>
+        <div class="fbarwrap"><div class="fbar" style="width:87%;background:#3b8ee8"></div></div>
+      </div>
+
+      <div class="fstep" data-pct="62">
+        <div class="fhdr"><span class="fstepnum">3</span><span class="fname"><code>onboarding_step_completed</code> <span class="fname-es">Onboarding completado</span></span><span class="fcount">338</span><span class="funiq" id="fu3">329 únicos</span><span class="fpct">71%</span></div>
+        <div class="fbarwrap"><div class="fbar" style="width:62%;background:#1aa974"></div></div>
+        <div class="fsub" id="onb-sub">
+          <div class="fsublabel" onclick="toggleSub()" style="cursor:pointer;display:flex;align-items:center;gap:6px">
+            <span id="onb-arrow">▾</span> Detalle por step_name
+          </div>
+          <div id="onb-content">
+          <div class="fnote">⚠️ Estas son preguntas de ejemplo. Jesús debe reemplazarlas por las preguntas reales del onboarding y cuántos usuarios llegaron a cada una.</div>
+          <div class="substep"><span class="ssname">Bienvenida</span><div class="ssbw"><div class="ssbar" id="ssb1" style="width:100%"></div></div><span class="sscount" id="ss1">474</span></div>
+          <div class="substep"><span class="ssname">¿Cuál es tu meta?</span><div class="ssbw"><div class="ssbar" id="ssb2" style="width:91%"></div></div><span class="sscount" id="ss2">432</span></div>
+          <div class="substep"><span class="ssname">¿Cuánto ganas?</span><div class="ssbw"><div class="ssbar" id="ssb3" style="width:80%"></div></div><span class="sscount" id="ss3">379</span></div>
+          <div class="substep"><span class="ssname">¿En qué más gastas?</span><div class="ssbw"><div class="ssbar" id="ssb4" style="width:74%"></div></div><span class="sscount" id="ss4">351</span></div>
+          <div class="substep"><span class="ssname">Resumen personalizado</span><div class="ssbw"><div class="ssbar" id="ssb5" style="width:71%"></div></div><span class="sscount" id="ss5">338</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fstep" data-pct="51">
+        <div class="fhdr"><span class="fstepnum">4</span><span class="fname"><code>login_completed</code> <span class="fname-es">Inicio de sesión (Google / Apple)</span></span><span class="fcount">278</span><span class="funiq" id="fu4">272 únicos</span><span class="fpct">82%</span></div>
+        <div class="fbarwrap"><div class="fbar" style="width:51%;background:#e0507f"></div></div>
+      </div>
+
+      <div class="fstep" data-pct="49">
+        <div class="fhdr"><span class="fstepnum">5</span><span class="fname"><code>paywall_viewed</code> <span class="fname-es">Paywall vista</span></span><span class="fcount">267</span><span class="funiq" id="fu5">262 únicos</span><span class="fpct">96%</span></div>
+        <div class="fbarwrap"><div class="fbar" style="width:49%;background:#f5a524"></div></div>
+      </div>
+
+      <div class="fstep" data-pct="18">
+        <div class="fhdr"><span class="fstepnum">6</span><span class="fname"><code>trial_started</code> <span class="fname-es">Free trial iniciado</span></span><span class="fcount">98</span><span class="funiq" id="fu6">95 únicos</span><span class="fpct">37%</span></div>
+        <div class="fbarwrap"><div class="fbar" style="width:18%;background:#e8503e"></div></div>
+      </div>
+
+      <div class="fstep" data-pct="7.2" style="margin-bottom:0">
+        <div class="fhdr"><span class="fstepnum">7</span><span class="fname"><code>subscription_purchased</code> <span class="fname-es">Suscripción comprada</span></span><span class="fcount">39</span><span class="funiq" id="fu7">38 únicos</span><span class="fpct">40%</span></div>
+        <div class="fbarwrap"><div class="fbar" style="width:7.2%;background:#6aa83f"></div></div>
+      </div>
+    </div>
+  </div><!-- /page-fn -->
+
+  <div id="page-ret" class="page">
+    <div class="datebar" style="margin-bottom:1rem">
+      <div class="datepresets">
+        <button class="dpbtn grbtn" onclick="applyGlobalRange('7d',this)">7D</button>
+        <button class="dpbtn grbtn active" onclick="applyGlobalRange('30d',this)">30D</button>
+        <button class="dpbtn grbtn" onclick="applyGlobalRange('90d',this)">90D</button>
+      </div>
+      <input type="date" value="2026-05-13">
+      <span style="color:var(--text3);font-size:12px">→</span>
+      <input type="date" value="2026-06-12">
+      <button class="apply-btn">Aplicar</button>
+    </div>
+
+    <div class="mgrid" style="grid-template-columns:repeat(4,1fr)">
+      <div class="metric"><div class="lbl">Retención D1</div><div class="val">100%</div><div class="dlt">día instalación</div></div>
+      <div class="metric"><div class="lbl">Retención D2</div><div class="val">15%</div><div class="dlt">benchmark: 40%</div></div>
+      <div class="metric"><div class="lbl">Retención D7</div><div class="val" id="ret-d7">8%</div><div class="dlt">benchmark: 15%</div></div>
+      <div class="metric accent-card"><div class="lbl">Retención D30</div><div class="val" id="ret-d30">0%</div><div class="dlt">benchmark: 8%</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Curva de retención <span class="badge-mp" style="background:#fef3c7;color:#b45309">Firebase</span></div>
+      <div style="position:relative;height:220px"><canvas id="retChart"></canvas></div>
+      <div style="display:flex;gap:20px;font-size:12px;color:var(--text2);margin-top:10px">
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:18px;height:2px;background:#fd386f;display:inline-block;border-radius:1px"></span>Trevo</span>
+        <span style="display:flex;align-items:center;gap:5px"><span style="width:18px;height:0;border-top:2px dashed #b5b2aa;display:inline-block"></span>Benchmark finanzas</span>
+      </div>
+    </div>
+
+    <div class="slabel">Composición de sesiones diarias</div>
+    <p style="font-size:13px;color:var(--text2);margin:-6px 0 14px">De todas las veces que se abrió la app este período: <strong>Nuevos</strong> = primera vez que ese usuario abre Trevo. <strong>Recurrentes</strong> = usuarios que ya habían usado la app y volvieron a abrirla.</p>
+    <div class="twocol">
+      <div class="metric"><div class="lbl">Aperturas de usuarios nuevos<span class="dup">↑ 325%</span></div><div class="val" id="ret-new">289</div><div class="dlt">primera vez en la app</div></div>
+      <div class="metric"><div class="lbl">Aperturas de usuarios recurrentes<span class="dup">↑ 775%</span></div><div class="val" id="ret-rec">195</div><div class="dlt">ya habían usado Trevo antes</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title-row"><div class="card-title">Duración de sesión <span class="badge-mp" style="background:#fef3c7;color:#b45309">Firebase</span></div><div class="pill-select">últimos 42 días</div></div>
+      <div style="display:flex;gap:24px;margin-bottom:10px;font-size:13px;color:var(--text2)">
+        <span>Promedio reciente <strong style="color:var(--text)">12m 13s</strong></span>
+        <span>Máximo <strong style="color:var(--text)">36m 09s</strong></span>
+      </div>
+      <div style="position:relative;height:180px"><canvas id="sessChart"></canvas></div>
+      <div class="fnote" style="margin-top:10px;margin-bottom:0">⚠️ El pico de 36 min probablemente es un outlier (usuario que dejó la app abierta en segundo plano, no una sesión activa real). Con tan pocos usuarios, un solo caso distorsiona el promedio. Jesús debe revisar/filtrar sesiones con "engagement time" anormalmente altas (ej. &gt;15 min) antes de mostrar este dato.</div>
+    </div>
+
+  </div><!-- /page-ret -->
+
+  <div id="page-us" class="page">
+    <div class="datebar" style="margin-bottom:1rem">
+      <div class="datepresets">
+        <button class="dpbtn grbtn" onclick="applyGlobalRange('7d',this)">7D</button>
+        <button class="dpbtn grbtn active" onclick="applyGlobalRange('30d',this)">30D</button>
+        <button class="dpbtn grbtn" onclick="applyGlobalRange('90d',this)">90D</button>
+      </div>
+      <input type="date" value="2026-05-13">
+      <span style="color:var(--text3);font-size:12px">→</span>
+      <input type="date" value="2026-06-12">
+      <button class="apply-btn">Aplicar</button>
+    </div>
+
+    <div class="mgrid" style="grid-template-columns:repeat(1,1fr)">
+      <div class="metric"><div class="lbl">Usuarios activos</div><div class="val m-total">236</div><div class="dlt"><span class="dup">↑ 100.0%</span></div></div>
+    </div>
+
+    <div class="mgrid" style="grid-template-columns:repeat(1,1fr)">
+      <div class="metric"><div class="lbl">Usuarios gratuitos</div><div class="val m-free">195</div><div class="dlt m-free-pct">82.6% del total</div></div>
+    </div>
+
+    <div class="subgroup-label">Free trial</div>
+    <div class="mgrid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="metric"><div class="lbl">Free trial total</div><div class="val m-trials-total">23</div><div class="dlt m-trials-pct-tot">9.7% del total</div></div>
+      <div class="metric"><div class="lbl">Free trial activo</div><div class="val m-trials-proceso">17</div><div class="dlt">en proceso</div></div>
+      <div class="metric accent-card"><div class="lbl">Free trial cancelado</div><div class="val m-trials-cancel">6</div><div class="dlt">canceló durante la prueba</div></div>
+    </div>
+
+    <div class="subgroup-label">Plan activo</div>
+    <div class="mgrid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="metric"><div class="lbl">Plan activo · Mensual</div><div class="val m-subs-mensual">28</div><div class="dlt">11.9% del total</div></div>
+      <div class="metric"><div class="lbl">Plan activo · Anual</div><div class="val m-subs-anual">13</div><div class="dlt">5.5% del total</div></div>
+      <div class="metric accent-card"><div class="lbl">No renovarán el próximo mes</div><div class="val m-cancel">2</div><div class="dlt">canceló futuras suscripciones</div></div>
+    </div>
+
+    <div class="slabel">Distribución geográfica</div>
+    <div class="card">
+      <div class="card-title-row">
+        <div class="card-title">Por país</div>
+        <div class="datepresets">
+          <button class="dpbtn active" onclick="setActiveBtn(this)">Todos</button>
+          <button class="dpbtn" onclick="setActiveBtn(this)">América</button>
+          <button class="dpbtn" onclick="setActiveBtn(this)">Europa</button>
+          <button class="dpbtn" onclick="setActiveBtn(this)">Asia</button>
+          <button class="dpbtn" onclick="setActiveBtn(this)">Otros</button>
+        </div>
+      </div>
+      <div class="geo-layout">
+        <div style="position:relative;height:220px;width:220px;flex-shrink:0"><canvas id="geoChart"></canvas></div>
+        <div style="flex:1">
+          <div class="crow"><span style="color:var(--text3);width:18px">1</span><span class="cflag">🇨🇴</span><span class="cname">Colombia</span><div class="cbw"><div class="cb" style="width:69%;background:#3b8ee8"></div></div><span class="cnum">163</span><span class="cpct">69.1%</span></div>
+          <div class="crow"><span style="color:var(--text3);width:18px">2</span><span class="cflag">🇲🇽</span><span class="cname">México</span><div class="cbw"><div class="cb" style="width:14%;background:#3b8ee8"></div></div><span class="cnum">33</span><span class="cpct">14.0%</span></div>
+          <div class="crow"><span style="color:var(--text3);width:18px">3</span><span class="cflag">🇺🇸</span><span class="cname">Estados Unidos</span><div class="cbw"><div class="cb" style="width:7%;background:#3b8ee8"></div></div><span class="cnum">17</span><span class="cpct">7.2%</span></div>
+          <div class="crow"><span style="color:var(--text3);width:18px">4</span><span class="cflag">🇪🇸</span><span class="cname">España</span><div class="cbw"><div class="cb" style="width:3%;background:#3b8ee8"></div></div><span class="cnum">7</span><span class="cpct">3.0%</span></div>
+          <div class="crow"><span style="color:var(--text3);width:18px">5</span><span class="cflag">🇩🇴</span><span class="cname">República Dominicana</span><div class="cbw"><div class="cb" style="width:0.5%;background:#3b8ee8"></div></div><span class="cnum">1</span><span class="cpct">0.4%</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slabel">Lista de usuarios</div>
+    <div class="card">
+      <div class="ufilters">
+        <input type="text" placeholder="🔍 Buscar por nombre o correo..." style="flex:1">
+        <div class="datepresets">
+          <button class="dpbtn active" onclick="setActiveBtn(this)">Todos · 236</button>
+          <button class="dpbtn" onclick="setActiveBtn(this)">Activos · 236</button>
+          <button class="dpbtn" onclick="setActiveBtn(this)">Inactivos · 0</button>
+        </div>
+        <div class="datepresets">
+          <button class="dpbtn active" onclick="setActiveBtn(this)">Todos · 236</button>
+          <button class="dpbtn" onclick="setActiveBtn(this)">Pro · 41</button>
+          <button class="dpbtn" onclick="setActiveBtn(this)">Gratuito · 195</button>
+        </div>
+      </div>
+      <div class="tbl-wrap">
+        <table class="utbl">
+          <thead><tr><th>País</th><th>Correo</th><th>Producto</th><th>Comprado</th><th>Expira</th><th>Revenue</th><th>Tipo</th><th>Renovación</th></tr></thead>
+          <tbody>
+            <tr><td>🇲🇽</td><td>maria.lopez@gmail.com</td><td>Mensual</td><td>hace 1 hora</td><td>en 1 mes</td><td>$5.75</td><td><span class="type-pill type-new">NEW SUB</span></td><td></td></tr>
+            <tr><td>🇨🇴</td><td>jpinzon87@gmail.com</td><td>Mensual</td><td>hace 2 horas</td><td>en 1 mes</td><td>$7.13</td><td><span class="type-pill type-new">NEW SUB</span></td><td></td></tr>
+            <tr><td>🇨🇴</td><td>vale.ramirez@gmail.com</td><td>Anual</td><td>hace 3 horas</td><td>en 11 meses</td><td>$45.00</td><td><span class="type-pill type-new">NEW SUB</span></td><td></td></tr>
+            <tr><td>🇨🇴</td><td>danielito2002@gmail.com</td><td>Anual</td><td>hace 3 horas</td><td>en 3 días <span class="trial-tag">(prueba)</span></td><td>—</td><td><span class="type-pill type-trial">TRIAL</span></td><td></td></tr>
+            <tr><td>🇨🇴</td><td>yuliana.np@gmail.com</td><td>Anual</td><td>hace 3 horas</td><td>en 3 días <span class="trial-tag">(prueba)</span></td><td>—</td><td><span class="type-pill type-trial-cancel">TRIAL CANCELADO</span></td><td></td></tr>
+            <tr><td>🇨🇴</td><td>moki.bsg@gmail.com</td><td>Mensual</td><td>hace 6 horas</td><td>en 1 mes</td><td>$7.13</td><td><span class="type-pill type-new">NEW SUB</span></td><td><span class="type-pill type-cancel">CANCELÓ FUTURAS SUSCRIPCIONES</span></td></tr>
+            <tr><td>🇪🇸</td><td>rocio.vc@gmail.com</td><td>Anual</td><td>hace 6 horas</td><td>en 3 días <span class="trial-tag">(prueba)</span></td><td>—</td><td><span class="type-pill type-trial">TRIAL</span></td><td></td></tr>
+            <tr><td>—</td><td>5s6z6wb6rt@privaterelay.appleid.com</td><td>Free</td><td>—</td><td>—</td><td>—</td><td><span class="type-pill type-free">FREE</span></td><td></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="ucount">Mostrando 4 de 236 usuarios</div>
+    </div>
+  </div><!-- /page-us -->
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<div id="metricModal" class="modal-overlay" onclick="closeMetricModal(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modalTitle">Métrica</div>
+        <div class="modal-sub" id="modalSub">Últimos 28 días</div>
+      </div>
+      <button class="modal-close" onclick="closeMetricModal(event)">✕</button>
+    </div>
+    <div class="modal-value" id="modalValue">—</div>
+    <div style="position:relative;height:280px"><canvas id="modalChart"></canvas></div>
+    <div class="modal-legend">
+      <span style="display:flex;align-items:center;gap:5px"><span class="leg-line solid"></span>Histórico</span>
+      <span style="display:flex;align-items:center;gap:5px"><span class="leg-line dashed"></span>Proyección (datos de ejemplo)</span>
+    </div>
+  </div>
+</div>
+
+<script>
+function showPage(id, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  btn.classList.add('active');
+  document.getElementById('dateBar').style.display = (id==='ov') ? '' : 'none';
+  if(id==='fn'){ document.getElementById('pageLabel').textContent='Embudo de onboarding'; document.getElementById('pageTitle').textContent='Flujo completo desde descarga hasta suscripción'; }
+  else if(id==='ret'){ document.getElementById('pageLabel').textContent='Retención'; document.getElementById('pageTitle').textContent='Cuántos usuarios vuelven a abrir la app'; }
+  else if(id==='us'){ document.getElementById('pageLabel').textContent='Usuarios'; document.getElementById('pageTitle').textContent='Todos los usuarios registrados en Trevo'; }
+  else { document.getElementById('pageLabel').textContent='Vista general'; document.getElementById('pageTitle').textContent='Resumen ejecutivo del crecimiento de Trevo'; }
+}
+function toggleSub(){
+  document.getElementById('onb-content').classList.toggle('collapsed');
+  document.getElementById('onb-arrow').classList.toggle('collapsed');
+}
+
+// ===== Rango global 7D / 30D / 90D para TODAS las pestañas =====
+const RANGE_DATA = {
+  '7d':  { base:136,  imp:'387',   dl:'136', trials_total:6,  trials_cancel:2,  ret_new:75,  ret_rec:50,  ret_d7:'—', ret_d30:'—', period:'período: 7 días', total:59 },
+  '30d': { base:545,  imp:'1,548', dl:'545', trials_total:23, trials_cancel:6,  ret_new:289, ret_rec:195, ret_d7:'8%', ret_d30:'0%', period:'período: 30 días', total:236 },
+  '90d': { base:1417, imp:'4,024', dl:'1,417', trials_total:58, trials_cancel:15, ret_new:751, ret_rec:507, ret_d7:'8%', ret_d30:'0%', period:'período: 90 días', total:614 },
+};
+const PRO_TOTAL = 41; // suscripciones de pago activas (snapshot constante)
+const TRIALS_PROCESO = 17; // snapshot constante (activas ahora, no depende del rango)
+const FUNIQ_RATIO = { fu2:845/870, fu3:603/620, fu4:498/510, fu5:480/490, fu6:175/180, fu7:70/72 };
+
+function fmt(n){ return Math.round(n).toLocaleString('es-CO'); }
+function setText(id, val){ const el=document.getElementById(id); if(el) el.textContent = val; }
+function setTextAll(cls, val){ document.querySelectorAll('.'+cls).forEach(el=>el.textContent = val); }
+
+function applyGlobalRange(range, btn){
+  // sync active state across all 4 pages' range buttons
+  document.querySelectorAll('.grbtn').forEach(b=>{
+    b.classList.toggle('active', b.textContent.trim().toLowerCase() === range);
+  });
+
+  const d = RANGE_DATA[range];
+
+  // ----- Embudo: ov visual funnel + fn detailed page -----
+  setText('fn-base', fmt(d.base));
+  setText('fn-period', d.period);
+  const opened = d.base*0.87, onbStep = d.base*0.62, login = d.base*0.51,
+        paywall = d.base*0.49, trial = d.base*0.18, sub = d.base*0.072,
+        onb = d.base*0.793, direct = d.base*0.014;
+
+  setText('ovf1', fmt(d.base)); setText('ovf2', fmt(opened)); setText('ovf3', fmt(onbStep));
+  setText('ovf4', fmt(login)); setText('ovf5', fmt(paywall)); setText('ovf6', fmt(trial)); setText('ovf7', fmt(sub));
+
+  document.querySelectorAll('#page-fn .fstep').forEach((step,i)=>{
+    const pct = parseFloat(step.dataset.pct);
+    const count = Math.round(d.base * pct / 100);
+    step.querySelector('.fcount').textContent = fmt(count);
+  });
+  setText('fu2', fmt(opened*FUNIQ_RATIO.fu2)+' únicos');
+  setText('fu3', fmt(onbStep*FUNIQ_RATIO.fu3)+' únicos');
+  setText('fu4', fmt(login*FUNIQ_RATIO.fu4)+' únicos');
+  setText('fu5', fmt(paywall*FUNIQ_RATIO.fu5)+' únicos');
+  setText('fu6', fmt(trial*FUNIQ_RATIO.fu6)+' únicos');
+  setText('fu7', fmt(sub*FUNIQ_RATIO.fu7)+' únicos');
+
+  setText('fn-opened', fmt(opened));
+  setText('fn-onb', fmt(onb));
+  setText('fn-direct', fmt(direct));
+
+  // onboarding sub-steps (porcentajes del total de descargas)
+  const ssPct = { ss1:0.87, ss2:0.793, ss3:0.696, ss4:0.644, ss5:0.62 };
+  for(const k in ssPct){
+    setText(k, fmt(d.base*ssPct[k]));
+    const bar = document.getElementById('ssb'+k.slice(2));
+    if(bar) bar.style.width = Math.round(ssPct[k]/0.87*100)+'%';
+  }
+  setText('fn-paywall-n', fmt(paywall)+' usuarios');
+  setText('fn-trial-n', fmt(trial)+' usuarios');
+  setText('fn-conv-n', fmt(sub)+' suscriptores · de '+fmt(trial)+' trials iniciados');
+  setText('fn-trial-conv', Math.round(sub/trial*100)+'%');
+
+  // ----- Tienda y descargas (ov) -----
+  setText('pf-imp', d.imp);
+  setText('pf-dl', d.dl);
+
+  // ----- Pruebas gratuitas (ov + us, vía clases compartidas) -----
+  setTextAll('m-trials-total', fmt(d.trials_total));
+  setTextAll('m-trials-cancel', fmt(d.trials_cancel));
+  setTextAll('m-trials-proceso', TRIALS_PROCESO);
+  const pctCancel = Math.round(d.trials_cancel/d.trials_total*100);
+  setTextAll('m-trials-pct', pctCancel+'%');
+  setTextAll('m-trials-pct-tot', (Math.round(d.trials_total/236*1000)/10)+'% del total');
+
+  // ----- Usuarios: total registrados / gratuitos / pago+trial -----
+  setTextAll('m-total', fmt(d.total));
+  const free = d.total - PRO_TOTAL;
+  setTextAll('m-free', fmt(free));
+  setTextAll('m-free-pct', (Math.round(free/d.total*1000)/10)+'% del total');
+  setTextAll('m-uact-pago', fmt(PRO_TOTAL + d.trials_total));
+  setTextAll('m-uact-free', fmt(d.total - PRO_TOTAL - d.trials_total));
+
+  // ----- Retención -----
+  setText('ret-d7', d.ret_d7);
+  setText('ret-d30', d.ret_d30);
+  setText('ret-new', fmt(d.ret_new));
+  setText('ret-rec', fmt(d.ret_rec));
+}
+const METRIC_MODALS = {
+  dl: { title:'Descargas únicas', value:'28', color:'#fd386f',
+        data:[0,1,0,2,1,1,0,2,1,3,2,1,2,3,2,4,3,2,4,5,3,6,4,7,5,8,6,9,28] },
+  trials: { title:'Pruebas gratuitas totales', value:'23', color:'#f5a524',
+        data:[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,4,4,4,23] },
+  subs: { title:'Suscripciones activadas', value:'41', color:'#1aa974',
+        data:[0,0,0,0,0,0,0,0,0,3,3,3,3,3,3,3,7,7,7,7,7,7,7,7,7,7,7,32,41] },
+  mrr: { title:'MRR', value:'$80', color:'#1aa974', prefix:'$',
+        data:[0,0,0,0,0,0,0,0,0,7,7,7,7,7,7,7,14,14,14,14,14,14,14,14,14,14,14,59,80] },
+};
+let modalChartInstance;
+function openMetricModal(key){
+  const m = METRIC_MODALS[key];
+  document.getElementById('modalTitle').textContent = m.title;
+  document.getElementById('modalSub').textContent = 'Últimos 28 días · datos de ejemplo';
+  document.getElementById('modalValue').textContent = m.value;
+  document.getElementById('metricModal').classList.add('active');
+
+  const labels = m.data.map((_,i)=> i===m.data.length-1 ? 'Hoy' : '');
+  const n = m.data.length;
+  const histData = m.data.map((v,i)=> i <= n-2 ? v : null);
+  const projData = m.data.map((v,i)=> i >= n-2 ? v : null);
+
+  if(modalChartInstance) modalChartInstance.destroy();
+  modalChartInstance = new Chart(document.getElementById('modalChart'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { data: histData, borderColor:m.color, backgroundColor:m.color+'15', borderWidth:2.5, pointRadius:3, pointBackgroundColor:m.color, fill:true, tension:0.15, spanGaps:false },
+      { data: projData, borderColor:m.color, borderWidth:2.5, borderDash:[6,5], pointRadius:3, pointBackgroundColor:m.color, fill:false, tension:0.15, spanGaps:false }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{
+          enabled:false,
+          external: function(context){
+            let el = document.getElementById('chartjs-tooltip');
+            if(!el){ el = document.createElement('div'); el.id='chartjs-tooltip'; document.body.appendChild(el); }
+            const tt = context.tooltip;
+            if(tt.opacity === 0){ el.style.opacity = 0; return; }
+            if(tt.dataPoints && tt.dataPoints.length){
+              const idx = tt.dataPoints[0].dataIndex;
+              const val = m.data[idx];
+              const date = new Date(2026,4,17); // May 17 base
+              date.setDate(date.getDate()+idx);
+              const dayName = date.toLocaleDateString('es-CO',{weekday:'long'});
+              const dateStr = date.toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'});
+              el.innerHTML = `
+                <div class="tt-date">${dayName.charAt(0).toUpperCase()+dayName.slice(1)},<br>${dateStr}</div>
+                <div class="tt-row"><span class="tt-dot" style="background:${m.color}"></span><span class="tt-label">${m.title}</span><span class="tt-val">${(m.prefix||'')+val}</span></div>
+              `;
+              el.style.opacity = 1;
+            }
+            const rect = context.chart.canvas.getBoundingClientRect();
+            el.style.left = rect.left + window.scrollX + tt.caretX + 'px';
+            el.style.top = rect.top + window.scrollY + tt.caretY - 90 + 'px';
+          }
+        }
+      },
+      scales:{ x:{grid:{display:false},ticks:{display:false}}, y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>(m.prefix||'')+v},beginAtZero:true} } }
+  });
+}
+function closeMetricModal(e){
+  if(e.target.id==='metricModal' || e.target.classList.contains('modal-close')){
+    document.getElementById('metricModal').classList.remove('active');
+  }
+}
+function setActiveBtn(btn){
+  Array.from(btn.parentElement.children).forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+new Chart(document.getElementById('geoChart'), {
+  type:'doughnut',
+  data:{ labels:['Colombia','México','Estados Unidos','España','Otros'], datasets:[{
+    data:[163,33,17,7,16],
+    backgroundColor:['#3b8ee8','#7bb6f0','#a8d0f5','#cfe6fa','#e8f1fb'],
+    borderWidth:0
+  }] },
+  options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, cutout:'68%' }
+});
+function toggleDark(){
+  document.documentElement.classList.toggle('force-dark');
+  const dark = document.documentElement.classList.contains('force-dark');
+  document.getElementById('dmIcon').textContent = dark ? '☀️' : '🌙';
+}
+const PLATFORM_DATA = {
+  all:     { imp:'2,840', dl:'28', rating:'5.0 ⭐', reviews:'5 reseñas' },
+  ios:     { imp:'2,840', dl:'28', rating:'5.0 ⭐', reviews:'5 reseñas' },
+  android: { imp:'—',     dl:'0',  rating:'—',      reviews:'app aún no publicada' },
+};
+function setPlatform(key, btn){
+  document.querySelectorAll('.ptbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  const d = PLATFORM_DATA[key];
+  document.getElementById('pf-imp').textContent = d.imp;
+  document.getElementById('pf-dl').textContent = d.dl;
+  document.getElementById('pf-rating').textContent = d.rating;
+  document.getElementById('pf-reviews').textContent = d.reviews;
+}
+
+const gc = 'rgba(0,0,0,0.06)';
+const tc = '#b5b2aa';
+
+// sparklines (estilo RevenueCat)
+function sparkline(id, data, color){
+  const ctx = document.getElementById(id);
+  if(!ctx) return;
+  new Chart(ctx, {
+    type:'line',
+    data:{ labels: data.map((_,i)=>i), datasets:[{ data, borderColor: color, borderWidth:2, pointRadius:0, fill:true,
+      backgroundColor: ctx.getContext('2d').createLinearGradient(0,0,0,32) }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      scales:{ x:{display:false}, y:{display:false} },
+      elements:{ line:{ tension:0.35 } }
+    }
+  });
+  const grad = ctx.getContext('2d').createLinearGradient(0,0,0,32);
+  grad.addColorStop(0, color+'33');
+  grad.addColorStop(1, color+'00');
+  Chart.getChart(ctx).data.datasets[0].backgroundColor = grad;
+  Chart.getChart(ctx).update();
+}
+
+sparkline('spk-dl',     [1,0,2,1,1,0,2,1,3,2,1,2,3,2,4,3,2,4,5,3,6,4,7,5,8,6,9,8], '#fd386f');
+sparkline('spk-trials', [0,0,0,0,1,0,0,1,0,1,2,1,2,1,3,2,4,3,5,4,6,5,8,7,10,12,15,23], '#fd386f');
+sparkline('spk-mrr',    [0,0,0,0,0,0,0,0,0,0,0,5,5,5,5,10,10,10,10,15,15,15,15,15,15,15,40,80], '#1a9e58');
+sparkline('spk-subs',   [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,3,3,3,7,12], '#1a9e58');
+sparkline('spk-ret',    [45,42,38,40,35,33,30,28,25,27,22,20,18,19,16,15,13,14,11,10,9,8,9,7,8,8,8,8], '#fd386f');
+
+applyGlobalRange('30d', null);
+
+new Chart(document.getElementById('retChart'), {
+  type:'line',
+  data:{ labels:['D1','D2','D3','D7','D9','D14','D30','D37'], datasets:[
+    { label:'Trevo', data:[100,15,12,8,7,5,0,0], borderColor:'#fd386f', backgroundColor:'#fd386f15', borderWidth:2.5, pointRadius:4, pointBackgroundColor:'#fd386f', fill:true, tension:0.3 },
+    { label:'Benchmark', data:[100,40,35,20,18,12,8,6], borderColor:'#b5b2aa', borderWidth:1.5, borderDash:[4,4], pointRadius:0, fill:false, tension:0.3 }
+  ]},
+  options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+    scales:{ x:{grid:{display:false},ticks:{color:tc,font:{size:11}}}, y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>v+'%'},max:100} } }
+});
+
+new Chart(document.getElementById('sessChart'), {
+  type:'line',
+  data:{ labels:['29/05','01/06','04/06','07/06','10/06','12/06'], datasets:[
+    { data:[7,21,5,7,33,8], borderColor:'#8b80e8', backgroundColor:'#8b80e822', borderWidth:2, pointRadius:0, fill:true, tension:0.35 }
+  ]},
+  options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+    scales:{ x:{grid:{display:false},ticks:{color:tc,font:{size:11}}}, y:{grid:{color:gc},ticks:{color:tc,font:{size:11},callback:v=>v+'m'}} } }
+});
+</script>
+</body>
+</html>

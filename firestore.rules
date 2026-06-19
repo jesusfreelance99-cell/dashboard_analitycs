@@ -135,6 +135,10 @@ service cloud.firestore {
       allow create: if isDashboardUser();
       allow read, delete: if false;
     }
+    match /dashboard_metrics/onboarding/refresh_requests/{docId} {
+      allow create: if isDashboardUser();
+      allow read, delete: if false;
+    }
     // ── Catch-all: denegar todo lo demás ──────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;

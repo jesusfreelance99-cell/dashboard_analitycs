@@ -221,3 +221,50 @@ export const refreshRetentionMetrics = onDocumentCreated(
     }
   }
 );
+
+// ── Actualización diaria de funnel de onboarding GA4 (8:15 AM UTC) ───────────
+export const updateOnboardingMetrics = onSchedule(
+  {
+    schedule: '15 8 * * *',
+    timeoutSeconds: 540,
+    memory: '512MiB',
+    secrets: [playstoreServiceAccount],
+  },
+  async () => {
+    if (!analyticsPropertyId.value()) {
+      console.warn('ANALYTICS_PROPERTY_ID not set — skipping onboarding metrics');
+      return;
+    }
+    const { fetchAndStoreOnboardingMetrics } = await import('./onboarding/fetchOnboardingMetrics');
+    await fetchAndStoreOnboardingMetrics(
+      playstoreServiceAccount.value(),
+      analyticsPropertyId.value(),
+    );
+  }
+);
+
+// ── Refresco manual de onboarding desde el dashboard ─────────────────────────
+export const refreshOnboardingMetrics = onDocumentCreated(
+  {
+    document: 'dashboard_metrics/onboarding/refresh_requests/{docId}',
+    timeoutSeconds: 540,
+    memory: '512MiB',
+    secrets: [playstoreServiceAccount],
+  },
+  async (event) => {
+    const ref = event.data?.ref;
+    try {
+      if (!analyticsPropertyId.value()) {
+        console.warn('ANALYTICS_PROPERTY_ID not set');
+        return;
+      }
+      const { fetchAndStoreOnboardingMetrics } = await import('./onboarding/fetchOnboardingMetrics');
+      await fetchAndStoreOnboardingMetrics(
+        playstoreServiceAccount.value(),
+        analyticsPropertyId.value(),
+      );
+    } finally {
+      if (ref) await ref.delete();
+    }
+  }
+);

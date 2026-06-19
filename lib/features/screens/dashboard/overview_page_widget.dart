@@ -259,6 +259,7 @@ class _OverviewContentState extends State<_OverviewContent> {
     }
   }
 
+  // ignore: unused_element
   int _eventUniques(List<FunnelEvent> events, String name) =>
       events.where((e) => e.name == name).fold(0, (s, e) => s + e.uniqueUsers);
 
@@ -313,8 +314,8 @@ class _OverviewContentState extends State<_OverviewContent> {
     final rcOverview = rc?.overview;
     final rcRange = rc?.range(widget.range);
 
-    final funnelRange = funnel?.range(widget.range);
-    final funnelEvents = funnelRange?.events ?? [];
+    // final funnelRange = funnel?.range(widget.range);
+    // final funnelEvents = funnelRange?.events ?? [];
 
     final newCustomers = (rcRange?.newCustomers ?? 0) > 0
         ? rcRange!.newCustomers
@@ -343,54 +344,40 @@ class _OverviewContentState extends State<_OverviewContent> {
         .where((d) => d.os.toLowerCase().contains('android'))
         .fold(0, (s, d) => s + d.count);
 
-    // Funnel steps
-    // Descarga: total clientes activos RevenueCat (28d)
-    final funnelBase = rcOverview?.activeCustomers28d ?? 0;
-    // App abierta: app_open (reaperturas) → first_open (instalaciones nuevas)
-    final funnelOpen = _eventUniques(funnelEvents, 'app_open') > 0
-        ? _eventUniques(funnelEvents, 'app_open')
-        : _eventUniques(funnelEvents, 'first_open') > 0
-        ? _eventUniques(funnelEvents, 'first_open')
-        : _eventUniques(funnelEvents, 'session_start');
-    // Onboarding: onboarding_step es el evento principal del onboarding de Trevo
-    final funnelSignup = _eventUniques(funnelEvents, 'onboarding_step') > 0
-        ? _eventUniques(funnelEvents, 'onboarding_step')
-        : _eventUniques(funnelEvents, 'sign_up') > 0
-        ? _eventUniques(funnelEvents, 'sign_up')
-        : _eventUniques(funnelEvents, 'registration_completed');
-    // Tutorial completado
-    final funnelTutorial = _eventUniques(funnelEvents, 'tutorial_complete');
-    // Login: solo usuarios que iniciaron sesión (no usar Onboarding como fallback)
-    final funnelLogin = _eventUniques(funnelEvents, 'login');
-    final funnelPaywall = funnelRange?.uniquePaywall ?? 0;
-    final funnelTrial =
-        funnelRange?.uniqueTrial ?? rcOverview?.activeTrials ?? 0;
-    // Suscripción: purchase (IAP) → app_store_subscription_convert → activas RC
-    final funnelSub = _eventUniques(funnelEvents, 'purchase') > 0
-        ? _eventUniques(funnelEvents, 'purchase')
-        : _eventUniques(funnelEvents, 'app_store_subscription_convert') > 0
-        ? _eventUniques(funnelEvents, 'app_store_subscription_convert')
-        : activeSubs;
+    // Funnel steps — ocultos junto con _OverviewFunnel
+    // final funnelBase    = rcOverview?.activeCustomers28d ?? 0;
+    // final funnelOpen    = _eventUniques(funnelEvents, 'app_open') > 0
+    //     ? _eventUniques(funnelEvents, 'app_open')
+    //     : _eventUniques(funnelEvents, 'first_open') > 0
+    //     ? _eventUniques(funnelEvents, 'first_open')
+    //     : _eventUniques(funnelEvents, 'session_start');
+    // final funnelSignup  = _eventUniques(funnelEvents, 'onboarding_step') > 0
+    //     ? _eventUniques(funnelEvents, 'onboarding_step')
+    //     : _eventUniques(funnelEvents, 'sign_up') > 0
+    //     ? _eventUniques(funnelEvents, 'sign_up')
+    //     : _eventUniques(funnelEvents, 'registration_completed');
+    // final funnelTutorial = _eventUniques(funnelEvents, 'tutorial_complete');
+    // final funnelLogin   = _eventUniques(funnelEvents, 'login');
+    // final funnelPaywall = funnelRange?.uniquePaywall ?? 0;
+    // final funnelTrial   = funnelRange?.uniqueTrial ?? rcOverview?.activeTrials ?? 0;
+    // final funnelSub     = _eventUniques(funnelEvents, 'purchase') > 0
+    //     ? _eventUniques(funnelEvents, 'purchase')
+    //     : _eventUniques(funnelEvents, 'app_store_subscription_convert') > 0
+    //     ? _eventUniques(funnelEvents, 'app_store_subscription_convert')
+    //     : activeSubs;
 
-    final funnelSteps = [
-      _FunnelStep(
-        'Descarga',
-        funnelBase,
-        AppColors.chartBlue,
-        tooltip:
-            'Los nuevos clientes son clientes vistos por primera vez en el período que se mide. '
-            'En RevenueCat, el término "cliente" se refiere a la persona que utiliza una aplicación, '
-            'independientemente de si ya ha realizado una compra. '
-            'Cualquier cliente que sea alias a otro cliente será excluido de esta tabla.',
-      ),
-      _FunnelStep('App abierta', funnelOpen, AppColors.chartGreen),
-      _FunnelStep('Onboarding', funnelSignup, AppColors.chartPurple),
-      _FunnelStep('Tutorial', funnelTutorial, AppColors.chartOlive),
-      _FunnelStep('Login', funnelLogin, AppColors.pink),
-      _FunnelStep('Paywall', funnelPaywall, AppColors.chartAmber),
-      _FunnelStep('Trial', funnelTrial, AppColors.danger),
-      _FunnelStep('Suscripción', funnelSub, AppColors.success),
-    ];
+    // funnelSteps — oculto junto con _OverviewFunnel
+    // final funnelSteps = [
+    //   _FunnelStep('Descarga', funnelBase, AppColors.chartBlue,
+    //     tooltip: 'Los nuevos clientes son clientes vistos por primera vez en el período que se mide.'),
+    //   _FunnelStep('App abierta', funnelOpen, AppColors.chartGreen),
+    //   _FunnelStep('Onboarding', funnelSignup, AppColors.chartPurple),
+    //   _FunnelStep('Tutorial', funnelTutorial, AppColors.chartOlive),
+    //   _FunnelStep('Login', funnelLogin, AppColors.pink),
+    //   _FunnelStep('Paywall', funnelPaywall, AppColors.chartAmber),
+    //   _FunnelStep('Trial', funnelTrial, AppColors.danger),
+    //   _FunnelStep('Suscripción', funnelSub, AppColors.success),
+    // ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -510,15 +497,15 @@ class _OverviewContentState extends State<_OverviewContent> {
           minTileWidth: 220,
           children: [
             MetricCard(
-              label: 'Pruebas gratuitas totales',
+              label: 'Active trials',
               value: rc?.range(DateRange.all).activeTrialsLabel ?? '0',
               helperText: 'acumulado',
             ),
-            MetricCard(
-              label: 'En proceso',
-              value: rcOverview?.activeTrialsLabel ?? '0',
-              helperText: 'activas ahora',
-            ),
+            // MetricCard(
+            //   label: 'En proceso',
+            //   value: rcOverview?.activeTrialsLabel ?? '0',
+            //   helperText: 'activas ahora',
+            // ),
           ],
         ),
 
@@ -635,21 +622,21 @@ class _OverviewContentState extends State<_OverviewContent> {
         ),
         const SizedBox(height: 42),
 
-        // ── EMBUDO DE CONVERSIÓN ─────────────────────────────────────────
-        const SectionHeader(
-          label: 'EMBUDO DE CONVERSIÓN',
-          source: 'Firebase · RevenueCat',
-        ),
-        const SizedBox(height: 14),
-        _OverviewFunnel(
-          steps: funnelSteps,
-          totalEvents: funnelEvents.fold(0, (s, e) => s + e.count),
-          totalUsers: funnelEvents.fold(
-            0,
-            (s, e) => s > e.uniqueUsers ? s : e.uniqueUsers,
-          ),
-        ),
-        const SizedBox(height: 42),
+        // ── EMBUDO DE CONVERSIÓN (temporalmente oculto) ──────────────────
+        // const SectionHeader(
+        //   label: 'EMBUDO DE CONVERSIÓN',
+        //   source: 'Firebase · RevenueCat',
+        // ),
+        // const SizedBox(height: 14),
+        // _OverviewFunnel(
+        //   steps: funnelSteps,
+        //   totalEvents: funnelEvents.fold(0, (s, e) => s + e.count),
+        //   totalUsers: funnelEvents.fold(
+        //     0,
+        //     (s, e) => s > e.uniqueUsers ? s : e.uniqueUsers,
+        //   ),
+        // ),
+        // const SizedBox(height: 42),
 
         // ── USUARIOS ─────────────────────────────────────────────────────
         const SectionHeader(label: 'USUARIOS', source: 'Firebase'),
@@ -891,13 +878,17 @@ class _FunnelStep {
   final int count;
   final Color color;
   final String? tooltip;
+  // ignore: unused_element_parameter
   const _FunnelStep(this.label, this.count, this.color, {this.tooltip});
 }
 
+// ignore: unused_element
 class _OverviewFunnel extends StatelessWidget {
   const _OverviewFunnel({
     required this.steps,
+    // ignore: unused_element_parameter
     this.totalEvents = 0,
+    // ignore: unused_element_parameter
     this.totalUsers = 0,
   });
   final List<_FunnelStep> steps;

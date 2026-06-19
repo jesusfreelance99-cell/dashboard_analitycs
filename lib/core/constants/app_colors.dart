@@ -62,6 +62,10 @@ class AppColors {
   static const Color warningBg     = Color(0xFFFFF3CD); // fondo badge warning
   static const Color warningText   = Color(0xFF856404); // texto badge warning
 
+  // ── Badge Mixpanel (lavanda) ─────────────────────────────────────
+  static const Color badgeMpBg   = Color(0xFFEDE9FE); // fondo badge morado
+  static const Color badgeMpText = Color(0xFF6D28D9); // texto badge morado
+
   // ── Dorado / corona Pro ─────────────────────────────────────────
   static const Color goldLight     = Color(0xFFFFD760); // fondo ícono corona
   static const Color goldDark      = Color(0xFF8A6300); // ícono corona

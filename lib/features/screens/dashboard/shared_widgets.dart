@@ -547,10 +547,11 @@ class Panel extends StatelessWidget {
 }
 
 class PanelHeader extends StatelessWidget {
-  const PanelHeader({super.key, required this.title, required this.trailing});
+  const PanelHeader({super.key, required this.title, required this.trailing, this.badge});
 
   final String title;
   final String trailing;
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
@@ -564,6 +565,24 @@ class PanelHeader extends StatelessWidget {
             color: context.dc.ink,
           ),
         ),
+        if (badge != null) ...[
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppColors.badgeMpBg,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              badge!,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: AppColors.badgeMpText,
+              ),
+            ),
+          ),
+        ],
         const Spacer(),
         Text(trailing, style: TextStyle(fontSize: 16, color: context.dc.ink3)),
       ],

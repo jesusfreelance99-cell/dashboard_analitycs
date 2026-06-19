@@ -4,9 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
 import 'package:dashboard_analitycs/core/models/appstore_metrics_model.dart';
 import 'package:dashboard_analitycs/core/models/funnel_metrics_model.dart';
+import 'package:dashboard_analitycs/core/models/onboarding_metrics_model.dart';
 import 'package:dashboard_analitycs/core/models/revenuecat_metrics_model.dart';
 import 'package:dashboard_analitycs/core/services/appstore_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/funnel_metrics_service.dart';
+import 'package:dashboard_analitycs/core/services/onboarding_metrics_service.dart';
 import 'package:dashboard_analitycs/core/services/revenuecat_metrics_service.dart';
 import 'package:dashboard_analitycs/core/widgets/app_shimmer.dart';
 import 'package:dashboard_analitycs/features/screens/dashboard/dashboard_provider.dart';
@@ -33,15 +35,21 @@ class FunnelPage extends StatelessWidget {
             return StreamBuilder<AppStoreMetrics?>(
               stream: AppStoreMetricsService.stream(),
               builder: (context, asSnap) {
-                if (funnelSnap.connectionState == ConnectionState.waiting &&
-                    funnelSnap.data == null) {
-                  return const _FunnelShimmer();
-                }
-                return _FunnelContent(
-                  range: range,
-                  funnel: funnelSnap.data,
-                  rc: rcSnap.data,
-                  appStore: asSnap.data,
+                return StreamBuilder<OnboardingMetrics?>(
+                  stream: OnboardingMetricsService.stream(),
+                  builder: (context, onbSnap) {
+                    if (funnelSnap.connectionState == ConnectionState.waiting &&
+                        funnelSnap.data == null) {
+                      return const _FunnelShimmer();
+                    }
+                    return _FunnelContent(
+                      range: range,
+                      funnel: funnelSnap.data,
+                      rc: rcSnap.data,
+                      appStore: asSnap.data,
+                      onboarding: onbSnap.data,
+                    );
+                  },
                 );
               },
             );
@@ -62,12 +70,14 @@ class _FunnelContent extends StatelessWidget {
     required this.funnel,
     required this.rc,
     required this.appStore,
+    required this.onboarding,
   });
 
   final DateRange range;
   final FunnelMetrics? funnel;
   final RevenueCatMetrics? rc;
   final AppStoreMetrics? appStore;
+  final OnboardingMetrics? onboarding;
 
   FunnelEvent? _findEvent(List<FunnelEvent> events, List<String> names) {
     for (final name in names) {
@@ -97,28 +107,28 @@ class _FunnelContent extends StatelessWidget {
     final onbBegin = onbBeginE?.count ?? 0;
     final onbBeginUniq = onbBeginE?.uniqueUsers ?? 0;
 
-    // Paso del embudo — "Onboarding completado" usa tutorial_complete (quien terminó)
-    final onbE = _findEvent(events, ['tutorial_complete', 'tutorial_begin', 'onboarding_step']);
-    final onboarding = onbE?.count ?? 0;
-    final onboardingUniq = onbE?.uniqueUsers ?? 0;
+    // Paso del embudo — "Onboarding completado" (usado cuando el embudo se reactive)
+    // final onbE = _findEvent(events, ['tutorial_complete', 'tutorial_begin', 'onboarding_step']);
+    // final onbCount = onbE?.count ?? 0;
+    // final onboardingUniq = onbE?.uniqueUsers ?? 0;
 
     // Paso 4 — Registro / Login
     // sign_up = nuevo usuario registrado; login = inicio de sesión existente
-    final loginE = _findEvent(events, ['sign_up', 'login']);
-    final login = loginE?.count ?? 0;
-    final loginUniq = loginE?.uniqueUsers ?? 0;
+    // final loginE = _findEvent(events, ['sign_up', 'login']);
+    // final login = loginE?.count ?? 0;
+    // final loginUniq = loginE?.uniqueUsers ?? 0;
 
     // Paso 5 — Paywall
     final paywallCount = fRange?.uniquePaywall ?? 0;
     final paywallE = _findEvent(events, ['paywall_viewed']);
     final paywall = paywallE?.count ?? paywallCount;
-    final paywallUniq = paywallE?.uniqueUsers ?? paywallCount;
+    // final paywallUniq = paywallE?.uniqueUsers ?? paywallCount;
 
     // Paso 6 — Trial
     final trialCount = fRange?.uniqueTrial ?? 0;
     final trialE = _findEvent(events, ['trial_started']);
     final trial = trialE?.count ?? trialCount;
-    final trialUniq = trialE?.uniqueUsers ?? trialCount;
+    // final trialUniq = trialE?.uniqueUsers ?? trialCount;
 
     // Paso 7 — Suscripción comprada
     // ecommerce_purchase = evento estándar Firebase que manda la app; purchase como fallback
@@ -126,7 +136,7 @@ class _FunnelContent extends StatelessWidget {
       'ecommerce_purchase', 'purchase', 'app_store_subscription_convert', 'in_app_purchase',
     ]);
     final subscriptions = subE?.count ?? rcOverview?.activeSubscriptions ?? 0;
-    final subscriptionsUniq = subE?.uniqueUsers ?? 0;
+    // final subscriptionsUniq = subE?.uniqueUsers ?? 0;
 
     // Baseline para %: usamos first_open como base real de usuarios que entraron
     // Descargas se muestra aparte como dato de App Store (no sirve como baseline porque es solo iOS y "último mes")
@@ -142,46 +152,52 @@ class _FunnelContent extends StatelessWidget {
     final trialsActive = rcOverview?.activeTrials ?? 0;
     final trialsCancelled = (trialsTotal - trialsActive).clamp(0, 999999);
 
-    final steps = [
-      _FStep(
-        num: 1, eventCode: 'first_open', label: 'Primera apertura de la app',
-        count: appOpened, unique: appOpenedUniq > 0 ? appOpenedUniq : null,
-        baseline: baseline, color: AppColors.chartBlue,
-        event: appOpenedE,
-        extraInfo: downloads > 0 ? '↓ $downloads descargas iOS' : null,
-      ),
-      _FStep(
-        num: 2, eventCode: 'tutorial_complete', label: 'Onboarding completado',
-        count: onboarding, unique: onboardingUniq > 0 ? onboardingUniq : null,
-        baseline: baseline, color: AppColors.chartGreen,
-        event: onbE,
-        subSteps: fRange?.onboardingSteps ?? [],
-      ),
-      _FStep(
-        num: 3, eventCode: 'sign_up', label: 'Registro completado',
-        count: login, unique: loginUniq > 0 ? loginUniq : null,
-        baseline: baseline, color: AppColors.chartPurple,
-        event: loginE,
-      ),
-      _FStep(
-        num: 4, eventCode: 'paywall_viewed', label: 'Paywall vista',
-        count: paywall, unique: paywallUniq > 0 ? paywallUniq : null,
-        baseline: baseline, color: AppColors.pink,
-        event: paywallE,
-      ),
-      _FStep(
-        num: 5, eventCode: 'trial_started', label: 'Free trial iniciado',
-        count: trial, unique: trialUniq > 0 ? trialUniq : null,
-        baseline: baseline, color: AppColors.chartAmber,
-        event: trialE,
-      ),
-      _FStep(
-        num: 6, eventCode: 'ecommerce_purchase', label: 'Suscripción comprada',
-        count: subscriptions, unique: subscriptionsUniq > 0 ? subscriptionsUniq : null,
-        baseline: baseline, color: AppColors.success,
-        event: subE,
-      ),
-    ];
+    // EMBUDO COMPLETO temporalmente oculto — descomentar junto con el Panel de abajo
+    // final obSteps = onboarding?.range(range)?.steps ?? [];
+    // const obColors = [
+    //   AppColors.chartBlue,   AppColors.chartGreen,  AppColors.chartPurple,
+    //   AppColors.pink,        AppColors.chartAmber,  AppColors.chartOlive,
+    //   AppColors.chartBlue,   AppColors.chartGreen,  AppColors.chartPurple,
+    //   AppColors.pink,        AppColors.chartAmber,  AppColors.chartOlive,
+    //   AppColors.chartBlue,   AppColors.chartGreen,  AppColors.success,
+    // ];
+    // var stepNum = 1;
+    // final steps = <_FStep>[
+    //   _FStep(num: stepNum++, eventCode: 'first_open', label: 'Primera apertura de la app',
+    //     count: appOpened, unique: appOpenedUniq > 0 ? appOpenedUniq : null,
+    //     baseline: baseline, color: AppColors.chartBlue, event: appOpenedE,
+    //     extraInfo: downloads > 0 ? '↓ $downloads descargas iOS' : null,
+    //   ),
+    //   if (obSteps.isNotEmpty)
+    //     for (final s in obSteps)
+    //       _FStep(num: stepNum++, eventCode: 'onboarding_step_${s.stepNumber}',
+    //         label: s.questionEs, count: s.uniqueUsers,
+    //         unique: s.uniqueUsers > 0 ? s.uniqueUsers : null, baseline: baseline,
+    //         color: obColors[(s.stepNumber - 1).clamp(0, obColors.length - 1)],
+    //       )
+    //   else
+    //     _FStep(num: stepNum++, eventCode: 'tutorial_complete', label: 'Onboarding completado',
+    //       count: onbCount, unique: onboardingUniq > 0 ? onboardingUniq : null,
+    //       baseline: baseline, color: AppColors.chartGreen, event: onbE,
+    //       subSteps: fRange?.onboardingSteps ?? [],
+    //     ),
+    //   _FStep(num: stepNum++, eventCode: 'sign_up', label: 'Registro completado',
+    //     count: login, unique: loginUniq > 0 ? loginUniq : null,
+    //     baseline: baseline, color: AppColors.chartPurple, event: loginE,
+    //   ),
+    //   _FStep(num: stepNum++, eventCode: 'paywall_viewed', label: 'Paywall vista',
+    //     count: paywall, unique: paywallUniq > 0 ? paywallUniq : null,
+    //     baseline: baseline, color: AppColors.pink, event: paywallE,
+    //   ),
+    //   _FStep(num: stepNum++, eventCode: 'trial_started', label: 'Free trial iniciado',
+    //     count: trial, unique: trialUniq > 0 ? trialUniq : null,
+    //     baseline: baseline, color: AppColors.chartAmber, event: trialE,
+    //   ),
+    //   _FStep(num: stepNum++, eventCode: 'ecommerce_purchase', label: 'Suscripción comprada',
+    //     count: subscriptions, unique: subscriptionsUniq > 0 ? subscriptionsUniq : null,
+    //     baseline: baseline, color: AppColors.success, event: subE,
+    //   ),
+    // ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,45 +292,46 @@ class _FunnelContent extends StatelessWidget {
         ),
         const SizedBox(height: 42),
 
-        // ── EMBUDO DE 8 PASOS ─────────────────────────────────────────────────
-        Row(
-          children: [
-            const Expanded(
-              child: SectionHeader(
-                label: 'EMBUDO COMPLETO · EVENTOS FIREBASE',
-                source: 'Firebase Analytics · RevenueCat',
-              ),
-            ),
-            const _FunnelRefreshButton(),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Panel(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const PanelHeader(
-                title: 'Flujo completo desde descarga hasta suscripción',
-                trailing: 'toca un paso para ver detalles',
-              ),
-              const SizedBox(height: 28),
-              for (int i = 0; i < steps.length; i++) ...[
-                _FunnelStepRow(
-                  step: steps[i],
-                  funnel: funnel,
-                  currentRange: range,
-                  isLast: i == steps.length - 1,
-                ),
-                if (i < steps.length - 1)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 20, top: 4, bottom: 4),
-                    child: Icon(Icons.arrow_downward_rounded, size: 14, color: AppColors.ink3),
-                  ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: 42),
+        // ── EMBUDO COMPLETO · EVENTOS MIXPANEL (temporalmente oculto) ────────
+        // Row(
+        //   children: [
+        //     const Expanded(
+        //       child: SectionHeader(
+        //         label: 'EMBUDO COMPLETO · EVENTOS MIXPANEL',
+        //         source: 'Firebase Analytics · RevenueCat',
+        //       ),
+        //     ),
+        //     const _FunnelRefreshButton(),
+        //   ],
+        // ),
+        // const SizedBox(height: 14),
+        // Panel(
+        //   child: Column(
+        //     crossAxisAlignment: CrossAxisAlignment.start,
+        //     children: [
+        //       const PanelHeader(
+        //         title: 'Embudo completo · eventos Mixpanel',
+        //         trailing: 'toca un paso para ver detalles',
+        //         badge: 'Mixpanel',
+        //       ),
+        //       const SizedBox(height: 28),
+        //       for (int i = 0; i < steps.length; i++) ...[
+        //         _FunnelStepRow(
+        //           step: steps[i],
+        //           funnel: funnel,
+        //           currentRange: range,
+        //           isLast: i == steps.length - 1,
+        //         ),
+        //         if (i < steps.length - 1)
+        //           Padding(
+        //             padding: const EdgeInsets.only(left: 20, top: 4, bottom: 4),
+        //             child: Icon(Icons.arrow_downward_rounded, size: 14, color: AppColors.ink3),
+        //           ),
+        //       ],
+        //     ],
+        //   ),
+        // ),
+        // const SizedBox(height: 42),
 
         // ── RESUMEN TRIALS ────────────────────────────────────────────────────
         const SectionHeader(label: 'ESTADO DE TRIALS', source: 'RevenueCat'),
@@ -349,6 +366,13 @@ class _FunnelContent extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 48),
+
+        // ── FUNNEL DE ONBOARDING · QUIZ (BigQuery) ────────────────────────────
+        _OnboardingSection(
+          data: onboarding?.range(range),
+          onboarding: onboarding,
+        ),
+        const SizedBox(height: 48),
       ],
     );
   }
@@ -367,8 +391,11 @@ class _FStep {
     required this.unique,
     required this.baseline,
     required this.color,
+    // ignore: unused_element_parameter
     this.event,
+    // ignore: unused_element_parameter
     this.extraInfo,
+    // ignore: unused_element_parameter
     this.subSteps = const [],
   });
 
@@ -921,6 +948,476 @@ class _FunnelShimmer extends StatelessWidget {
           const SizedBox(height: 14),
           const AppSkeletonBox(height: 480, radius: 24),
         ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONBOARDING FUNNEL SECTION (BigQuery · onboarding_step + onboarding_answer)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _OnboardingSection extends StatelessWidget {
+  const _OnboardingSection({required this.data, required this.onboarding});
+
+  final OnboardingRangeData? data;
+  final OnboardingMetrics? onboarding;
+
+  static const _stepColors = [
+    AppColors.chartBlue,
+    AppColors.chartGreen,
+    AppColors.chartPurple,
+    AppColors.pink,
+    AppColors.chartAmber,
+    AppColors.chartOlive,
+    AppColors.chartBlue,
+    AppColors.chartGreen,
+    AppColors.chartPurple,
+    AppColors.pink,
+    AppColors.chartAmber,
+    AppColors.chartOlive,
+    AppColors.chartBlue,
+    AppColors.chartGreen,
+    AppColors.success,
+  ];
+
+  Color _colorFor(int n) => _stepColors[(n - 1).clamp(0, _stepColors.length - 1)];
+
+  @override
+  Widget build(BuildContext context) {
+    final d = data;
+    final hasData = d != null && d.hasData;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // ── Header ──────────────────────────────────────────────────────────
+        Row(
+          children: [
+            const Expanded(
+              child: SectionHeader(
+                label: 'FUNNEL DE ONBOARDING · 15 PASOS',
+                source: 'Firebase Analytics · onboarding_step / onboarding_answer',
+              ),
+            ),
+            _OnboardingRefreshButton(),
+          ],
+        ),
+        const SizedBox(height: 14),
+
+        // ── No data notice ───────────────────────────────────────────────────
+        if (!hasData)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: AppColors.fieldBg,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sin datos de onboarding',
+                  style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ink,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Presiona ↻ para sincronizar datos desde Firebase Analytics.',
+                  style: TextStyle(fontSize: 13, color: AppColors.ink2, height: 1.5),
+                ),
+              ],
+            ),
+          )
+        else ...[
+          // ── KPI Cards ─────────────────────────────────────────────────────
+          ResponsiveGrid(
+            minTileWidth: 200,
+            children: [
+              MetricCard(
+                label: 'Iniciaron quiz',
+                value: '${d.totalStarted}',
+                helperText: 'paso 1 · onboarding_step',
+              ),
+              MetricCard(
+                label: 'Completaron quiz',
+                value: '${d.totalCompleted}',
+                helperText: 'paso 15 · personalization',
+              ),
+              MetricCard(
+                label: '% completación',
+                value: d.completionRate > 0
+                    ? '${(d.completionRate * 100).toStringAsFixed(0)}%'
+                    : '—',
+                helperText: 'completados / iniciados',
+              ),
+              MetricCard(
+                label: 'Mayor abandono',
+                value: d.maxDropoffStep > 0 ? 'Paso ${d.maxDropoffStep}' : '—',
+                accent: d.maxDropoffStep > 0,
+                helperText: d.maxDropoffStep > 0 && d.steps.length >= d.maxDropoffStep
+                    ? d.steps[d.maxDropoffStep - 1].stepName
+                    : 'paso con más drop-off',
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // ── Updated label ────────────────────────────────────────────────
+          if (onboarding?.updatedAtLabel.isNotEmpty == true)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Actualizado: ${onboarding!.updatedAtLabel}',
+                style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+              ),
+            ),
+
+          // ── Step funnel panel ────────────────────────────────────────────
+          Panel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const PanelHeader(
+                  title: 'Flujo completo del quiz de onboarding',
+                  trailing: 'toca un paso para ver respuestas',
+                ),
+                const SizedBox(height: 24),
+                for (int i = 0; i < d.steps.length; i++) ...[
+                  _OnboardingStepRow(
+                    step: d.steps[i],
+                    answers: d.answersForStep(d.steps[i].stepNumber),
+                    color: _colorFor(d.steps[i].stepNumber),
+                    isMaxDropoff: d.steps[i].stepNumber == d.maxDropoffStep,
+                  ),
+                  if (i < d.steps.length - 1)
+                    const Divider(height: 1, color: Color(0x0C000000)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONBOARDING STEP ROW
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _OnboardingStepRow extends StatefulWidget {
+  const _OnboardingStepRow({
+    required this.step,
+    required this.answers,
+    required this.color,
+    required this.isMaxDropoff,
+  });
+
+  final OnboardingFunnelStep step;
+  final OnboardingAnswerGroup? answers;
+  final Color color;
+  final bool isMaxDropoff;
+
+  @override
+  State<_OnboardingStepRow> createState() => _OnboardingStepRowState();
+}
+
+class _OnboardingStepRowState extends State<_OnboardingStepRow> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final step = widget.step;
+    final hasAnswers = widget.answers != null && widget.answers!.options.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Drop-off badge above step (shown between steps) ───────────────
+          if (step.dropPct > 0) ...[
+            Padding(
+              padding: const EdgeInsets.only(left: 22, bottom: 6),
+              child: Text(
+                '${step.dropLabel} abandono',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: widget.isMaxDropoff ? AppColors.danger : AppColors.ink3,
+                ),
+              ),
+            ),
+          ],
+
+          // ── Row: num | name | count | pct ────────────────────────────────
+          InkWell(
+            onTap: hasAnswers
+                ? () => setState(() => _expanded = !_expanded)
+                : null,
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 22,
+                        child: Text(
+                          '${step.stepNumber}',
+                          style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                        ),
+                      ),
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              step.stepName,
+                              style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700,
+                                color: AppColors.ink2, fontFamily: 'monospace',
+                              ),
+                            ),
+                            Text(
+                              step.questionEs,
+                              style: const TextStyle(fontSize: 12, color: AppColors.ink3),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 56,
+                        child: Text(
+                          step.uniqueUsers > 0 ? '${step.uniqueUsers}' : '—',
+                          style: TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w700,
+                            color: step.uniqueUsers > 0 ? AppColors.ink : AppColors.ink3,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 46,
+                        child: Text(
+                          step.pctLabel,
+                          style: TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w700,
+                            color: step.uniqueUsers > 0 ? widget.color : AppColors.ink3,
+                          ),
+                          textAlign: TextAlign.right,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 22,
+                        child: hasAnswers
+                            ? Icon(
+                                _expanded
+                                    ? Icons.expand_less_rounded
+                                    : Icons.expand_more_rounded,
+                                size: 16,
+                                color: AppColors.ink3,
+                              )
+                            : const SizedBox(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 22),
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(7),
+                          child: LinearProgressIndicator(
+                            value: step.pctOfStart.clamp(0.0, 1.0),
+                            minHeight: 14,
+                            backgroundColor: AppColors.progressBg,
+                            valueColor: AlwaysStoppedAnimation(
+                              step.uniqueUsers > 0 ? widget.color : AppColors.shimmerBase,
+                            ),
+                          ),
+                        ),
+                        if (widget.isMaxDropoff && step.uniqueUsers > 0)
+                          Positioned.fill(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: AppColors.danger.withAlpha(80),
+                                  width: 1.5,
+                                ),
+                                borderRadius: BorderRadius.circular(7),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // ── Answer distribution (expandable) ─────────────────────────────
+          if (hasAnswers && _expanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 22, top: 10),
+              child: Container(
+                decoration: const BoxDecoration(
+                  border: Border(
+                    left: BorderSide(color: Color(0x16000000), width: 2),
+                  ),
+                ),
+                padding: const EdgeInsets.only(left: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'distribución de respuestas',
+                      style: TextStyle(fontSize: 11, color: AppColors.ink3),
+                    ),
+                    const SizedBox(height: 10),
+                    for (final opt in widget.answers!.options)
+                      _AnswerOptionRow(option: opt, color: widget.color),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANSWER OPTION ROW
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _AnswerOptionRow extends StatelessWidget {
+  const _AnswerOptionRow({required this.option, required this.color});
+
+  final OnboardingAnswerOption option;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              option.answer,
+              style: const TextStyle(fontSize: 12, color: AppColors.ink2),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 3,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: option.pct.clamp(0.0, 1.0),
+                minHeight: 6,
+                backgroundColor: AppColors.progressBg,
+                valueColor: AlwaysStoppedAnimation(color.withAlpha(180)),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 32,
+            child: Text(
+              option.pctLabel,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 36,
+            child: Text(
+              '${option.uniqueUsers}',
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontSize: 11, color: AppColors.ink3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ONBOARDING REFRESH BUTTON
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _OnboardingRefreshButton extends StatefulWidget {
+  @override
+  State<_OnboardingRefreshButton> createState() => _OnboardingRefreshButtonState();
+}
+
+class _OnboardingRefreshButtonState extends State<_OnboardingRefreshButton> {
+  bool _loading = false;
+
+  Future<void> _refresh() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      await FirebaseFirestore.instance
+          .collection('dashboard_metrics')
+          .doc('onboarding')
+          .collection('refresh_requests')
+          .add({'created_at': FieldValue.serverTimestamp()});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Sincronizando desde Firebase Analytics (~30s)'),
+          backgroundColor: AppColors.ink,
+          duration: Duration(seconds: 5),
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Error al solicitar sincronización'),
+          backgroundColor: AppColors.danger,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Sincronizar desde Firebase Analytics',
+      child: InkWell(
+        onTap: _refresh,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: _loading
+              ? const SizedBox(
+                  width: 16, height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.chartBlue),
+                )
+              : const Icon(Icons.sync, size: 18, color: AppColors.chartBlue),
+        ),
       ),
     );
   }
