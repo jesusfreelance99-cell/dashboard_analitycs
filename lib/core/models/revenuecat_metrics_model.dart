@@ -66,6 +66,9 @@ class RevenueCatOverviewMetrics {
     this.subRetentionP6 = 0,
     this.cancelledSubscriptions = 0,
     this.churnRateFirestore = 0,
+    this.annualTrialSubscriptions = 0,
+    this.annualCancelledSubscriptions = 0,
+    this.monthlyCancelledSubscriptions = 0,
   });
 
   final double mrr;
@@ -80,10 +83,11 @@ class RevenueCatOverviewMetrics {
   final double subRetentionP1;
   final double subRetentionP3;
   final double subRetentionP6;
-  /// Planes cancelados/expirados desde Firestore plan_user
   final int cancelledSubscriptions;
-  /// % churn = canceladas / total con plan (desde Firestore)
   final double churnRateFirestore;
+  final int annualTrialSubscriptions;
+  final int annualCancelledSubscriptions;
+  final int monthlyCancelledSubscriptions;
 
   factory RevenueCatOverviewMetrics.fromMap(Map<String, dynamic> map) {
     return RevenueCatOverviewMetrics(
@@ -101,6 +105,9 @@ class RevenueCatOverviewMetrics {
       subRetentionP6: (map['sub_retention_p6'] as num?)?.toDouble() ?? 0,
       cancelledSubscriptions: (map['cancelled_subscriptions'] as num?)?.toInt() ?? 0,
       churnRateFirestore: (map['churn_rate_firestore'] as num?)?.toDouble() ?? 0,
+      annualTrialSubscriptions: (map['annual_trial_subscriptions'] as num?)?.toInt() ?? 0,
+      annualCancelledSubscriptions: (map['annual_cancelled_subscriptions'] as num?)?.toInt() ?? 0,
+      monthlyCancelledSubscriptions: (map['monthly_cancelled_subscriptions'] as num?)?.toInt() ?? 0,
     );
   }
 

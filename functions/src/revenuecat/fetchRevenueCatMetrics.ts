@@ -345,43 +345,82 @@ const TREVO_MONTHLY_PRICE = 4.99;
 const TREVO_ANNUAL_PRICE  = 19.99;
 
 // Lee la subcollección plan_user de Firestore y cuenta suscripciones por tipo y estado.
+// Agrupa por usuario (doc.ref.parent.parent.id) para evitar contar múltiples documentos
+// del mismo usuario (renovaciones históricas). Por cada usuario se conserva solo el doc
+// con mayor prioridad: active > in_trial > cualquier otro estado.
 async function countSubscriptionsByType(): Promise<{
   monthly: number;
   annual: number;
+  annualTrial: number;
+  annualCancelled: number;
+  monthlyCancelled: number;
   cancelled: number;
   totalWithPlan: number;
 }> {
   const db = admin.firestore();
   const snapshot = await db.collectionGroup('plan_user').get();
 
-  let monthly = 0, annual = 0, cancelled = 0, totalWithPlan = 0;
+  function statusPriority(s: string): number {
+    if (s === 'active') return 3;
+    if (s === 'in_trial' || s === 'trialing' || s === 'trial') return 2;
+    return 1;
+  }
+
+  // Un entry por usuario — clave = userId (parent.parent.id) o doc.id como fallback
+  const byUser = new Map<string, { status: string; subId: string }>();
+
   for (const doc of snapshot.docs) {
     const data = doc.data();
     const status = (data['status'] as string ?? '').toLowerCase();
     const subId  = (data['suscription_id'] as string ?? '').toLowerCase();
     if (!subId) continue;
 
+    // Excluir datos de sandbox/test
+    const isSandbox =
+      data['is_sandbox'] === true ||
+      (data['environment'] as string ?? '').toLowerCase() === 'sandbox';
+    if (isSandbox) continue;
+
+    const userId = doc.ref.parent.parent?.id ?? doc.id;
+    const existing = byUser.get(userId);
+    if (!existing || statusPriority(status) > statusPriority(existing.status)) {
+      byUser.set(userId, { status, subId });
+    }
+  }
+
+  let monthly = 0, annual = 0, annualTrial = 0, annualCancelled = 0, monthlyCancelled = 0, cancelled = 0, totalWithPlan = 0;
+
+  for (const { status, subId } of byUser.values()) {
     totalWithPlan++;
 
     const isAnnual  = subId.includes('annual') || subId.includes('yearly') || subId.includes('year');
     const isMonthly = subId.includes('monthly') || subId.includes('month');
+    const isTrial   = status === 'in_trial' || status === 'trialing' || status === 'trial';
 
-    if (status === 'active') {
+    if (isTrial) {
+      if (isAnnual) annualTrial++;
+    } else if (status === 'active') {
       if (isAnnual)  annual++;
       else if (isMonthly) monthly++;
     } else {
       // cancelled, expired, paused, etc.
+      if (isAnnual)       annualCancelled++;
+      else if (isMonthly) monthlyCancelled++;
       cancelled++;
     }
   }
 
-  // Tasa de cancelación = canceladas / total con plan
   const churnRate = totalWithPlan > 0
-    ? Math.round((cancelled / totalWithPlan) * 1000) / 10  // porcentaje con 1 decimal
+    ? Math.round((cancelled / totalWithPlan) * 1000) / 10
     : 0;
 
-  console.log(`📊 plan_user → activas: mensual=${monthly} anual=${annual} | canceladas=${cancelled} (${churnRate}%) | total=${totalWithPlan}`);
-  return { monthly, annual, cancelled, totalWithPlan };
+  console.log(
+    `📊 plan_user (${snapshot.size} docs → ${byUser.size} usuarios únicos)` +
+    ` mensual=${monthly} anual=${annual} anual_trial=${annualTrial}` +
+    ` | mensual_cancel=${monthlyCancelled} anual_cancel=${annualCancelled}` +
+    ` | total_cancel=${cancelled} (${churnRate}%) | total=${totalWithPlan}`,
+  );
+  return { monthly, annual, annualTrial, annualCancelled, monthlyCancelled, cancelled, totalWithPlan };
 }
 
 // Parsea el chart de subscription_retention y extrae tasas por periodo.
@@ -498,9 +537,12 @@ async function fetchOverviewMetrics(
     new_customers_28d: pickMetricValue(metrics, 'new_customers'),
     active_customers_28d: pickMetricValue(metrics, 'active_users'),
     last_updated_at: lastUpdatedMetric?.last_updated_at_iso8601 ?? null,
-    // Cancelaciones reales desde Firestore plan_user
+    // Detalle por tipo desde Firestore plan_user
     cancelled_subscriptions: cancelledFromFirestore,
     churn_rate_firestore: churnRateFromFirestore,
+    annual_trial_subscriptions: subTypes.annualTrial,
+    annual_cancelled_subscriptions: subTypes.annualCancelled,
+    monthly_cancelled_subscriptions: subTypes.monthlyCancelled,
     // Retención de suscripciones por periodo de renovación (RevenueCat cohorts)
     sub_retention_p1: subRetention.month1,
     sub_retention_p3: subRetention.month3,

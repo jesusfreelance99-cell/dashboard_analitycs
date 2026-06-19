@@ -509,28 +509,54 @@ class _OverviewContentState extends State<_OverviewContent> {
           ],
         ),
 
-        _SubgroupLabel('Suscripciones'),
+        _SubgroupLabel('Suscripciones · Anuales'),
         ResponsiveGrid(
-          minTileWidth: 220,
+          minTileWidth: 200,
           children: [
             MetricCard(
-              label: 'Suscripciones activadas',
-              value: rcOverview?.activeSubscriptionsLabel ?? '0',
-              helperText: 'total acumulado',
-            ),
-            MetricCard(
-              label: 'Mensuales',
-              value: (rcOverview?.monthlySubscriptions ?? 0) > 0
-                  ? '${rcOverview!.monthlySubscriptions}'
+              label: 'Anuales de prueba',
+              value: (rcOverview?.annualTrialSubscriptions ?? 0) > 0
+                  ? '${rcOverview!.annualTrialSubscriptions}'
                   : '—',
-              helperText: 'activas · puede incluir usuarios de prueba',
+              helperText: 'en free trial · plan anual',
             ),
             MetricCard(
-              label: 'Anuales',
+              label: 'Anuales pagadas',
               value: (rcOverview?.annualSubscriptions ?? 0) > 0
                   ? '${rcOverview!.annualSubscriptions}'
                   : '—',
-              helperText: 'activas · puede incluir usuarios de prueba',
+              helperText: 'activas y pagando',
+            ),
+            MetricCard(
+              label: 'Anuales canceladas o vencidas',
+              value: (rcOverview?.annualCancelledSubscriptions ?? 0) > 0
+                  ? '${rcOverview!.annualCancelledSubscriptions}'
+                  : '—',
+              accent: (rcOverview?.annualCancelledSubscriptions ?? 0) > 0,
+              helperText: 'cancelled / expired',
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+        _SubgroupLabel('Suscripciones · Mensuales'),
+        ResponsiveGrid(
+          minTileWidth: 200,
+          children: [
+            MetricCard(
+              label: 'Mensuales activas',
+              value: (rcOverview?.monthlySubscriptions ?? 0) > 0
+                  ? '${rcOverview!.monthlySubscriptions}'
+                  : '—',
+              helperText: 'activas y pagando',
+            ),
+            MetricCard(
+              label: 'Mensuales canceladas o vencidas',
+              value: (rcOverview?.monthlyCancelledSubscriptions ?? 0) > 0
+                  ? '${rcOverview!.monthlyCancelledSubscriptions}'
+                  : '—',
+              accent: (rcOverview?.monthlyCancelledSubscriptions ?? 0) > 0,
+              helperText: 'cancelled / expired',
             ),
           ],
         ),
