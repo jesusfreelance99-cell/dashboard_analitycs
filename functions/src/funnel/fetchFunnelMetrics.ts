@@ -144,10 +144,14 @@ function toMap(rows: EventRow[]) {
 function rangeDoc(rows: EventRow[], onboardingSteps: StepRow[] = []) {
   const m = toMap(rows);
   return {
-    paywall_viewed:   m['paywall_viewed']?.count       ?? 0,
-    trial_started:    m['trial_started']?.count        ?? 0,
-    unique_paywall:   m['paywall_viewed']?.uniqueUsers ?? 0,
-    unique_trial:     m['trial_started']?.uniqueUsers  ?? 0,
+    paywall_viewed:        m['paywall_viewed']?.count       ?? 0,
+    trial_started:         m['trial_started']?.count        ?? 0,
+    unique_paywall:        m['paywall_viewed']?.uniqueUsers ?? 0,
+    unique_trial:          m['trial_started']?.uniqueUsers  ?? 0,
+    app_open_count:        m['app_open']?.count             ?? 0,
+    app_open_unique:       m['app_open']?.uniqueUsers       ?? 0,
+    tutorial_begin_count:  m['tutorial_begin']?.count       ?? 0,
+    tutorial_begin_unique: m['tutorial_begin']?.uniqueUsers ?? 0,
     events: rows.map(r => ({
       name:         r.name,
       count:        r.count,

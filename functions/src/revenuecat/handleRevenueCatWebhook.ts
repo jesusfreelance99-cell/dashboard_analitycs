@@ -86,14 +86,20 @@ export async function handleRevenueCatWebhookEvent(body: Record<string, unknown>
   console.log(`RC webhook ✓ user=${appUserId} product=${productId} status=${status} event=${eventType}`);
 }
 
-// Cuenta el estado actual de suscripciones desde los documentos del webhook
+// Cuenta el estado actual de suscripciones desde los documentos del webhook.
+//
+// "Cancelaciones" según la definición del negocio = usuarios que hicieron
+// "Opted-out of renewal" (evento CANCELLATION en RC, status='cancelled').
+// Están aún dentro de su período pagado pero NO renovarán → churn pendiente.
+// Los "expired" (ya salieron) no cuentan como cancelación activa.
 export async function countSubscriptionsFromWebhook(): Promise<{
   annual: number;
   annualTrial: number;
   annualCancelled: number;
   monthly: number;
   monthlyCancelled: number;
-  cancelled: number;
+  cancelled: number;    // opted-out of renewal (churn pendiente)
+  expired: number;      // ya expirados (churn consumado)
   totalWithPlan: number;
 }> {
   const db = admin.firestore();
@@ -104,7 +110,7 @@ export async function countSubscriptionsFromWebhook(): Promise<{
     .get();
 
   let annual = 0, annualTrial = 0, annualCancelled = 0;
-  let monthly = 0, monthlyCancelled = 0, cancelled = 0, totalWithPlan = 0;
+  let monthly = 0, monthlyCancelled = 0, cancelled = 0, expired = 0, totalWithPlan = 0;
 
   for (const doc of snap.docs) {
     const d = doc.data();
@@ -120,17 +126,22 @@ export async function countSubscriptionsFromWebhook(): Promise<{
     } else if (status === 'active') {
       if (isAnnual)       annual++;
       else if (isMonthly) monthly++;
-    } else {
-      // cancelled, expired, trial_cancelled
+    } else if (status === 'cancelled') {
+      // Opted-out of renewal → churn pendiente (aún en período pagado)
       if (isAnnual)       annualCancelled++;
       else if (isMonthly) monthlyCancelled++;
       cancelled++;
+    } else if (status === 'expired') {
+      // Ya expiró (churn consumado)
+      expired++;
     }
+    // trial_cancelled no cuenta como cancelación de plan pago
   }
 
   console.log(
-    `📊 Webhook state (${snap.size} docs): anual=${annual} trial=${annualTrial}` +
-    ` mensual=${monthly} | cancel anual=${annualCancelled} mensual=${monthlyCancelled}`,
+    `📊 Webhook state (${snap.size} docs): activo anual=${annual} mensual=${monthly}` +
+    ` trial=${annualTrial} | opted-out anual=${annualCancelled} mensual=${monthlyCancelled}` +
+    ` | expirados=${expired}`,
   );
-  return { annual, annualTrial, annualCancelled, monthly, monthlyCancelled, cancelled, totalWithPlan };
+  return { annual, annualTrial, annualCancelled, monthly, monthlyCancelled, cancelled, expired, totalWithPlan };
 }

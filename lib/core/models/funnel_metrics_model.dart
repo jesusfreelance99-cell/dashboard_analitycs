@@ -70,6 +70,10 @@ class FunnelRangeData {
   final int trialStarted;
   final int uniquePaywall;
   final int uniqueTrial;
+  final int appOpenCount;
+  final int appOpenUnique;
+  final int tutorialBeginCount;
+  final int tutorialBeginUnique;
   final List<FunnelEvent> events;
   final List<OnboardingStep> onboardingSteps;
 
@@ -78,15 +82,23 @@ class FunnelRangeData {
     this.trialStarted = 0,
     this.uniquePaywall = 0,
     this.uniqueTrial = 0,
+    this.appOpenCount = 0,
+    this.appOpenUnique = 0,
+    this.tutorialBeginCount = 0,
+    this.tutorialBeginUnique = 0,
     this.events = const [],
     this.onboardingSteps = const [],
   });
 
   factory FunnelRangeData.fromMap(Map<String, dynamic> m) => FunnelRangeData(
-    paywallViewed: (m['paywall_viewed'] as num?)?.toInt() ?? 0,
-    trialStarted:  (m['trial_started']  as num?)?.toInt() ?? 0,
-    uniquePaywall: (m['unique_paywall'] as num?)?.toInt() ?? 0,
-    uniqueTrial:   (m['unique_trial']   as num?)?.toInt() ?? 0,
+    paywallViewed:        (m['paywall_viewed']        as num?)?.toInt() ?? 0,
+    trialStarted:         (m['trial_started']         as num?)?.toInt() ?? 0,
+    uniquePaywall:        (m['unique_paywall']         as num?)?.toInt() ?? 0,
+    uniqueTrial:          (m['unique_trial']           as num?)?.toInt() ?? 0,
+    appOpenCount:         (m['app_open_count']         as num?)?.toInt() ?? 0,
+    appOpenUnique:        (m['app_open_unique']        as num?)?.toInt() ?? 0,
+    tutorialBeginCount:   (m['tutorial_begin_count']   as num?)?.toInt() ?? 0,
+    tutorialBeginUnique:  (m['tutorial_begin_unique']  as num?)?.toInt() ?? 0,
     events: (m['events'] as List<dynamic>? ?? [])
         .whereType<Map<String, dynamic>>()
         .map(FunnelEvent.fromMap)

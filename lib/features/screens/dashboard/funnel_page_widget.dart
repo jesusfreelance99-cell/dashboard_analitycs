@@ -97,15 +97,15 @@ class _FunnelContent extends StatelessWidget {
     // Descargas — App Store Connect
     final downloads = appStore?.downloadsLastMonth ?? 0;
 
-    // Paso 2 — App abierta (first_open = primera vez que el usuario abre la app)
-    final appOpenedE = _findEvent(events, ['first_open', 'app_open']);
-    final appOpened = appOpenedE?.count ?? 0;
-    final appOpenedUniq = appOpenedE?.uniqueUsers ?? 0;
+    // Paso 2 — App abierta (app_open = cada arranque de la app, main.dart:37)
+    final appOpenedE = _findEvent(events, ['app_open', 'first_open']);
+    final appOpened = appOpenedE?.count ?? fRange?.appOpenCount ?? 0;
+    final appOpenedUniq = appOpenedE?.uniqueUsers ?? fRange?.appOpenUnique ?? 0;
 
     // Card resumen — "Iniciaron onboarding" usa tutorial_begin (quien empezó)
     final onbBeginE = _findEvent(events, ['tutorial_begin', 'onboarding_step']);
-    final onbBegin = onbBeginE?.count ?? 0;
-    final onbBeginUniq = onbBeginE?.uniqueUsers ?? 0;
+    final onbBegin = onbBeginE?.count ?? fRange?.tutorialBeginCount ?? 0;
+    final onbBeginUniq = onbBeginE?.uniqueUsers ?? fRange?.tutorialBeginUnique ?? 0;
 
     // Paso del embudo — "Onboarding completado" (usado cuando el embudo se reactive)
     // final onbE = _findEvent(events, ['tutorial_complete', 'tutorial_begin', 'onboarding_step']);
@@ -118,17 +118,10 @@ class _FunnelContent extends StatelessWidget {
     // final login = loginE?.count ?? 0;
     // final loginUniq = loginE?.uniqueUsers ?? 0;
 
-    // Paso 5 — Paywall
-    final paywallCount = fRange?.uniquePaywall ?? 0;
-    final paywallE = _findEvent(events, ['paywall_viewed']);
-    final paywall = paywallE?.count ?? paywallCount;
-    // final paywallUniq = paywallE?.uniqueUsers ?? paywallCount;
-
     // Paso 6 — Trial
     final trialCount = fRange?.uniqueTrial ?? 0;
     final trialE = _findEvent(events, ['trial_started']);
     final trial = trialE?.count ?? trialCount;
-    // final trialUniq = trialE?.uniqueUsers ?? trialCount;
 
     // Paso 7 — Suscripción comprada
     // ecommerce_purchase = evento estándar Firebase que manda la app; purchase como fallback
@@ -136,11 +129,6 @@ class _FunnelContent extends StatelessWidget {
       'ecommerce_purchase', 'purchase', 'app_store_subscription_convert', 'in_app_purchase',
     ]);
     final subscriptions = subE?.count ?? rcOverview?.activeSubscriptions ?? 0;
-    // final subscriptionsUniq = subE?.uniqueUsers ?? 0;
-
-    // Baseline para %: usamos first_open como base real de usuarios que entraron
-    // Descargas se muestra aparte como dato de App Store (no sirve como baseline porque es solo iOS y "último mes")
-    final baseline = appOpened > 0 ? appOpened : (downloads > 0 ? downloads : 1);
 
     // % conversión del free trial
     final trialConvPct = trial > 0 && subscriptions > 0
@@ -205,7 +193,17 @@ class _FunnelContent extends StatelessWidget {
         const SizedBox(height: 8),
 
         // ── 6 CARDS ──────────────────────────────────────────────────────────
-        const SectionHeader(label: 'RESUMEN DEL PERÍODO', source: 'App Store · Firebase · RevenueCat'),
+        Row(
+          children: const [
+            Expanded(
+              child: SectionHeader(
+                label: 'RESUMEN DEL PERÍODO',
+                source: 'App Store · Firebase · RevenueCat',
+              ),
+            ),
+            _FunnelRefreshButton(),
+          ],
+        ),
         const SizedBox(height: 14),
         ResponsiveGrid(
           minTileWidth: 220,
@@ -218,7 +216,7 @@ class _FunnelContent extends StatelessWidget {
             MetricCard(
               label: 'Abrieron la app',
               value: appOpened > 0 ? '$appOpened' : '—',
-              helperText: appOpenedUniq > 0 ? '$appOpenedUniq únicos' : 'Firebase · first_open',
+              helperText: appOpenedUniq > 0 ? '$appOpenedUniq únicos · app_open' : 'Firebase · app_open',
             ),
             MetricCard(
               label: 'Iniciaron onboarding',
@@ -226,23 +224,9 @@ class _FunnelContent extends StatelessWidget {
               helperText: onbBeginUniq > 0 ? '$onbBeginUniq únicos · tutorial_begin' : 'tutorial_begin',
             ),
             MetricCard(
-              label: 'Llegaron a la paywall',
-              value: paywall > 0 ? '$paywall' : '—',
-              helperText: downloads > 0 && paywall > 0
-                  ? '${(paywall / baseline * 100).toStringAsFixed(0)}% de descargas'
-                  : 'paywall_viewed',
-            ),
-            MetricCard(
               label: 'Iniciaron free trial',
               value: trial > 0 ? '$trial' : '—',
-              helperText: paywall > 0 && trial > 0
-                  ? '${(trial / paywall * 100).toStringAsFixed(0)}% de los que vieron paywall'
-                  : 'trial_started',
-            ),
-            MetricCard(
-              label: 'Conversión directa mensual',
-              value: '—',
-              helperText: 'sin trial · plan mensual',
+              helperText: 'trial_started',
             ),
           ],
         ),

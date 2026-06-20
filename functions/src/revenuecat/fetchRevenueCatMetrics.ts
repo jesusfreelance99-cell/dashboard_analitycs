@@ -39,6 +39,7 @@ async function revenueCatGet<T>(
   apiKey: string,
   path: string,
   params: Record<string, QueryValue> = {},
+  _retries = 3,
 ): Promise<T> {
   const response = await fetch(
     `https://api.revenuecat.com/v2${path}${buildQuery(params)}`,
@@ -49,6 +50,18 @@ async function revenueCatGet<T>(
       },
     },
   );
+
+  // 429 Rate limit — esperar backoff_ms (o 12s por defecto) y reintentar
+  if (response.status === 429 && _retries > 0) {
+    let backoffMs = 12000;
+    try {
+      const body = await response.json() as Record<string, unknown>;
+      if (typeof body.backoff_ms === 'number') backoffMs = body.backoff_ms + 2000;
+    } catch { /* ignore parse error */ }
+    console.warn(`RC 429 en ${path} — esperando ${backoffMs}ms (${_retries} intentos restantes)`);
+    await new Promise(r => setTimeout(r, backoffMs));
+    return revenueCatGet<T>(apiKey, path, params, _retries - 1);
+  }
 
   if (!response.ok) {
     throw new Error(`RevenueCat ${response.status}: ${await response.text()}`);
@@ -357,6 +370,7 @@ async function fetchSubBreakdownFromRC(
   annualCancelled: number;
   monthlyCancelled: number;
   cancelled: number;
+  expired: number;
   totalWithPlan: number;
 }> {
   // ── Intento 1: datos del webhook almacenados en Firestore ─────────────────
@@ -410,39 +424,84 @@ async function fetchSubBreakdownFromRC(
   console.log(
     `📊 RC charts/product → anual=${annual} mensual=${monthly} anual_trial=${annualTrial}`,
   );
-  return { monthly, annual, annualTrial, annualCancelled: 0, monthlyCancelled: 0, cancelled: 0, totalWithPlan };
+  return { monthly, annual, annualTrial, annualCancelled: 0, monthlyCancelled: 0, cancelled: 0, expired: 0, totalWithPlan };
 }
 
-// Parsea el chart de subscription_retention y extrae tasas por periodo.
-// RevenueCat devuelve periodos de renovación: 1 = primer renovación, 3 = tercera renovación.
+// Parsea el chart de subscription_retention y extrae tasas por periodo de renovación.
+// RC v2 puede devolver dos formatos:
+//   A) segments: [{id:"1", summary:{average:0.75}}, {id:"3",...}]
+//   B) values: [{period:"2024-01", values:[{id:"1",value:0.75},{id:"3",value:0.6}]}]
+//   C) items/values flat: [{period:1, retention_rate:0.75}, ...]
 function parseSubRetention(payload: Record<string, unknown>): {
   week1: number; month1: number; month3: number; month6: number;
 } {
-  const entries = resolveArray(payload);
   const byPeriod = new Map<number, number>();
 
-  for (const entry of entries) {
-    const rec = asRecord(entry);
-    if (!rec) continue;
-    const period = typeof rec.period === 'number' ? rec.period
-                 : typeof rec.renewal_number === 'number' ? rec.renewal_number
-                 : typeof rec.cohort === 'number' ? rec.cohort
-                 : null;
-    if (period === null) continue;
-
-    // Tasa: puede venir como 0-1 o 0-100
-    const rate = typeof rec.retention_rate === 'number' ? rec.retention_rate
-               : typeof rec.retained_percentage === 'number' ? rec.retained_percentage
-               : typeof rec.rate === 'number' ? rec.rate
-               : null;
-
-    if (rate !== null) {
+  function storeRate(periodKey: string | number, rate: number): void {
+    const p = typeof periodKey === 'number' ? periodKey : parseInt(String(periodKey), 10);
+    if (!isNaN(p) && rate > 0) {
       // Normalizar a 0-1
-      byPeriod.set(period, rate > 1 ? rate / 100 : rate);
+      byPeriod.set(p, rate > 1 ? rate / 100 : rate);
     }
   }
 
-  console.log('subscription_retention periods:', JSON.stringify(Object.fromEntries(byPeriod)), '| keys:', Object.keys(payload).join(', '));
+  // Formato A: segments
+  const segments = Array.isArray(payload.segments)
+    ? (payload.segments as Array<Record<string, unknown>>) : [];
+  for (const seg of segments) {
+    const periodId = seg.id;
+    const summary = asRecord(seg.summary);
+    const rate = summary
+      ? pickNumber(summary.average) || pickNumber(summary.total) || pickNumber(summary.latest)
+      : 0;
+    if (periodId !== undefined && rate > 0) storeRate(periodId as string | number, rate);
+  }
+
+  // Formato B: time-series donde cada período contiene valores por renewal number
+  const timeEntries = Array.isArray(payload.values)
+    ? (payload.values as Array<Record<string, unknown>>) : [];
+  if (timeEntries.length > 0 && segments.length === 0) {
+    // Acumular el promedio de todos los períodos de tiempo para cada renewal
+    const sums = new Map<number, { total: number; count: number }>();
+    for (const entry of timeEntries) {
+      const inner = Array.isArray(entry.values)
+        ? (entry.values as Array<Record<string, unknown>>) : [];
+      for (const item of inner) {
+        const p = parseInt(String(item.id ?? ''), 10);
+        if (isNaN(p)) continue;
+        const v = pickNumber(item.value);
+        if (v > 0) {
+          const acc = sums.get(p) ?? { total: 0, count: 0 };
+          sums.set(p, { total: acc.total + v, count: acc.count + 1 });
+        }
+      }
+    }
+    for (const [p, { total, count }] of sums) {
+      storeRate(p, total / count);
+    }
+  }
+
+  // Formato C: lista plana con campo period/renewal_number
+  const flat = resolveArray(payload);
+  if (flat.length > 0 && byPeriod.size === 0) {
+    for (const entry of flat) {
+      const rec = asRecord(entry);
+      if (!rec) continue;
+      const period = typeof rec.period === 'number' ? rec.period
+                   : typeof rec.renewal_number === 'number' ? rec.renewal_number : null;
+      const rate = typeof rec.retention_rate === 'number' ? rec.retention_rate
+                 : typeof rec.rate === 'number' ? rec.rate
+                 : typeof rec.value === 'number' ? rec.value : null;
+      if (period !== null && rate !== null) storeRate(period, rate);
+    }
+  }
+
+  console.log(
+    'subscription_retention → byPeriod:', JSON.stringify(Object.fromEntries(byPeriod)),
+    '| raw keys:', Object.keys(payload).join(', '),
+    '| segments:', segments.length,
+    '| timeEntries:', timeEntries.length,
+  );
 
   return {
     week1:  byPeriod.get(1) ?? 0,
@@ -456,8 +515,8 @@ async function fetchOverviewMetrics(
   apiKey: string,
   projectId: string,
 ): Promise<Record<string, unknown>> {
-  // Ejecutar en paralelo: overview de RC + desglose por producto desde RC + subscription_retention
-  const [payload, subTypes, subRetentionRaw] = await Promise.all([
+  // Ejecutar en paralelo: overview + desglose por producto + retención + churn chart
+  const [payload, subTypes, subRetentionRaw, churnChartRaw] = await Promise.all([
     revenueCatGet<Record<string, unknown>>(
       apiKey,
       `/projects/${projectId}/metrics/overview`,
@@ -470,6 +529,14 @@ async function fetchOverviewMetrics(
       { environment: 'production' },
     ).catch((err: Error) => {
       console.warn('subscription_retention no disponible:', err.message);
+      return {} as Record<string, unknown>;
+    }),
+    revenueCatGet<Record<string, unknown>>(
+      apiKey,
+      `/projects/${projectId}/charts/churn`,
+      { environment: 'production' },
+    ).catch((err: Error) => {
+      console.warn('churn chart no disponible:', err.message);
       return {} as Record<string, unknown>;
     }),
   ]);
@@ -491,11 +558,58 @@ async function fetchOverviewMetrics(
     pickMetricValue(metrics, 'active_subscriptions') ||
     pickMetricValue(metrics, 'active_subscribers');
 
-  // Split mensual/anual directo desde RC API
+  // Split mensual/anual directo desde RC API / webhook
   const monthlySubscriptions = subTypes.monthly;
   const annualSubscriptions  = subTypes.annual;
+  // Cancelaciones = opted-out of renewal (CANCELLATION event, churn pendiente)
   const cancelledFromRC = subTypes.cancelled;
-  const churnRateFromFirestore = 0; // no se calcula desde Firestore
+
+  // Churn rate: prioridad al webhook (opted-out/activos = definición del negocio).
+  // Fallback: promedio de días con churn del chart de RC (churn realizado).
+  const totalActive = activeSubscriptions + subTypes.annualTrial;
+  let churnRateFromFirestore = totalActive > 0 && cancelledFromRC > 0
+    ? parseFloat(((cancelledFromRC / (totalActive + cancelledFromRC)) * 100).toFixed(1))
+    : 0;
+
+  if (churnRateFromFirestore === 0) {
+    console.log('churn chart raw keys:', Object.keys(churnChartRaw).join(', '));
+    const overviewChurnRates: number[] = [];
+
+    // Formato A: time-series
+    const overviewChurnEntries = resolveArray(churnChartRaw);
+    for (const entry of overviewChurnEntries) {
+      const rec = asRecord(entry);
+      if (!rec) continue;
+      const inner = Array.isArray(rec.values) ? rec.values as Array<Record<string, unknown>>
+                  : Array.isArray(rec.totals) ? rec.totals as Array<Record<string, unknown>>
+                  : [];
+      const rateItem = inner.find(v => v.id === 'churn_rate' || v.id === 'churn');
+      const rate = rateItem ? pickNumber(rateItem.value) : 0;
+      if (rate > 0) overviewChurnRates.push(rate);
+    }
+
+    // Formato B: segments
+    if (overviewChurnRates.length === 0 && Array.isArray(churnChartRaw.segments)) {
+      const segs = churnChartRaw.segments as Array<Record<string, unknown>>;
+      const rateSeg = segs.find(s => s.id === 'churn_rate' || s.id === 'churn');
+      if (rateSeg) {
+        const summary = asRecord(rateSeg.summary);
+        const avg = summary
+          ? pickNumber(summary.average) || pickNumber(summary.avg) || pickNumber(summary.mean)
+          : 0;
+        if (avg > 0) overviewChurnRates.push(avg);
+      }
+    }
+
+    if (overviewChurnRates.length > 0) {
+      const avg = overviewChurnRates.reduce((a, b) => a + b, 0) / overviewChurnRates.length;
+      // RC devuelve la tasa como 0-1 (ej: 0.038 = 3.8%) — convertir a porcentaje
+      churnRateFromFirestore = parseFloat(
+        (avg <= 1 ? avg * 100 : avg).toFixed(1),
+      );
+    }
+    console.log(`churn chart fallback: ${overviewChurnRates.length} samples → ${churnRateFromFirestore}%`);
+  }
 
   // MRR calculado manualmente: mensual×$4.99 + anual×($19.99/12)
   const computedMrr =
@@ -606,30 +720,71 @@ async function fetchRangeMetrics(
 
   const revenueTimeSeries = extractRevenueTimeSeries(revenueChart);
 
-  // Extraer cancelaciones absolutas del chart de churn
-  // RevenueCat devuelve periodos con métricas: [{period, values: [{id, value}]}]
+  // Extraer cancelaciones y churn rate del chart de churn.
+  // RC v2 puede devolver dos formatos:
+  //   A) Time-series: {values:[{period, values:[{id:"churn_rate",value:0.11},...]},...]}
+  //   B) Segments:    {segments:[{id:"churn_rate",values:[[date,val],...],summary:{average:0.04}},...]}
   let cancelledSubscriptions = 0;
-  let churnRate = 0;
+  const churnRates: number[] = [];
+
+  console.log(`Range ${range.key} churn keys:`, Object.keys(churn).join(', '));
+
+  // Formato A: time-series con valores anidados por período
   const churnEntries = resolveArray(churn);
-  for (const entry of churnEntries) {
-    const record = asRecord(entry);
-    if (!record) continue;
-
-    // Formato con valores por id dentro de cada periodo
-    const values = Array.isArray(record.values) ? record.values as Array<Record<string, unknown>> :
-                   Array.isArray(record.totals) ? record.totals as Array<Record<string, unknown>> : [];
-
-    const cancelledItem = values.find(v => v.id === 'churned_subscriptions' || v.id === 'cancellations' || v.id === 'cancelled_subscriptions');
-    const churnRateItem = values.find(v => v.id === 'churn_rate' || v.id === 'churn');
-
-    if (cancelledItem) cancelledSubscriptions += pickNumber(cancelledItem.value);
-    if (churnRateItem) churnRate = Math.max(churnRate, pickNumber(churnRateItem.value));
+  if (churnEntries.length > 0) {
+    for (const entry of churnEntries) {
+      const record = asRecord(entry);
+      if (!record) continue;
+      const inner = Array.isArray(record.values) ? record.values as Array<Record<string, unknown>>
+                  : Array.isArray(record.totals) ? record.totals as Array<Record<string, unknown>>
+                  : [];
+      const cancelledItem = inner.find(v =>
+        v.id === 'churned_actives' || v.id === 'churned_subscriptions' ||
+        v.id === 'cancellations' || v.id === 'cancelled_subscriptions',
+      );
+      const churnRateItem = inner.find(v => v.id === 'churn_rate' || v.id === 'churn');
+      if (cancelledItem) cancelledSubscriptions += Math.round(pickNumber(cancelledItem.value));
+      const rate = churnRateItem ? pickNumber(churnRateItem.value) : 0;
+      if (rate > 0) churnRates.push(rate);
+    }
   }
 
-  // Si no encontramos el desglose por id, usar latestChartValue como fallback para churn rate
-  if (churnRate === 0) churnRate = latestChartValue(churn);
+  // Formato B: segments (cada métrica como segmento con su propia serie temporal)
+  if (churnRates.length === 0 && Array.isArray(churn.segments)) {
+    const segments = churn.segments as Array<Record<string, unknown>>;
+    const churnedSeg = segments.find(s =>
+      s.id === 'churned_actives' || s.id === 'churned_subscriptions' || s.id === 'cancellations',
+    );
+    const rateSeg = segments.find(s => s.id === 'churn_rate' || s.id === 'churn');
 
-  console.log(`Range ${range.key}: cancelled=${cancelledSubscriptions} churnRate=${churnRate}`);
+    if (churnedSeg) {
+      const summary = asRecord(churnedSeg.summary);
+      cancelledSubscriptions = Math.round(
+        summary ? pickNumber(summary.total) || pickNumber(summary.sum) : 0,
+      );
+    }
+    if (rateSeg) {
+      const summary = asRecord(rateSeg.summary);
+      const avgRate = summary
+        ? pickNumber(summary.average) || pickNumber(summary.avg) || pickNumber(summary.mean)
+        : 0;
+      if (avgRate > 0) churnRates.push(avgRate);
+      // También extraemos de los valores individuales del segmento
+      const vals = Array.isArray(rateSeg.values) ? rateSeg.values : [];
+      for (const v of vals) {
+        const val = Array.isArray(v) ? pickNumber(v[1]) : pickNumber(asRecord(v)?.value);
+        if (val > 0) churnRates.push(val);
+      }
+    }
+    console.log(`Range ${range.key} churn segments:`, segments.map(s => `${s.id}`).join(', '));
+  }
+
+  // Churn rate = promedio de los días/períodos con churn (refleja el ritmo real)
+  const churnRate = churnRates.length > 0
+    ? parseFloat((churnRates.reduce((a, b) => a + b, 0) / churnRates.length).toFixed(4))
+    : 0;
+
+  console.log(`Range ${range.key}: cancelled=${cancelledSubscriptions} churnRate=${churnRate} (${churnRates.length} samples)`);
 
   return {
     mrr: latestChartValue(mrr),
@@ -706,10 +861,10 @@ export async function fetchAndStoreRevenueCatMetrics(
       { key: 'all', startDate: catalog.allStartDate ?? daysAgo(365), endDate, periodLabel: 'todo el tiempo' },
     ];
 
-    // Secuencial con 1.5 s de pausa entre rangos para evitar 429
+    // Secuencial con 3 s de pausa entre rangos para evitar 429
     const rangeEntries: [string, Record<string, unknown>][] = [];
     for (const range of ranges) {
-      if (rangeEntries.length > 0) await new Promise(r => setTimeout(r, 1500));
+      if (rangeEntries.length > 0) await new Promise(r => setTimeout(r, 3000));
       const metrics = await fetchRangeMetrics(apiKey, projectId, range);
       rangeEntries.push([range.key, metrics]);
       console.log(`Range ${range.key} OK`);
