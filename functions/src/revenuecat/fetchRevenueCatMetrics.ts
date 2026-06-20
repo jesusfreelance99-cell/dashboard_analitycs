@@ -344,11 +344,13 @@ async function fetchCatalogSnapshot(
 const TREVO_MONTHLY_PRICE = 4.99;
 const TREVO_ANNUAL_PRICE  = 19.99;
 
-// Lee la subcollección plan_user de Firestore y cuenta suscripciones por tipo y estado.
-// Agrupa por usuario (doc.ref.parent.parent.id) para evitar contar múltiples documentos
-// del mismo usuario (renovaciones históricas). Por cada usuario se conserva solo el doc
-// con mayor prioridad: active > in_trial > cualquier otro estado.
-async function countSubscriptionsByType(): Promise<{
+// Obtiene el desglose de suscripciones.
+// Prioridad 1: estado del webhook en Firestore (más preciso, incluye canceladas).
+// Prioridad 2: charts de RC filtrados por product_identifier conocido.
+async function fetchSubBreakdownFromRC(
+  apiKey: string,
+  projectId: string,
+): Promise<{
   monthly: number;
   annual: number;
   annualTrial: number;
@@ -357,70 +359,58 @@ async function countSubscriptionsByType(): Promise<{
   cancelled: number;
   totalWithPlan: number;
 }> {
-  const db = admin.firestore();
-  const snapshot = await db.collectionGroup('plan_user').get();
+  // ── Intento 1: datos del webhook almacenados en Firestore ─────────────────
+  const { countSubscriptionsFromWebhook } = await import('./handleRevenueCatWebhook');
+  const webhookCounts = await countSubscriptionsFromWebhook().catch((e: Error) => {
+    console.warn('webhook count error:', e.message);
+    return null;
+  });
 
-  function statusPriority(s: string): number {
-    if (s === 'active') return 3;
-    if (s === 'in_trial' || s === 'trialing' || s === 'trial') return 2;
-    return 1;
+  if (webhookCounts && webhookCounts.totalWithPlan > 0) {
+    return webhookCounts;
   }
 
-  // Un entry por usuario — clave = userId (parent.parent.id) o doc.id como fallback
-  const byUser = new Map<string, { status: string; subId: string }>();
+  // ── Intento 2: charts de RC filtrados por product_id conocidos ────────────
+  // Productos exactos de Trevo (App Store y Play Store)
+  const ANNUAL_IDS  = ['trevo_ia_pro_yearly', 'trevo_ia_pro_yearly_android:annual-yearly'];
+  const MONTHLY_IDS = ['trevo_ia_monthly_pro', 'trevo_ia_monthly_pro_android:defaultmonthly'];
 
-  for (const doc of snapshot.docs) {
-    const data = doc.data();
-    const status = (data['status'] as string ?? '').toLowerCase();
-    const subId  = (data['suscription_id'] as string ?? '').toLowerCase();
-    if (!subId) continue;
-
-    // Excluir datos de sandbox/test
-    const isSandbox =
-      data['is_sandbox'] === true ||
-      (data['environment'] as string ?? '').toLowerCase() === 'sandbox';
-    if (isSandbox) continue;
-
-    const userId = doc.ref.parent.parent?.id ?? doc.id;
-    const existing = byUser.get(userId);
-    if (!existing || statusPriority(status) > statusPriority(existing.status)) {
-      byUser.set(userId, { status, subId });
+  async function chartLatest(chart: string, productId: string): Promise<number> {
+    try {
+      const resp = await revenueCatGet<Record<string, unknown>>(
+        apiKey,
+        `/projects/${projectId}/charts/${chart}`,
+        { environment: 'production', product_identifier: productId },
+      );
+      return Math.round(latestChartValue(resp));
+    } catch (e) {
+      console.warn(`RC charts/${chart} [${productId}]:`, (e as Error).message);
+      return 0;
     }
   }
 
-  let monthly = 0, annual = 0, annualTrial = 0, annualCancelled = 0, monthlyCancelled = 0, cancelled = 0, totalWithPlan = 0;
+  const [
+    annualA, annualB,
+    monthlyA, monthlyB,
+    trialA, trialB,
+  ] = await Promise.all([
+    chartLatest('actives', ANNUAL_IDS[0]),
+    chartLatest('actives', ANNUAL_IDS[1]),
+    chartLatest('actives', MONTHLY_IDS[0]),
+    chartLatest('actives', MONTHLY_IDS[1]),
+    chartLatest('trials',  ANNUAL_IDS[0]),
+    chartLatest('trials',  ANNUAL_IDS[1]),
+  ]);
 
-  for (const { status, subId } of byUser.values()) {
-    totalWithPlan++;
-
-    const isAnnual  = subId.includes('annual') || subId.includes('yearly') || subId.includes('year');
-    const isMonthly = subId.includes('monthly') || subId.includes('month');
-    const isTrial   = status === 'in_trial' || status === 'trialing' || status === 'trial';
-
-    if (isTrial) {
-      if (isAnnual) annualTrial++;
-    } else if (status === 'active') {
-      if (isAnnual)  annual++;
-      else if (isMonthly) monthly++;
-    } else {
-      // cancelled, expired, paused, etc.
-      if (isAnnual)       annualCancelled++;
-      else if (isMonthly) monthlyCancelled++;
-      cancelled++;
-    }
-  }
-
-  const churnRate = totalWithPlan > 0
-    ? Math.round((cancelled / totalWithPlan) * 1000) / 10
-    : 0;
+  const annual      = annualA + annualB;
+  const monthly     = monthlyA + monthlyB;
+  const annualTrial = trialA + trialB;
+  const totalWithPlan = annual + monthly + annualTrial;
 
   console.log(
-    `📊 plan_user (${snapshot.size} docs → ${byUser.size} usuarios únicos)` +
-    ` mensual=${monthly} anual=${annual} anual_trial=${annualTrial}` +
-    ` | mensual_cancel=${monthlyCancelled} anual_cancel=${annualCancelled}` +
-    ` | total_cancel=${cancelled} (${churnRate}%) | total=${totalWithPlan}`,
+    `📊 RC charts/product → anual=${annual} mensual=${monthly} anual_trial=${annualTrial}`,
   );
-  return { monthly, annual, annualTrial, annualCancelled, monthlyCancelled, cancelled, totalWithPlan };
+  return { monthly, annual, annualTrial, annualCancelled: 0, monthlyCancelled: 0, cancelled: 0, totalWithPlan };
 }
 
 // Parsea el chart de subscription_retention y extrae tasas por periodo.
@@ -466,14 +456,14 @@ async function fetchOverviewMetrics(
   apiKey: string,
   projectId: string,
 ): Promise<Record<string, unknown>> {
-  // Ejecutar en paralelo: overview de RC + conteo por tipo desde Firestore + subscription_retention
+  // Ejecutar en paralelo: overview de RC + desglose por producto desde RC + subscription_retention
   const [payload, subTypes, subRetentionRaw] = await Promise.all([
     revenueCatGet<Record<string, unknown>>(
       apiKey,
       `/projects/${projectId}/metrics/overview`,
       { currency: 'USD', environment: 'production' },
     ),
-    countSubscriptionsByType(),
+    fetchSubBreakdownFromRC(apiKey, projectId),
     revenueCatGet<Record<string, unknown>>(
       apiKey,
       `/projects/${projectId}/charts/subscription_retention`,
@@ -501,13 +491,11 @@ async function fetchOverviewMetrics(
     pickMetricValue(metrics, 'active_subscriptions') ||
     pickMetricValue(metrics, 'active_subscribers');
 
-  // Split mensual/anual desde Firestore (más confiable que RC metrics)
+  // Split mensual/anual directo desde RC API
   const monthlySubscriptions = subTypes.monthly;
   const annualSubscriptions  = subTypes.annual;
-  const cancelledFromFirestore = subTypes.cancelled;
-  const churnRateFromFirestore = subTypes.totalWithPlan > 0
-    ? Math.round((subTypes.cancelled / subTypes.totalWithPlan) * 1000) / 10
-    : 0;
+  const cancelledFromRC = subTypes.cancelled;
+  const churnRateFromFirestore = 0; // no se calcula desde Firestore
 
   // MRR calculado manualmente: mensual×$4.99 + anual×($19.99/12)
   const computedMrr =
@@ -537,8 +525,8 @@ async function fetchOverviewMetrics(
     new_customers_28d: pickMetricValue(metrics, 'new_customers'),
     active_customers_28d: pickMetricValue(metrics, 'active_users'),
     last_updated_at: lastUpdatedMetric?.last_updated_at_iso8601 ?? null,
-    // Detalle por tipo desde Firestore plan_user
-    cancelled_subscriptions: cancelledFromFirestore,
+    // Detalle por tipo desde RC API
+    cancelled_subscriptions: cancelledFromRC,
     churn_rate_firestore: churnRateFromFirestore,
     annual_trial_subscriptions: subTypes.annualTrial,
     annual_cancelled_subscriptions: subTypes.annualCancelled,

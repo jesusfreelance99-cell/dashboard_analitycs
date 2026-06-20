@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onRequest } from 'firebase-functions/v2/https';
 import { defineSecret, defineString } from 'firebase-functions/params';
 import { setGlobalOptions } from 'firebase-functions/v2';
 
@@ -64,6 +65,25 @@ export const updateRevenueCatMetrics = onSchedule(
       revenueCatApiKey.value(),
       revenueCatProjectId.value(),
     );
+  }
+);
+
+// ── Webhook RevenueCat → actualiza estado de suscripciones en tiempo real ────
+export const revenueCatWebhookV2 = onRequest(
+  { timeoutSeconds: 30, memory: '256MiB', invoker: 'public' },
+  async (req, res) => {
+    if (req.method !== 'POST') {
+      res.status(405).send('Method Not Allowed');
+      return;
+    }
+    try {
+      const { handleRevenueCatWebhookEvent } = await import('./revenuecat/handleRevenueCatWebhook');
+      await handleRevenueCatWebhookEvent(req.body as Record<string, unknown>);
+      res.status(200).send('OK');
+    } catch (err) {
+      console.error('RC webhook error:', err);
+      res.status(500).send('Internal Server Error');
+    }
   }
 );
 

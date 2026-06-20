@@ -18,6 +18,13 @@
     ],
     "rewrites": [
       {
+        "source": "/webhooks/revenuecat",
+        "run": {
+          "serviceId": "revenuecatwebhookv2",
+          "region": "us-central1"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

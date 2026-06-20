@@ -1,4 +1,5 @@
 import 'package:dashboard_analitycs/core/constants/app_colors.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:dashboard_analitycs/core/models/appstore_metrics_model.dart';
 import 'package:dashboard_analitycs/core/models/funnel_metrics_model.dart';
 import 'package:dashboard_analitycs/core/models/retention_metrics_model.dart';
@@ -492,71 +493,35 @@ class _OverviewContentState extends State<_OverviewContent> {
           ],
         ),
 
-        _SubgroupLabel('Pruebas gratuitas'),
+        _SubgroupLabel('Suscripciones · RevenueCat'),
         ResponsiveGrid(
-          minTileWidth: 220,
+          minTileWidth: 200,
           children: [
+            MetricCard(
+              label: 'Suscripciones activas',
+              value: (rcOverview?.activeSubscriptions ?? 0) > 0
+                  ? '${rcOverview!.activeSubscriptions}'
+                  : '0',
+              helperText: 'pagando ahora · producción',
+            ),
+            /* MetricCard(
+              label: 'En prueba',
+              value: (rcOverview?.activeTrials ?? 0) > 0
+                  ? '${rcOverview!.activeTrials}'
+                  : '0',
+              helperText: 'free trial activo',
+            ), */
+            MetricCard(
+              label: 'Clientes activos',
+              value: (rcOverview?.activeCustomers28d ?? 0) > 0
+                  ? '${rcOverview!.activeCustomers28d}'
+                  : '—',
+              helperText: 'últimos 28 días',
+            ),
             MetricCard(
               label: 'Active trials',
               value: rc?.range(DateRange.all).activeTrialsLabel ?? '0',
-              helperText: 'acumulado',
-            ),
-            // MetricCard(
-            //   label: 'En proceso',
-            //   value: rcOverview?.activeTrialsLabel ?? '0',
-            //   helperText: 'activas ahora',
-            // ),
-          ],
-        ),
-
-        _SubgroupLabel('Suscripciones · Anuales'),
-        ResponsiveGrid(
-          minTileWidth: 200,
-          children: [
-            MetricCard(
-              label: 'Anuales de prueba',
-              value: (rcOverview?.annualTrialSubscriptions ?? 0) > 0
-                  ? '${rcOverview!.annualTrialSubscriptions}'
-                  : '—',
-              helperText: 'en free trial · plan anual',
-            ),
-            MetricCard(
-              label: 'Anuales pagadas',
-              value: (rcOverview?.annualSubscriptions ?? 0) > 0
-                  ? '${rcOverview!.annualSubscriptions}'
-                  : '—',
-              helperText: 'activas y pagando',
-            ),
-            MetricCard(
-              label: 'Anuales canceladas o vencidas',
-              value: (rcOverview?.annualCancelledSubscriptions ?? 0) > 0
-                  ? '${rcOverview!.annualCancelledSubscriptions}'
-                  : '—',
-              accent: (rcOverview?.annualCancelledSubscriptions ?? 0) > 0,
-              helperText: 'cancelled / expired',
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 12),
-        _SubgroupLabel('Suscripciones · Mensuales'),
-        ResponsiveGrid(
-          minTileWidth: 200,
-          children: [
-            MetricCard(
-              label: 'Mensuales activas',
-              value: (rcOverview?.monthlySubscriptions ?? 0) > 0
-                  ? '${rcOverview!.monthlySubscriptions}'
-                  : '—',
-              helperText: 'activas y pagando',
-            ),
-            MetricCard(
-              label: 'Mensuales canceladas o vencidas',
-              value: (rcOverview?.monthlyCancelledSubscriptions ?? 0) > 0
-                  ? '${rcOverview!.monthlyCancelledSubscriptions}'
-                  : '—',
-              accent: (rcOverview?.monthlyCancelledSubscriptions ?? 0) > 0,
-              helperText: 'cancelled / expired',
+              helperText: 'acumulado · todo el tiempo',
             ),
           ],
         ),
@@ -578,6 +543,14 @@ class _OverviewContentState extends State<_OverviewContent> {
             ),
           ],
         ),
+        const SizedBox(height: 18),
+        if (rcRange != null)
+          _RevenueBarsPanel(
+            bars: rcRange.revenueBars,
+            revenueLabel: rcRange.revenueLabel,
+            periodLabel: rcRange.periodLabel,
+            totalRevenue: rcRange.revenue,
+          ),
 
         const SizedBox(height: 14),
         FutureBuilder<UserCounts>(
@@ -1512,6 +1485,154 @@ class PlanRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REVENUE BARS PANEL — fl_chart
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RevenueBarsPanel extends StatelessWidget {
+  const _RevenueBarsPanel({
+    required this.bars,
+    required this.revenueLabel,
+    required this.periodLabel,
+    required this.totalRevenue,
+  });
+
+  final List<double> bars;
+  final String revenueLabel;
+  final String periodLabel;
+  final double totalRevenue;
+
+  @override
+  Widget build(BuildContext context) {
+    if (bars.isEmpty) return const SizedBox.shrink();
+
+    final maxBar = bars.fold<double>(1, (m, v) => v > m ? v : m);
+
+    // Distribuye el revenue total proporcionalmente entre las barras
+    final totalWeight = bars.fold<double>(
+      0,
+      (s, v) => s + (v - 28).clamp(0.0, double.infinity),
+    );
+    final revenuePerBar = totalWeight > 0 && totalRevenue > 0
+        ? bars
+              .map(
+                (b) =>
+                    (b - 28).clamp(0.0, double.infinity) /
+                    totalWeight *
+                    totalRevenue,
+              )
+              .toList()
+        : List<double>.filled(bars.length, 0);
+
+    return Panel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          PanelHeader(title: 'Revenue', trailing: periodLabel),
+          const SizedBox(height: 4),
+          Text(
+            revenueLabel,
+            style: const TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -1.5,
+              color: AppColors.ink,
+            ),
+          ),
+          const SizedBox(height: 28),
+          SizedBox(
+            height: 160,
+            child: BarChart(
+              BarChartData(
+                maxY: maxBar * 1.2,
+                minY: 0,
+                barGroups: List.generate(bars.length, (i) {
+                  return BarChartGroupData(
+                    x: i,
+                    barRods: [
+                      BarChartRodData(
+                        toY: bars[i],
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF34C77B), Color(0xFF1FA55C)],
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                        ),
+                        width: 36,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(8),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: maxBar / 3,
+                  getDrawingHorizontalLine: (_) =>
+                      const FlLine(color: Color(0xFFEEEEEC), strokeWidth: 1),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: totalRevenue > 0,
+                      reservedSize: 32,
+                      getTitlesWidget: (value, meta) {
+                        final i = value.toInt();
+                        if (i < 0 || i >= revenuePerBar.length)
+                          return const SizedBox.shrink();
+                        final v = revenuePerBar[i];
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            v > 0 ? '\$${v.toStringAsFixed(0)}' : '',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.ink3,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => AppColors.ink,
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final v = groupIndex < revenuePerBar.length
+                          ? revenuePerBar[groupIndex]
+                          : 0.0;
+                      return BarTooltipItem(
+                        v > 0 ? '\$${v.toStringAsFixed(2)}' : '—',
+                        const TextStyle(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
