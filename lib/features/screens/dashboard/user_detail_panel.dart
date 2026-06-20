@@ -118,6 +118,14 @@ class _SheetContent extends StatelessWidget {
                 _DeviceSection(detail: detail),
                 _divider(context),
                 _PermissionsSection(detail: detail),
+                if (detail.phoneInfo != null) ...[
+                  _divider(context),
+                  _PhoneSection(phone: detail.phoneInfo!),
+                ],
+                if (detail.favoriteCategories.isNotEmpty) ...[
+                  _divider(context),
+                  _FavoriteCategoriesSection(categories: detail.favoriteCategories),
+                ],
                 if (detail.planUser != null) ...[
                   _divider(context),
                   _PlanSection(plan: detail.planUser!),
@@ -416,6 +424,107 @@ class _PermissionsSection extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _PhoneSection extends StatelessWidget {
+  const _PhoneSection({required this.phone});
+  final PhoneInfo phone;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Section(
+      label: 'TELÉFONO',
+      icon: FluentIcons.call_20_regular,
+      children: [
+        _InfoRow(
+          icon: FluentIcons.call_20_regular,
+          label: 'Número',
+          value: phone.fullNumber,
+        ),
+        _InfoRow(
+          icon: FluentIcons.checkmark_circle_20_regular,
+          label: 'Verificado',
+          valueWidget: _pill(
+            context,
+            phone.validate ? 'Verificado' : 'Sin verificar',
+            phone.validate ? AppColors.success : AppColors.ink3,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _pill(BuildContext context, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _FavoriteCategoriesSection extends StatelessWidget {
+  const _FavoriteCategoriesSection({required this.categories});
+  final List<FavoriteCategory> categories;
+
+  @override
+  Widget build(BuildContext context) {
+    return _Section(
+      label: 'CATEGORÍAS FAVORITAS',
+      icon: FluentIcons.heart_20_regular,
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: categories.map((c) => _CategoryChip(cat: c)).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _CategoryChip extends StatelessWidget {
+  const _CategoryChip({required this.cat});
+  final FavoriteCategory cat;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _parseHexColor(cat.colorHex);
+    final label = cat.nameEs.isNotEmpty ? cat.nameEs : cat.nameEn;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(cat.image, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

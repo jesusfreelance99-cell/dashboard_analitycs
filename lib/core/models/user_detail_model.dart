@@ -32,11 +32,15 @@ class UserDetail {
   final String typeCurrency;
   final DateTime? updatedAt;
 
+  // optional fields
+  final PhoneInfo? phoneInfo;
+
   // subcollections
   final UserPlanDetail? planUser;
   final List<PlatformSubscription> subscriptions;
   final List<BudgetEntry> budgets;
   final List<ExpenseEntry> recentExpenses;
+  final List<FavoriteCategory> favoriteCategories;
 
   const UserDetail({
     required this.id,
@@ -59,10 +63,12 @@ class UserDetail {
     this.typeRegister = '',
     this.typeCurrency = '',
     this.updatedAt,
+    this.phoneInfo,
     this.planUser,
     this.subscriptions = const [],
     this.budgets = const [],
     this.recentExpenses = const [],
+    this.favoriteCategories = const [],
   });
 }
 
@@ -214,6 +220,67 @@ class ExpenseEntry {
       typeCurrency: data['type_currency'] as String? ?? '',
       source: data['source'] as String? ?? '',
       dateExpenses: _parseDate(data['date_expenses']),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PHONE INFO
+// ─────────────────────────────────────────────────────────────────────────────
+
+class PhoneInfo {
+  final String dialCode;
+  final String numberPhone;
+  final bool showModal;
+  final bool validate;
+
+  const PhoneInfo({
+    required this.dialCode,
+    required this.numberPhone,
+    required this.showModal,
+    required this.validate,
+  });
+
+  String get fullNumber => '$dialCode $numberPhone';
+
+  factory PhoneInfo.fromMap(Map<String, dynamic> m) => PhoneInfo(
+    dialCode:    m['dial_code']     as String? ?? '',
+    numberPhone: m['number_phone']  as String? ?? '',
+    showModal:   m['show_modal']   == true,
+    validate:    m['validate']     == true,
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAVORITE CATEGORY
+// ─────────────────────────────────────────────────────────────────────────────
+
+class FavoriteCategory {
+  final String id;
+  final String colorHex;
+  final String image;
+  final String nameEs;
+  final String nameEn;
+  final String tag;
+
+  const FavoriteCategory({
+    required this.id,
+    required this.colorHex,
+    required this.image,
+    required this.nameEs,
+    required this.nameEn,
+    required this.tag,
+  });
+
+  factory FavoriteCategory.fromMap(String docId, Map<String, dynamic> m) {
+    final name = m['name'] as Map<String, dynamic>? ?? {};
+    return FavoriteCategory(
+      id:       m['id']     as String? ?? docId,
+      colorHex: m['color']  as String? ?? '',
+      image:    m['image']  as String? ?? '',
+      nameEs:   name['spanish'] as String? ?? '',
+      nameEn:   name['english'] as String? ?? '',
+      tag:      m['tag']    as String? ?? '',
     );
   }
 }

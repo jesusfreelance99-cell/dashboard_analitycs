@@ -33,6 +33,11 @@ class UserDetailService {
         .orderBy('created_at', descending: true)
         .limit(15)
         .get();
+    final favCatFuture = _db
+        .collection('users')
+        .doc(uid)
+        .collection('my_favorites_categories')
+        .get();
 
     // Await all — individual failures are caught below
     final mainDoc = await mainFuture;
@@ -83,6 +88,24 @@ class UserDetailService {
           .toList();
     } catch (_) {}
 
+    // favorite categories (subcollection — not all users have it)
+    List<FavoriteCategory> favCats = [];
+    try {
+      final favSnap = await favCatFuture;
+      favCats = favSnap.docs
+          .map((d) => FavoriteCategory.fromMap(d.id, d.data()))
+          .toList();
+    } catch (_) {}
+
+    // phone info (optional map field on main doc)
+    PhoneInfo? phoneInfo;
+    final phoneRaw = data['info_phone_data'];
+    if (phoneRaw is Map) {
+      final pm2 = phoneRaw as Map<String, dynamic>;
+      final number = pm2['number_phone'] as String? ?? '';
+      if (number.isNotEmpty) phoneInfo = PhoneInfo.fromMap(pm2);
+    }
+
     return UserDetail(
       id: uid,
       fullName: ui['full_name'] as String? ?? user.fullName,
@@ -104,10 +127,12 @@ class UserDetailService {
       typeRegister: ui['type_register'] as String? ?? '',
       typeCurrency: ui['type_currency'] as String? ?? '',
       updatedAt: _parseTs(ui['updated_at']),
+      phoneInfo: phoneInfo,
       planUser: plan,
       subscriptions: subs,
       budgets: budgets,
       recentExpenses: expenses,
+      favoriteCategories: favCats,
     );
   }
 

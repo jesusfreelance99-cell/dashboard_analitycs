@@ -118,20 +118,20 @@ class _FunnelContent extends StatelessWidget {
     // final login = loginE?.count ?? 0;
     // final loginUniq = loginE?.uniqueUsers ?? 0;
 
-    // Paso 6 — Trial
+    // Paso 6 — Trial (unique users who started)
     final trialCount = fRange?.uniqueTrial ?? 0;
     final trialE = _findEvent(events, ['trial_started']);
-    final trial = trialE?.count ?? trialCount;
+    final trial = trialE?.uniqueUsers ?? trialCount;
 
-    // Paso 7 — Suscripción comprada
-    // ecommerce_purchase = evento estándar Firebase que manda la app; purchase como fallback
-    final subE = _findEvent(events, [
-      'ecommerce_purchase', 'purchase', 'app_store_subscription_convert', 'in_app_purchase',
-    ]);
-    final subscriptions = subE?.count ?? rcOverview?.activeSubscriptions ?? 0;
+    // Paso 7 — Conversiones del trial (app_store_subscription_convert = iOS trial→paid)
+    // Se usa uniqueUsers para contar personas, no eventos (incluyendo renovaciones)
+    final subConvE = _findEvent(events, ['app_store_subscription_convert']);
+    final rcSubs = rcOverview?.activeSubscriptions ?? 0;
+    // Preferir RC active subscriptions como denominador real; converter events como alternativa
+    final subscriptions = rcSubs > 0 ? rcSubs : (subConvE?.uniqueUsers ?? 0);
 
-    // % conversión del free trial
-    final trialConvPct = trial > 0 && subscriptions > 0
+    // % conversión del free trial — capped at 100% to prevent nonsensical values
+    final trialConvPct = trial > 0 && subscriptions > 0 && subscriptions <= trial
         ? (subscriptions / trial * 100).toStringAsFixed(0)
         : null;
 
@@ -265,9 +265,11 @@ class _FunnelContent extends StatelessWidget {
               ),
               const SizedBox(width: 16),
               Text(
-                subscriptions > 0 && trial > 0
-                    ? '$subscriptions suscriptores\nde $trial trials iniciados'
-                    : 'suscriptores que vinieron\ndel free trial',
+                rcSubs > 0 && trial > 0
+                    ? '$rcSubs suscriptores activos\nvs $trial trials iniciados'
+                    : (subscriptions > 0 && trial > 0
+                        ? '$subscriptions conversiones\nde $trial trials iniciados'
+                        : 'suscriptores activos\nvs trials iniciados'),
                 style: const TextStyle(fontSize: 13, height: 1.6, color: AppColors.ink2),
                 textAlign: TextAlign.right,
               ),
